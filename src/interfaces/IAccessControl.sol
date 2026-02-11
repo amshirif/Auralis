@@ -12,7 +12,6 @@ interface IAccessControl is IERC165 {
     event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
     /// @notice Emitted when a role is revoked.
     event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
-
     /// @notice Thrown when an account is missing a required role.
     error AccessControlUnauthorized(address account, bytes32 role);
     /// @notice Thrown when renouncing a role for another account.
@@ -21,6 +20,8 @@ interface IAccessControl is IERC165 {
     error AccessControlZeroAdmin();
     /// @notice Thrown when initializing more than once.
     error AccessControlAlreadyInitialized();
+    /// @notice Thrown when a zero address account is provided.
+    error AccessControlZeroAddressAccount();
 
     /// @notice Default admin for all roles unless overridden.
     /// @return The default admin role identifier.

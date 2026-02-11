@@ -14,8 +14,11 @@ facets without a full rewrite.
 
 ## Structure
 - `src/access`: access control and upgrade-safety primitives.
-- `src/interfaces`: local interfaces (ERC-165, RBAC, etc.).
-- `test`: Foundry tests and coverage.
+- `src/access/storage`: module-local storage libraries (diamond-ready slots).
+- `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, etc.).
+- `src/libraries`: shared cross-module libraries.
+- `test`: split by concern (`*Core.t.sol`, `*Time.t.sol`, `*Integration.t.sol`).
+- `test/helpers`: shared test fixtures and harnesses.
 - `docs`: usage notes and design decisions.
 
 ## Commands
@@ -25,6 +28,9 @@ forge test
 forge coverage
 forge fmt
 ```
+
+## Testing
+- Convention guide: `docs/testing-conventions.md`
 
 ## Tooling
 - Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
