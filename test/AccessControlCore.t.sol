@@ -1,56 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {AccessControl} from "../src/access/AccessControl.sol";
+import {AccessControlHarness, AccessControlFixture} from "./helpers/AccessControlTestHarness.sol";
 import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
+import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
 
-// Minimal cheatcode interface to avoid pulling forge-std.
-interface Vm {
-    function prank(address) external;
-    function startPrank(address) external;
-    function stopPrank() external;
-    function expectRevert(bytes calldata) external;
-}
-
-// Lightweight assertions and cheatcode access.
-contract TestBase {
-    Vm internal constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-
-    function assertTrue(bool condition, string memory message) internal pure {
-        require(condition, message);
-    }
-}
-
-// Harness exposes internal admin setter for testing.
-contract AccessControlHarness is AccessControl {
-    constructor(address initialAdmin) AccessControl(initialAdmin) {}
-
-    function setRoleAdmin(bytes32 role, bytes32 adminRole) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setRoleAdmin(role, adminRole);
-    }
-
-    function initialize(address initialAdmin) external {
-        _initializeAccessControl(initialAdmin);
-    }
-}
-
-contract AccessControlTest is TestBase {
-    // Sample roles for testing.
-    bytes32 private constant WRITER_ROLE = keccak256("WRITER_ROLE");
-    bytes32 private constant SPECIAL_ADMIN_ROLE = keccak256("SPECIAL_ADMIN_ROLE");
-
-    // Test actors.
-    address private admin = address(0xA11CE);
-    address private bob = address(0xB0B);
-
-    AccessControlHarness private ac;
-
-    // Deploy fresh instance per test run.
-    function setUp() public {
-        ac = new AccessControlHarness(admin);
-    }
-
+contract AccessControlCoreTest is AccessControlFixture {
     function testDefaultAdminRoleAssigned() public view {
         assertTrue(ac.hasRole(ac.DEFAULT_ADMIN_ROLE(), admin), "admin missing default role");
     }
@@ -74,6 +30,7 @@ contract AccessControlTest is TestBase {
     function testSupportsInterface() public view {
         assertTrue(ac.supportsInterface(type(IERC165).interfaceId), "erc165 not supported");
         assertTrue(ac.supportsInterface(type(IAccessControl).interfaceId), "access control not supported");
+        assertTrue(ac.supportsInterface(type(IAccessControlTime).interfaceId), "access control time not supported");
         assertTrue(!ac.supportsInterface(0xffffffff), "unexpected interface supported");
     }
 
@@ -186,13 +143,13 @@ contract AccessControlTest is TestBase {
         assertTrue(!ac.hasRole(WRITER_ROLE, bob), "role should be revoked");
     }
 
-    function _roleHasMember(bytes32 role, address member) internal view returns (bool) {
-        uint256 count = ac.getRoleMemberCount(role);
-        for (uint256 i = 0; i < count; i++) {
-            if (ac.getRoleMember(role, i) == member) {
-                return true;
-            }
-        }
-        return false;
+    function testZeroAddressRoleMutationGuards() public {
+        VM.prank(admin);
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlZeroAddressAccount.selector));
+        ac.grantRole(WRITER_ROLE, address(0));
+
+        VM.prank(admin);
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlZeroAddressAccount.selector));
+        ac.revokeRole(WRITER_ROLE, address(0));
     }
 }
