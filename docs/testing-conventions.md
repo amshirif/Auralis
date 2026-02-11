@@ -30,10 +30,13 @@ Use a split test layout so modules stay readable as complexity grows.
 - Move shared setup to `test/helpers` to avoid duplication.
 - Add explicit boundary tests for any timestamp logic.
 - Keep revert expectation tests close to the feature they validate.
+- Add explicit event assertion tests for every emitted event.
 - Prefer deterministic timestamps (`vm.warp`) for time-based tests.
 
 ## Current Reference
 
 - Core example: `test/AccessControlCore.t.sol`
+- Core example: `test/PausableCore.t.sol`
 - Time example: `test/AccessControlTime.t.sol`
 - Helper example: `test/helpers/AccessControlTestHarness.sol`
+- Helper example: `test/helpers/PausableTestHarness.sol`

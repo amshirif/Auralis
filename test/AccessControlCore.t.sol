@@ -7,6 +7,10 @@ import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
 
 contract AccessControlCoreTest is AccessControlFixture {
+    event RoleAdminChanged(bytes32 indexed role, bytes32 indexed previousAdminRole, bytes32 indexed newAdminRole);
+    event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
+    event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
+
     function testDefaultAdminRoleAssigned() public view {
         assertTrue(ac.hasRole(ac.DEFAULT_ADMIN_ROLE(), admin), "admin missing default role");
     }
@@ -53,6 +57,36 @@ contract AccessControlCoreTest is AccessControlFixture {
         assertTrue(!ac.hasRole(WRITER_ROLE, bob), "revoke failed");
     }
 
+    function testGrantRoleEmitsEvent() public {
+        VM.expectEmit(true, true, true, false, address(ac));
+        emit RoleGranted(WRITER_ROLE, bob, admin);
+
+        VM.prank(admin);
+        ac.grantRole(WRITER_ROLE, bob);
+    }
+
+    function testRevokeRoleEmitsEvent() public {
+        VM.prank(admin);
+        ac.grantRole(WRITER_ROLE, bob);
+
+        VM.expectEmit(true, true, true, false, address(ac));
+        emit RoleRevoked(WRITER_ROLE, bob, admin);
+
+        VM.prank(admin);
+        ac.revokeRole(WRITER_ROLE, bob);
+    }
+
+    function testRenounceRoleEmitsEvent() public {
+        VM.prank(admin);
+        ac.grantRole(WRITER_ROLE, bob);
+
+        VM.expectEmit(true, true, true, false, address(ac));
+        emit RoleRevoked(WRITER_ROLE, bob, bob);
+
+        VM.prank(bob);
+        ac.renounceRole(WRITER_ROLE, bob);
+    }
+
     function testRenounceRoleSelfOnly() public {
         VM.prank(admin);
         ac.grantRole(WRITER_ROLE, bob);
@@ -84,6 +118,16 @@ contract AccessControlCoreTest is AccessControlFixture {
         VM.prank(admin);
         ac.grantRole(WRITER_ROLE, bob);
         assertTrue(ac.hasRole(WRITER_ROLE, bob), "grant after admin change failed");
+    }
+
+    function testRoleAdminChangeEmitsEvent() public {
+        bytes32 previousAdminRole = ac.getRoleAdmin(WRITER_ROLE);
+
+        VM.expectEmit(true, true, true, false, address(ac));
+        emit RoleAdminChanged(WRITER_ROLE, previousAdminRole, SPECIAL_ADMIN_ROLE);
+
+        VM.prank(admin);
+        ac.setRoleAdmin(WRITER_ROLE, SPECIAL_ADMIN_ROLE);
     }
 
     function testRoleEnumeration() public {

@@ -6,6 +6,11 @@ import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
 
 contract AccessControlTimeTest is AccessControlFixture {
+    event RoleWindowSet(
+        bytes32 indexed role, address indexed account, uint64 start, uint64 end, address indexed sender
+    );
+    event RoleWindowCleared(bytes32 indexed role, address indexed account, address indexed sender);
+
     function testNonAdminCannotSetRoleWindow() public {
         VM.startPrank(bob);
         VM.expectRevert(
@@ -66,6 +71,38 @@ contract AccessControlTimeTest is AccessControlFixture {
         VM.prank(admin);
         VM.expectRevert(abi.encodeWithSelector(IAccessControlTime.AccessControlInvalidRoleWindow.selector, 100, 100));
         ac.setRoleWindow(WRITER_ROLE, bob, 100, 100);
+    }
+
+    function testSetRoleWindowEmitsEvent() public {
+        VM.expectEmit(true, true, true, true, address(ac));
+        emit RoleWindowSet(WRITER_ROLE, bob, 100, 200, admin);
+
+        VM.prank(admin);
+        ac.setRoleWindow(WRITER_ROLE, bob, 100, 200);
+    }
+
+    function testClearRoleWindowEmitsEvent() public {
+        VM.prank(admin);
+        ac.setRoleWindow(WRITER_ROLE, bob, 100, 200);
+
+        VM.expectEmit(true, true, true, false, address(ac));
+        emit RoleWindowCleared(WRITER_ROLE, bob, admin);
+
+        VM.prank(admin);
+        ac.clearRoleWindow(WRITER_ROLE, bob);
+    }
+
+    function testRevokeRoleEmitsRoleWindowClearedEvent() public {
+        VM.prank(admin);
+        ac.grantRole(WRITER_ROLE, bob);
+        VM.prank(admin);
+        ac.setRoleWindow(WRITER_ROLE, bob, 100, 200);
+
+        VM.expectEmit(true, true, true, false, address(ac));
+        emit RoleWindowCleared(WRITER_ROLE, bob, admin);
+
+        VM.prank(admin);
+        ac.revokeRole(WRITER_ROLE, bob);
     }
 
     function testZeroAddressWindowGuards() public {
