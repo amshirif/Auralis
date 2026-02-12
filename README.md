@@ -42,6 +42,7 @@ forge fmt
 - Pausability: `docs/pausable.md`
 - Reentrancy guard: `docs/reentrancy-guard.md`
 - Upgrade guardrails: `docs/upgrade-guardrails.md`
+- Threat model: `docs/threat-model.md`
 
 ## Tooling
 - Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)

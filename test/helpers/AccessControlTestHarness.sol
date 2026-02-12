@@ -7,6 +7,7 @@ interface Vm {
     function prank(address) external;
     function startPrank(address) external;
     function stopPrank() external;
+    function assume(bool) external;
     function expectRevert(bytes calldata) external;
     function expectEmit(bool, bool, bool, bool) external;
     function expectEmit(bool, bool, bool, bool, address) external;
