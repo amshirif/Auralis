@@ -37,6 +37,8 @@ Use a split test layout so modules stay readable as complexity grows.
 
 - Core example: `test/AccessControlCore.t.sol`
 - Core example: `test/PausableCore.t.sol`
+- Core example: `test/ReentrancyGuardCore.t.sol`
 - Time example: `test/AccessControlTime.t.sol`
 - Helper example: `test/helpers/AccessControlTestHarness.sol`
 - Helper example: `test/helpers/PausableTestHarness.sol`
+- Helper example: `test/helpers/ReentrancyGuardTestHarness.sol`
