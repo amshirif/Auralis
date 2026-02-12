@@ -420,3 +420,6 @@ FodyWeavers.xsd
 # Foundry
 cache/
 broadcast/
+
+# Local portfolio tracking
+PORTFOLIO_PROJECTS.md
