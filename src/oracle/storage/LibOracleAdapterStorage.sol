@@ -15,6 +15,12 @@ library LibOracleAdapterStorage {
         int256 minAnswer;
         int256 maxAnswer;
         bool boundsEnabled;
+        bool breakerActive;
+        uint8 fallbackMode;
+        bool hasFallbackQuote;
+        int256 fallbackValue;
+        uint64 fallbackUpdatedAt;
+        uint8 fallbackDecimals;
     }
 
     /// @notice Returns the storage layout for oracle adapter state.
