@@ -9,12 +9,18 @@ import {LibOracleAdapterStorage} from "./storage/LibOracleAdapterStorage.sol";
 
 /// @title OracleAdapter
 /// @notice Base oracle adapter with normalized quote reads and upgrade-safe storage.
-/// @dev Uses DEFAULT_ADMIN_ROLE for baseline configuration controls.
+/// @dev Uses dedicated oracle roles for least-privilege controls.
 abstract contract OracleAdapter is AccessControl, IOracleAdapter {
+    /// @notice Role allowed to manage oracle configuration and fallback policy.
+    bytes32 public constant ORACLE_ADMIN_ROLE = keccak256("ORACLE_ADMIN_ROLE");
+    /// @notice Role allowed to trip the oracle circuit breaker.
+    bytes32 public constant ORACLE_GUARDIAN_ROLE = keccak256("ORACLE_GUARDIAN_ROLE");
+
     /// @param initialAdmin The account to receive DEFAULT_ADMIN_ROLE.
     /// @param initialSource The initial oracle feed source.
     /// @param initialMaxStaleness The initial max staleness threshold.
     constructor(address initialAdmin, address initialSource, uint64 initialMaxStaleness) AccessControl(initialAdmin) {
+        _initializeOracleRoles(initialAdmin, initialAdmin);
         _initializeOracleAdapter(initialSource, initialMaxStaleness);
     }
 
@@ -82,34 +88,34 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     }
 
     /// @notice Updates the oracle source.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newSource The new oracle source contract.
-    function setOracleSource(address newSource) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setOracleSource(address newSource) public onlyRole(ORACLE_ADMIN_ROLE) {
         _setOracleSource(newSource);
     }
 
     /// @notice Updates the max staleness window.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newMaxStaleness New staleness threshold in seconds.
-    function setMaxStaleness(uint64 newMaxStaleness) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMaxStaleness(uint64 newMaxStaleness) public onlyRole(ORACLE_ADMIN_ROLE) {
         _setMaxStaleness(newMaxStaleness);
     }
 
     /// @notice Updates answer bounds validation policy.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newMinAnswer The inclusive minimum answer.
     /// @param newMaxAnswer The inclusive maximum answer.
     /// @param newBoundsEnabled True to enforce bounds during reads.
     function setValidationBounds(int256 newMinAnswer, int256 newMaxAnswer, bool newBoundsEnabled)
         public
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyRole(ORACLE_ADMIN_ROLE)
     {
         _setValidationBounds(newMinAnswer, newMaxAnswer, newBoundsEnabled);
     }
 
     /// @notice Trips the oracle circuit breaker.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
-    function tripCircuitBreaker() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Caller must have ORACLE_GUARDIAN_ROLE.
+    function tripCircuitBreaker() public onlyRole(ORACLE_GUARDIAN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         if (layout.breakerActive) {
             revert OracleAdapterBreakerAlreadyActive();
@@ -119,8 +125,8 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     }
 
     /// @notice Resets the oracle circuit breaker.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
-    function resetCircuitBreaker() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
+    function resetCircuitBreaker() public onlyRole(ORACLE_ADMIN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         if (!layout.breakerActive) {
             revert OracleAdapterBreakerAlreadyInactive();
@@ -130,9 +136,9 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     }
 
     /// @notice Updates fallback behavior used under unhealthy oracle conditions.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newMode The new fallback mode.
-    function setFallbackMode(FallbackMode newMode) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFallbackMode(FallbackMode newMode) public onlyRole(ORACLE_ADMIN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         FallbackMode previousMode = FallbackMode(layout.fallbackMode);
         layout.fallbackMode = uint8(newMode);
@@ -140,17 +146,17 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     }
 
     /// @notice Sets fallback quote returned in `UseConfiguredQuote` mode.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param value Fallback quote value.
     /// @param updatedAt Fallback quote timestamp.
     /// @param decimals Fallback quote decimals.
-    function setFallbackQuote(int256 value, uint64 updatedAt, uint8 decimals) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFallbackQuote(int256 value, uint64 updatedAt, uint8 decimals) public onlyRole(ORACLE_ADMIN_ROLE) {
         _setFallbackQuote(value, updatedAt, decimals);
     }
 
     /// @notice Clears configured fallback quote.
-    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
-    function clearFallbackQuote() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Caller must have ORACLE_ADMIN_ROLE.
+    function clearFallbackQuote() public onlyRole(ORACLE_ADMIN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         layout.hasFallbackQuote = false;
         layout.fallbackValue = 0;
@@ -182,6 +188,16 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
         layout.fallbackMode = uint8(FallbackMode.StrictRevert);
         _setOracleSource(initialSource);
         _setMaxStaleness(initialMaxStaleness);
+    }
+
+    /// @dev Initializes oracle role hierarchy and initial role assignments.
+    /// @param initialOracleAdmin Account to receive ORACLE_ADMIN_ROLE.
+    /// @param initialOracleGuardian Account to receive ORACLE_GUARDIAN_ROLE.
+    function _initializeOracleRoles(address initialOracleAdmin, address initialOracleGuardian) internal {
+        _setRoleAdmin(ORACLE_ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(ORACLE_GUARDIAN_ROLE, ORACLE_ADMIN_ROLE);
+        _grantRole(ORACLE_ADMIN_ROLE, initialOracleAdmin);
+        _grantRole(ORACLE_GUARDIAN_ROLE, initialOracleGuardian);
     }
 
     /// @dev Sets oracle source after validation.

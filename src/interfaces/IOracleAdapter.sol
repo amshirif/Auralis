@@ -79,6 +79,14 @@ interface IOracleAdapter is IERC165 {
     /// @return The oracle source contract.
     function oracleSource() external view returns (address);
 
+    /// @notice Role that can manage oracle configuration.
+    /// @return The oracle admin role identifier.
+    function ORACLE_ADMIN_ROLE() external view returns (bytes32);
+
+    /// @notice Role that can trigger emergency breaker operations.
+    /// @return The oracle guardian role identifier.
+    function ORACLE_GUARDIAN_ROLE() external view returns (bytes32);
+
     /// @notice Returns the configured max accepted staleness in seconds.
     /// @return The max staleness window.
     function maxStaleness() external view returns (uint64);
