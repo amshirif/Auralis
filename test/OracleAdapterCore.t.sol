@@ -19,6 +19,13 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
         bool newBoundsEnabled,
         address indexed sender
     );
+    event OracleCircuitBreakerTripped(address indexed sender);
+    event OracleCircuitBreakerReset(address indexed sender);
+    event OracleFallbackModeUpdated(
+        IOracleAdapter.FallbackMode previousMode, IOracleAdapter.FallbackMode newMode, address indexed sender
+    );
+    event OracleFallbackQuoteUpdated(int256 value, uint64 updatedAt, uint8 decimals, address indexed sender);
+    event OracleFallbackQuoteCleared(address indexed sender);
 
     function testInitialConfig() public view {
         assertTrue(adapter.oracleSource() == address(feedA), "initial source should match constructor");
@@ -27,6 +34,12 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
         assertTrue(minAnswer == type(int256).min, "initial min should be int256 min");
         assertTrue(maxAnswer == type(int256).max, "initial max should be int256 max");
         assertFalse(boundsEnabled, "bounds should start disabled");
+        assertFalse(adapter.circuitBreakerActive(), "breaker should start inactive");
+        assertTrue(
+            adapter.fallbackMode() == IOracleAdapter.FallbackMode.StrictRevert, "fallback mode should start strict"
+        );
+        (, bool configured) = adapter.fallbackQuote();
+        assertFalse(configured, "fallback quote should start unset");
     }
 
     function testSupportsInterface() public view {
@@ -126,6 +139,147 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
         VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterInvalidValidationBounds.selector, 2, 1));
         VM.prank(admin);
         adapter.setValidationBounds(2, 1, true);
+    }
+
+    function testAdminCanTripAndResetCircuitBreaker() public {
+        VM.prank(admin);
+        adapter.tripCircuitBreaker();
+        assertTrue(adapter.circuitBreakerActive(), "breaker should be active");
+
+        VM.prank(admin);
+        adapter.resetCircuitBreaker();
+        assertFalse(adapter.circuitBreakerActive(), "breaker should be inactive");
+    }
+
+    function testTripAndResetCircuitBreakerEmitEvents() public {
+        VM.expectEmit(true, true, true, true, address(adapter));
+        emit OracleCircuitBreakerTripped(admin);
+
+        VM.prank(admin);
+        adapter.tripCircuitBreaker();
+
+        VM.expectEmit(true, true, true, true, address(adapter));
+        emit OracleCircuitBreakerReset(admin);
+
+        VM.prank(admin);
+        adapter.resetCircuitBreaker();
+    }
+
+    function testTripCircuitBreakerRevertsWhenAlreadyActive() public {
+        VM.prank(admin);
+        adapter.tripCircuitBreaker();
+
+        VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterBreakerAlreadyActive.selector));
+        VM.prank(admin);
+        adapter.tripCircuitBreaker();
+    }
+
+    function testResetCircuitBreakerRevertsWhenAlreadyInactive() public {
+        VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterBreakerAlreadyInactive.selector));
+        VM.prank(admin);
+        adapter.resetCircuitBreaker();
+    }
+
+    function testNonAdminCannotManageCircuitBreaker() public {
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+        );
+        VM.prank(bob);
+        adapter.tripCircuitBreaker();
+
+        VM.prank(admin);
+        adapter.tripCircuitBreaker();
+
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+        );
+        VM.prank(bob);
+        adapter.resetCircuitBreaker();
+    }
+
+    function testAdminCanSetFallbackMode() public {
+        VM.prank(admin);
+        adapter.setFallbackMode(IOracleAdapter.FallbackMode.UseConfiguredQuote);
+        assertTrue(
+            adapter.fallbackMode() == IOracleAdapter.FallbackMode.UseConfiguredQuote, "fallback mode should update"
+        );
+    }
+
+    function testSetFallbackModeEmitsEvent() public {
+        VM.expectEmit(true, true, true, true, address(adapter));
+        emit OracleFallbackModeUpdated(
+            IOracleAdapter.FallbackMode.StrictRevert, IOracleAdapter.FallbackMode.UseConfiguredQuote, admin
+        );
+
+        VM.prank(admin);
+        adapter.setFallbackMode(IOracleAdapter.FallbackMode.UseConfiguredQuote);
+    }
+
+    function testNonAdminCannotSetFallbackMode() public {
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+        );
+        VM.prank(bob);
+        adapter.setFallbackMode(IOracleAdapter.FallbackMode.UseConfiguredQuote);
+    }
+
+    function testAdminCanSetAndClearFallbackQuote() public {
+        VM.prank(admin);
+        adapter.setFallbackQuote(42, 999_000, 8);
+
+        (IOracleAdapter.OracleQuote memory configuredQuote, bool configured) = adapter.fallbackQuote();
+        assertTrue(configured, "fallback should be configured");
+        assertTrue(configuredQuote.value == 42, "fallback value should match");
+        assertTrue(configuredQuote.updatedAt == 999_000, "fallback updatedAt should match");
+        assertTrue(configuredQuote.decimals == 8, "fallback decimals should match");
+
+        VM.prank(admin);
+        adapter.clearFallbackQuote();
+
+        (, configured) = adapter.fallbackQuote();
+        assertFalse(configured, "fallback should be cleared");
+    }
+
+    function testSetFallbackQuoteEmitsEvent() public {
+        VM.expectEmit(true, true, true, true, address(adapter));
+        emit OracleFallbackQuoteUpdated(42, 999_000, 8, admin);
+
+        VM.prank(admin);
+        adapter.setFallbackQuote(42, 999_000, 8);
+    }
+
+    function testClearFallbackQuoteEmitsEvent() public {
+        VM.prank(admin);
+        adapter.setFallbackQuote(42, 999_000, 8);
+
+        VM.expectEmit(true, true, true, true, address(adapter));
+        emit OracleFallbackQuoteCleared(admin);
+
+        VM.prank(admin);
+        adapter.clearFallbackQuote();
+    }
+
+    function testSetFallbackQuoteRejectsZeroUpdatedAt() public {
+        VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterInvalidFallbackQuote.selector, 0));
+        VM.prank(admin);
+        adapter.setFallbackQuote(1, 0, 8);
+    }
+
+    function testNonAdminCannotSetOrClearFallbackQuote() public {
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+        );
+        VM.prank(bob);
+        adapter.setFallbackQuote(42, 999_000, 8);
+
+        VM.prank(admin);
+        adapter.setFallbackQuote(42, 999_000, 8);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+        );
+        VM.prank(bob);
+        adapter.clearFallbackQuote();
     }
 
     function testQuoteReturnsNormalizedPayload() public view {

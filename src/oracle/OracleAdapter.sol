@@ -39,16 +39,46 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
         return (layout.minAnswer, layout.maxAnswer, layout.boundsEnabled);
     }
 
+    /// @notice Returns true when circuit breaker is active.
+    /// @return True if breaker is active.
+    function circuitBreakerActive() public view returns (bool) {
+        return LibOracleAdapterStorage.layout().breakerActive;
+    }
+
+    /// @notice Returns fallback mode used for unhealthy oracle reads.
+    /// @return The configured fallback mode.
+    function fallbackMode() public view returns (FallbackMode) {
+        return FallbackMode(LibOracleAdapterStorage.layout().fallbackMode);
+    }
+
+    /// @notice Returns configured fallback quote and whether it exists.
+    /// @return fallbackQuotePayload The configured fallback quote.
+    /// @return configured True if a fallback quote is configured.
+    function fallbackQuote() public view returns (OracleQuote memory fallbackQuotePayload, bool configured) {
+        LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
+        fallbackQuotePayload = OracleQuote({
+            value: layout.fallbackValue, updatedAt: layout.fallbackUpdatedAt, decimals: layout.fallbackDecimals
+        });
+        configured = layout.hasFallbackQuote;
+    }
+
     /// @notice Returns the latest normalized quote from the configured source.
+    /// @dev Applies breaker and fallback policy for unhealthy conditions.
     /// @return quotePayload The latest normalized quote payload.
     function quote() public view returns (OracleQuote memory quotePayload) {
-        address source = oracleSource();
-        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
-            IOracleFeed(source).latestRoundData();
-        uint64 normalizedUpdatedAt = _validateRoundData(roundId, answer, updatedAt, answeredInRound);
+        if (circuitBreakerActive()) {
+            return _resolveFallbackOrRevert(true);
+        }
 
-        quotePayload =
-            OracleQuote({value: answer, updatedAt: normalizedUpdatedAt, decimals: IOracleFeed(source).decimals()});
+        if (fallbackMode() == FallbackMode.StrictRevert) {
+            return _readLiveQuoteStrict();
+        }
+
+        (bool liveReadSuccess, OracleQuote memory liveQuote) = _tryReadLiveQuote();
+        if (liveReadSuccess) {
+            return liveQuote;
+        }
+        return _resolveFallbackOrRevert(false);
     }
 
     /// @notice Updates the oracle source.
@@ -77,6 +107,58 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
         _setValidationBounds(newMinAnswer, newMaxAnswer, newBoundsEnabled);
     }
 
+    /// @notice Trips the oracle circuit breaker.
+    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    function tripCircuitBreaker() public onlyRole(DEFAULT_ADMIN_ROLE) {
+        LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
+        if (layout.breakerActive) {
+            revert OracleAdapterBreakerAlreadyActive();
+        }
+        layout.breakerActive = true;
+        emit OracleCircuitBreakerTripped(msg.sender);
+    }
+
+    /// @notice Resets the oracle circuit breaker.
+    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    function resetCircuitBreaker() public onlyRole(DEFAULT_ADMIN_ROLE) {
+        LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
+        if (!layout.breakerActive) {
+            revert OracleAdapterBreakerAlreadyInactive();
+        }
+        layout.breakerActive = false;
+        emit OracleCircuitBreakerReset(msg.sender);
+    }
+
+    /// @notice Updates fallback behavior used under unhealthy oracle conditions.
+    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @param newMode The new fallback mode.
+    function setFallbackMode(FallbackMode newMode) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
+        FallbackMode previousMode = FallbackMode(layout.fallbackMode);
+        layout.fallbackMode = uint8(newMode);
+        emit OracleFallbackModeUpdated(previousMode, newMode, msg.sender);
+    }
+
+    /// @notice Sets fallback quote returned in `UseConfiguredQuote` mode.
+    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    /// @param value Fallback quote value.
+    /// @param updatedAt Fallback quote timestamp.
+    /// @param decimals Fallback quote decimals.
+    function setFallbackQuote(int256 value, uint64 updatedAt, uint8 decimals) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setFallbackQuote(value, updatedAt, decimals);
+    }
+
+    /// @notice Clears configured fallback quote.
+    /// @dev Caller must have DEFAULT_ADMIN_ROLE.
+    function clearFallbackQuote() public onlyRole(DEFAULT_ADMIN_ROLE) {
+        LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
+        layout.hasFallbackQuote = false;
+        layout.fallbackValue = 0;
+        layout.fallbackUpdatedAt = 0;
+        layout.fallbackDecimals = 0;
+        emit OracleFallbackQuoteCleared(msg.sender);
+    }
+
     /// @notice Returns true if this contract implements `interfaceId`.
     /// @param interfaceId The interface identifier.
     /// @return True if the interface is supported.
@@ -97,6 +179,7 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
         layout.minAnswer = type(int256).min;
         layout.maxAnswer = type(int256).max;
         layout.boundsEnabled = false;
+        layout.fallbackMode = uint8(FallbackMode.StrictRevert);
         _setOracleSource(initialSource);
         _setMaxStaleness(initialMaxStaleness);
     }
@@ -152,6 +235,125 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
         );
     }
 
+    /// @dev Sets fallback quote configuration.
+    /// @param value Fallback quote value.
+    /// @param updatedAt Fallback quote timestamp.
+    /// @param decimals Fallback quote decimals.
+    function _setFallbackQuote(int256 value, uint64 updatedAt, uint8 decimals) internal {
+        if (updatedAt == 0) {
+            revert OracleAdapterInvalidFallbackQuote(updatedAt);
+        }
+
+        LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
+        layout.hasFallbackQuote = true;
+        layout.fallbackValue = value;
+        layout.fallbackUpdatedAt = updatedAt;
+        layout.fallbackDecimals = decimals;
+        emit OracleFallbackQuoteUpdated(value, updatedAt, decimals, msg.sender);
+    }
+
+    /// @dev Reads live oracle data using strict validation semantics.
+    /// @dev Reverts with validation errors or {OracleAdapterLiveReadFailed} on source call failures.
+    /// @return quotePayload The validated live quote payload.
+    function _readLiveQuoteStrict() internal view returns (OracleQuote memory quotePayload) {
+        address source = oracleSource();
+        uint80 roundId;
+        int256 answer;
+        uint256 updatedAt;
+        uint80 answeredInRound;
+
+        try IOracleFeed(source).latestRoundData() returns (
+            uint80 returnedRoundId,
+            int256 returnedAnswer,
+            uint256,
+            uint256 returnedUpdatedAt,
+            uint80 returnedAnsweredInRound
+        ) {
+            roundId = returnedRoundId;
+            answer = returnedAnswer;
+            updatedAt = returnedUpdatedAt;
+            answeredInRound = returnedAnsweredInRound;
+        } catch {
+            revert OracleAdapterLiveReadFailed();
+        }
+
+        uint64 normalizedUpdatedAt = _validateRoundData(roundId, answer, updatedAt, answeredInRound);
+        uint8 decimals;
+        try IOracleFeed(source).decimals() returns (uint8 returnedDecimals) {
+            decimals = returnedDecimals;
+        } catch {
+            revert OracleAdapterLiveReadFailed();
+        }
+
+        quotePayload = OracleQuote({value: answer, updatedAt: normalizedUpdatedAt, decimals: decimals});
+    }
+
+    /// @dev Attempts to read and validate live oracle data without reverting.
+    /// @return success True when read/validation succeeds.
+    /// @return quotePayload Normalized quote payload.
+    function _tryReadLiveQuote() internal view returns (bool success, OracleQuote memory quotePayload) {
+        address source = oracleSource();
+        (bool roundDataCallSuccess, bytes memory roundDataRaw) =
+            source.staticcall(abi.encodeWithSelector(IOracleFeed.latestRoundData.selector));
+        if (!roundDataCallSuccess || roundDataRaw.length != 160) {
+            return (false, quotePayload);
+        }
+
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            abi.decode(roundDataRaw, (uint80, int256, uint256, uint256, uint80));
+        if (!_isRoundDataValid(roundId, answer, updatedAt, answeredInRound)) {
+            return (false, quotePayload);
+        }
+
+        (bool decimalsCallSuccess, bytes memory decimalsRaw) =
+            source.staticcall(abi.encodeWithSelector(IOracleFeed.decimals.selector));
+        if (!decimalsCallSuccess || decimalsRaw.length != 32) {
+            return (false, quotePayload);
+        }
+        uint8 decimals = abi.decode(decimalsRaw, (uint8));
+
+        // casting to `uint64` is safe because `_isRoundDataValid` enforces bounds.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        quotePayload = OracleQuote({value: answer, updatedAt: uint64(updatedAt), decimals: decimals});
+        return (true, quotePayload);
+    }
+
+    /// @dev Checks whether returned round data passes baseline validity rules.
+    /// @param roundId The source round ID.
+    /// @param answer The source answer.
+    /// @param updatedAt The round update timestamp.
+    /// @param answeredInRound The round in which the answer was computed.
+    /// @return True when data is valid for fallback mode reads.
+    function _isRoundDataValid(uint80 roundId, int256 answer, uint256 updatedAt, uint80 answeredInRound)
+        internal
+        view
+        returns (bool)
+    {
+        if (updatedAt == 0 || updatedAt > type(uint64).max) {
+            return false;
+        }
+
+        uint256 currentTimestamp = block.timestamp;
+        if (updatedAt > currentTimestamp) {
+            return false;
+        }
+
+        uint256 allowedStaleness = maxStaleness();
+        if (allowedStaleness != 0 && currentTimestamp - updatedAt > allowedStaleness) {
+            return false;
+        }
+
+        if (answeredInRound < roundId) {
+            return false;
+        }
+
+        if (!_isAnswerWithinBounds(answer)) {
+            return false;
+        }
+
+        return true;
+    }
+
     /// @dev Validates round data freshness, consistency, and optional bounds.
     /// @param roundId The returned round identifier.
     /// @param answer The returned answer value.
@@ -190,12 +392,38 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
         _validateAnswerBounds(answer);
     }
 
+    /// @dev Returns true when `answer` is inside configured bounds.
+    /// @param answer The oracle answer to validate.
+    /// @return True when answer is in range or bounds are disabled.
+    function _isAnswerWithinBounds(int256 answer) internal view returns (bool) {
+        (int256 minAnswer, int256 maxAnswer, bool boundsEnabled) = validationBounds();
+        return !boundsEnabled || (answer >= minAnswer && answer <= maxAnswer);
+    }
+
     /// @dev Reverts when `answer` is outside configured bounds while bounds are enabled.
     /// @param answer The oracle answer to validate.
     function _validateAnswerBounds(int256 answer) internal view {
-        (int256 minAnswer, int256 maxAnswer, bool boundsEnabled) = validationBounds();
-        if (boundsEnabled && (answer < minAnswer || answer > maxAnswer)) {
+        if (!_isAnswerWithinBounds(answer)) {
+            (int256 minAnswer, int256 maxAnswer,) = validationBounds();
             revert OracleAdapterAnswerOutOfBounds(answer, minAnswer, maxAnswer);
         }
+    }
+
+    /// @dev Resolves fallback policy, reverting in strict mode.
+    /// @param breakerTriggered True when fallback resolution is due to active breaker.
+    /// @return quotePayload The fallback quote payload.
+    function _resolveFallbackOrRevert(bool breakerTriggered) internal view returns (OracleQuote memory quotePayload) {
+        if (fallbackMode() == FallbackMode.StrictRevert) {
+            if (breakerTriggered) {
+                revert OracleAdapterCircuitBreakerActive();
+            }
+            revert OracleAdapterLiveReadFailed();
+        }
+
+        (OracleQuote memory configuredFallback, bool configured) = fallbackQuote();
+        if (!configured) {
+            revert OracleAdapterFallbackUnavailable();
+        }
+        return configuredFallback;
     }
 }
