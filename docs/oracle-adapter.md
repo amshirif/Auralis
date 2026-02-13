@@ -31,6 +31,22 @@ milestone:
 - fallback quote management
 - initializer guard for upgrade-safe deployments
 
+Role-gated control surfaces:
+- `ORACLE_ADMIN_ROLE`
+  - `setOracleSource`
+  - `setMaxStaleness`
+  - `setValidationBounds`
+  - `setFallbackMode`
+  - `setFallbackQuote`
+  - `clearFallbackQuote`
+  - `resetCircuitBreaker`
+- `ORACLE_GUARDIAN_ROLE`
+  - `tripCircuitBreaker`
+
+Role hierarchy:
+- `DEFAULT_ADMIN_ROLE` administers `ORACLE_ADMIN_ROLE`
+- `ORACLE_ADMIN_ROLE` administers `ORACLE_GUARDIAN_ROLE`
+
 Read validation checks enforced in strict mode:
 - `updatedAt` must fit in `uint64` and be nonzero
 - `updatedAt` cannot be in the future
@@ -73,3 +89,10 @@ function initOracleAdapter(address source, uint64 maxStaleness) external {
   `setFallbackQuote(...)`.
 - Return to normal mode by fixing feed health and calling
   `resetCircuitBreaker()`.
+
+## Recommended Assignments
+
+- Assign `DEFAULT_ADMIN_ROLE` to governance or root multisig.
+- Assign `ORACLE_ADMIN_ROLE` to a smaller operator multisig that manages oracle policy.
+- Assign `ORACLE_GUARDIAN_ROLE` to incident responders or automation that can only trip breaker.
+- Keep `trip` and `reset` authority separated in production environments unless operational simplicity is preferred.

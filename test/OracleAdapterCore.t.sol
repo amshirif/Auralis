@@ -42,6 +42,34 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
         assertFalse(configured, "fallback quote should start unset");
     }
 
+    function testInitialOracleRoleAssignmentsAndHierarchy() public view {
+        assertTrue(adapter.hasRole(adapter.ORACLE_ADMIN_ROLE(), admin), "initial admin should have oracle admin role");
+        assertTrue(
+            adapter.hasRole(adapter.ORACLE_GUARDIAN_ROLE(), admin), "initial admin should have oracle guardian role"
+        );
+        assertTrue(
+            adapter.getRoleAdmin(adapter.ORACLE_ADMIN_ROLE()) == adapter.DEFAULT_ADMIN_ROLE(),
+            "oracle admin role should be governed by default admin role"
+        );
+        assertTrue(
+            adapter.getRoleAdmin(adapter.ORACLE_GUARDIAN_ROLE()) == adapter.ORACLE_ADMIN_ROLE(),
+            "oracle guardian role should be governed by oracle admin role"
+        );
+    }
+
+    function testOracleAdminCanGrantGuardianRole() public {
+        bytes32 oracleAdminRole = adapter.ORACLE_ADMIN_ROLE();
+        bytes32 oracleGuardianRole = adapter.ORACLE_GUARDIAN_ROLE();
+
+        VM.prank(admin);
+        adapter.grantRole(oracleAdminRole, bob);
+
+        VM.prank(bob);
+        adapter.grantRole(oracleGuardianRole, eve);
+
+        assertTrue(adapter.hasRole(oracleGuardianRole, eve), "oracle admin should grant guardian role");
+    }
+
     function testSupportsInterface() public view {
         assertTrue(adapter.supportsInterface(type(IERC165).interfaceId), "erc165 not supported");
         assertTrue(adapter.supportsInterface(type(IOracleAdapter).interfaceId), "oracle adapter not supported");
@@ -75,7 +103,7 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
     function testNonAdminCannotSetOracleSource() public {
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.setOracleSource(address(feedB));
@@ -103,7 +131,7 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
     function testNonAdminCannotSetMaxStaleness() public {
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.setMaxStaleness(2 hours);
@@ -129,7 +157,7 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
     function testNonAdminCannotSetValidationBounds() public {
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.setValidationBounds(1, 2_000_000_000, true);
@@ -182,19 +210,50 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
     function testNonAdminCannotManageCircuitBreaker() public {
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_GUARDIAN_ROLE()
+            )
         );
         VM.prank(bob);
-        adapter.tripCircuitBreaker();
-
-        VM.prank(admin);
         adapter.tripCircuitBreaker();
 
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.resetCircuitBreaker();
+    }
+
+    function testOracleGuardianCanTripButCannotReset() public {
+        bytes32 oracleAdminRole = adapter.ORACLE_ADMIN_ROLE();
+        bytes32 oracleGuardianRole = adapter.ORACLE_GUARDIAN_ROLE();
+
+        VM.prank(admin);
+        adapter.grantRole(oracleGuardianRole, bob);
+        VM.prank(admin);
+        adapter.revokeRole(oracleAdminRole, bob);
+
+        VM.prank(bob);
+        adapter.tripCircuitBreaker();
+        assertTrue(adapter.circuitBreakerActive(), "guardian should trip breaker");
+
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, oracleAdminRole));
+        VM.prank(bob);
+        adapter.resetCircuitBreaker();
+    }
+
+    function testOracleAdminCannotTripWithoutGuardianRole() public {
+        bytes32 oracleAdminRole = adapter.ORACLE_ADMIN_ROLE();
+        bytes32 oracleGuardianRole = adapter.ORACLE_GUARDIAN_ROLE();
+
+        VM.prank(admin);
+        adapter.grantRole(oracleAdminRole, bob);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, oracleGuardianRole)
+        );
+        VM.prank(bob);
+        adapter.tripCircuitBreaker();
     }
 
     function testAdminCanSetFallbackMode() public {
@@ -217,7 +276,7 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
     function testNonAdminCannotSetFallbackMode() public {
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.setFallbackMode(IOracleAdapter.FallbackMode.UseConfiguredQuote);
@@ -267,7 +326,7 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
     function testNonAdminCannotSetOrClearFallbackQuote() public {
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.setFallbackQuote(42, 999_000, 8);
@@ -276,7 +335,7 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
         adapter.setFallbackQuote(42, 999_000, 8);
 
         VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.ORACLE_ADMIN_ROLE())
         );
         VM.prank(bob);
         adapter.clearFallbackQuote();

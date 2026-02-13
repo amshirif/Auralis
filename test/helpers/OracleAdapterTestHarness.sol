@@ -109,6 +109,7 @@ contract OracleAdapterHarness is OracleAdapter {
 abstract contract OracleAdapterFixture is TestBase {
     address internal admin = address(0xA11CE);
     address internal bob = address(0xB0B);
+    address internal eve = address(0xE11E);
 
     uint64 internal maxStaleness = 1 hours;
     uint64 internal currentTime = 1_000_000;
