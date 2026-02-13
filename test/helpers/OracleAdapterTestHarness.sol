@@ -63,18 +63,22 @@ abstract contract OracleAdapterFixture is TestBase {
     address internal bob = address(0xB0B);
 
     uint64 internal maxStaleness = 1 hours;
+    uint64 internal currentTime = 1_000_000;
+    uint64 internal feedAUpdatedAt = 999_900;
+    uint64 internal feedBUpdatedAt = 999_950;
 
     MockOracleFeed internal feedA;
     MockOracleFeed internal feedB;
     OracleAdapterHarness internal adapter;
 
     function setUp() public virtual {
+        VM.warp(currentTime);
+
         feedA = new MockOracleFeed(8);
         feedB = new MockOracleFeed(18);
-        feedA.setLatestRoundData(1, 100_000_000, 100, 100, 1);
-        feedB.setLatestRoundData(2, 2_000_000_000_000_000_000, 200, 200, 2);
+        feedA.setLatestRoundData(1, 100_000_000, feedAUpdatedAt, feedAUpdatedAt, 1);
+        feedB.setLatestRoundData(2, 2_000_000_000_000_000_000, feedBUpdatedAt, feedBUpdatedAt, 2);
 
         adapter = new OracleAdapterHarness(admin, address(feedA), maxStaleness);
     }
 }
-

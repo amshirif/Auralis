@@ -1,9 +1,7 @@
 # Oracle Adapter
 
-This module defines the oracle adapter foundation for the oracle milestone:
-- provider-facing feed interface
-- normalized quote read interface
-- upgrade-safe storage layout and initializer guard
+This module provides a normalized oracle read surface with configurable
+validation guardrails.
 
 ## Interfaces
 
@@ -19,12 +17,24 @@ This module defines the oracle adapter foundation for the oracle milestone:
 
 `OracleAdapter` currently provides:
 - source address management
-- max staleness config storage
-- normalized quote read passthrough from source
+- max staleness policy (seconds)
+- optional answer bounds policy (`minAnswer` / `maxAnswer`)
+- normalized quote reads from source
 - initializer guard for upgrade-safe deployments
 
-Validation policy (staleness, bounds, and validity checks) is implemented in
-the next issue (`#15`).
+Read validation checks enforced in `quote()`:
+- `updatedAt` must fit in `uint64` and be nonzero.
+- `updatedAt` cannot be in the future.
+- quote must be within configured staleness threshold when `maxStaleness != 0`.
+- round consistency requires `answeredInRound >= roundId`.
+- answer must be within configured bounds when bounds are enabled.
+
+Configuration notes:
+- `setMaxStaleness(0)` disables staleness checks.
+- bounds are disabled by default.
+- bounds can be updated via `setValidationBounds(min, max, enabled)`.
+
+All configuration changes emit events for auditability.
 
 ## Diamond-Ready Usage
 
@@ -37,3 +47,7 @@ function initOracleAdapter(address source, uint64 maxStaleness) external {
 }
 ```
 
+## Next Step
+
+The circuit breaker / fallback policy is implemented separately so validation and
+failover decisions remain explicit and testable.
