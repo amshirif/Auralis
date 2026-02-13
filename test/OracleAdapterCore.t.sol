@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {OracleAdapterFixture, OracleAdapterHarness, MockOracleFeed} from "./helpers/OracleAdapterTestHarness.sol";
+import {OracleAdapterFixture, OracleAdapterHarness} from "./helpers/OracleAdapterTestHarness.sol";
 import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
@@ -10,10 +10,23 @@ import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 contract OracleAdapterCoreTest is OracleAdapterFixture {
     event OracleSourceUpdated(address indexed previousSource, address indexed newSource, address indexed sender);
     event OracleMaxStalenessUpdated(uint64 previousMaxStaleness, uint64 newMaxStaleness, address indexed sender);
+    event OracleValidationBoundsUpdated(
+        int256 previousMinAnswer,
+        int256 previousMaxAnswer,
+        bool previousBoundsEnabled,
+        int256 newMinAnswer,
+        int256 newMaxAnswer,
+        bool newBoundsEnabled,
+        address indexed sender
+    );
 
     function testInitialConfig() public view {
         assertTrue(adapter.oracleSource() == address(feedA), "initial source should match constructor");
         assertTrue(adapter.maxStaleness() == maxStaleness, "initial max staleness should match constructor");
+        (int256 minAnswer, int256 maxAnswer, bool boundsEnabled) = adapter.validationBounds();
+        assertTrue(minAnswer == type(int256).min, "initial min should be int256 min");
+        assertTrue(maxAnswer == type(int256).max, "initial max should be int256 max");
+        assertFalse(boundsEnabled, "bounds should start disabled");
     }
 
     function testSupportsInterface() public view {
@@ -83,10 +96,42 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
         adapter.setMaxStaleness(2 hours);
     }
 
+    function testAdminCanSetValidationBounds() public {
+        VM.prank(admin);
+        adapter.setValidationBounds(1, 2_000_000_000, true);
+
+        (int256 minAnswer, int256 maxAnswer, bool boundsEnabled) = adapter.validationBounds();
+        assertTrue(minAnswer == 1, "min should update");
+        assertTrue(maxAnswer == 2_000_000_000, "max should update");
+        assertTrue(boundsEnabled, "bounds should be enabled");
+    }
+
+    function testSetValidationBoundsEmitsEvent() public {
+        VM.expectEmit(true, true, true, true, address(adapter));
+        emit OracleValidationBoundsUpdated(type(int256).min, type(int256).max, false, 1, 2_000_000_000, true, admin);
+
+        VM.prank(admin);
+        adapter.setValidationBounds(1, 2_000_000_000, true);
+    }
+
+    function testNonAdminCannotSetValidationBounds() public {
+        VM.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, adapter.DEFAULT_ADMIN_ROLE())
+        );
+        VM.prank(bob);
+        adapter.setValidationBounds(1, 2_000_000_000, true);
+    }
+
+    function testSetValidationBoundsRejectsInvalidRange() public {
+        VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterInvalidValidationBounds.selector, 2, 1));
+        VM.prank(admin);
+        adapter.setValidationBounds(2, 1, true);
+    }
+
     function testQuoteReturnsNormalizedPayload() public view {
         IOracleAdapter.OracleQuote memory readQuote = adapter.quote();
         assertTrue(readQuote.value == 100_000_000, "value should match source answer");
-        assertTrue(readQuote.updatedAt == 100, "updatedAt should match source");
+        assertTrue(readQuote.updatedAt == feedAUpdatedAt, "updatedAt should match source");
         assertTrue(readQuote.decimals == 8, "decimals should match source");
     }
 
@@ -96,12 +141,12 @@ contract OracleAdapterCoreTest is OracleAdapterFixture {
 
         IOracleAdapter.OracleQuote memory readQuote = adapter.quote();
         assertTrue(readQuote.value == 2_000_000_000_000_000_000, "value should match new source");
-        assertTrue(readQuote.updatedAt == 200, "updatedAt should match new source");
+        assertTrue(readQuote.updatedAt == feedBUpdatedAt, "updatedAt should match new source");
         assertTrue(readQuote.decimals == 18, "decimals should match new source");
     }
 
     function testQuoteRevertsOnUpdatedAtOverflow() public {
-        feedA.setLatestRoundData(1, 100_000_000, 100, uint256(type(uint64).max) + 1, 1);
+        feedA.setLatestRoundData(1, 100_000_000, feedAUpdatedAt, uint256(type(uint64).max) + 1, 1);
 
         VM.expectRevert(
             abi.encodeWithSelector(IOracleAdapter.OracleAdapterInvalidUpdatedAt.selector, uint256(type(uint64).max) + 1)

@@ -12,6 +12,9 @@ library LibOracleAdapterStorage {
         bool initialized;
         address source;
         uint64 maxStaleness;
+        int256 minAnswer;
+        int256 maxAnswer;
+        bool boundsEnabled;
     }
 
     /// @notice Returns the storage layout for oracle adapter state.
@@ -23,4 +26,3 @@ library LibOracleAdapterStorage {
         }
     }
 }
-
