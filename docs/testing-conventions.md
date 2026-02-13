@@ -41,6 +41,7 @@ Use a split test layout so modules stay readable as complexity grows.
 - Core example: `test/AccessControlCore.t.sol`
 - Core example: `test/PausableCore.t.sol`
 - Core example: `test/ReentrancyGuardCore.t.sol`
+- Core example: `test/OracleAdapterCore.t.sol`
 - Core example: `test/UpgradeGuardrailsCore.t.sol`
 - Fuzz example: `test/AccessControlFuzz.t.sol`
 - Fuzz example: `test/PausableFuzz.t.sol`
@@ -49,5 +50,6 @@ Use a split test layout so modules stay readable as complexity grows.
 - Time example: `test/UpgradeGuardrailsTime.t.sol`
 - Helper example: `test/helpers/AccessControlTestHarness.sol`
 - Helper example: `test/helpers/PausableTestHarness.sol`
+- Helper example: `test/helpers/OracleAdapterTestHarness.sol`
 - Helper example: `test/helpers/ReentrancyGuardTestHarness.sol`
 - Helper example: `test/helpers/UpgradeGuardrailsTestHarness.sol`
