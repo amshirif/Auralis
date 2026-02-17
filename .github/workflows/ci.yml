@@ -1,0 +1,50 @@
+name: Foundry CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "milestone/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundry-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundry-checks:
+    name: Foundry Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Cache Foundry Artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.foundry/cache
+          key: ${{ runner.os }}-foundry-cache-${{ hashFiles('foundry.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-foundry-cache-
+
+      - name: Show Foundry Version
+        run: forge --version
+
+      - name: Check Formatting
+        run: forge fmt --check
+
+      - name: Build With Sizes
+        run: forge build --sizes
+
+      - name: Run Offline Tests
+        run: forge test --offline

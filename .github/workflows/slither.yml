@@ -1,0 +1,37 @@
+name: Slither Analysis
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "milestone/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slither-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  slither:
+    name: Slither
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Run Slither (fail on high)
+        uses: crytic/slither-action@v0.4.1
+        with:
+          target: "."
+          fail-on: high
+          slither-args: --exclude-dependencies
