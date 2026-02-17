@@ -1,0 +1,33 @@
+name: Main PR Branch Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-pr-branch-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  enforce-milestone-head:
+    name: Enforce milestone/* head for main
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate pull request head branch
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "Base branch: ${{ github.base_ref }}"
+          echo "Head branch: ${{ github.head_ref }}"
+
+          if [[ "${{ github.head_ref }}" != milestone/* ]]; then
+            echo "Only branches named milestone/* may open PRs into main."
+            exit 1
+          fi
+
+          echo "Branch naming rule satisfied."
