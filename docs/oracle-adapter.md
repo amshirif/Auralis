@@ -96,3 +96,15 @@ function initOracleAdapter(address source, uint64 maxStaleness) external {
 - Assign `ORACLE_ADMIN_ROLE` to a smaller operator multisig that manages oracle policy.
 - Assign `ORACLE_GUARDIAN_ROLE` to incident responders or automation that can only trip breaker.
 - Keep `trip` and `reset` authority separated in production environments unless operational simplicity is preferred.
+
+## Security Assumptions
+
+- Oracle source contract implements the expected `latestRoundData` and `decimals` ABI.
+- Privileged role keys are operationally secured and rotated when needed.
+- Fallback quotes are managed with off-chain operational policy and bounded by governance process.
+
+## Failure Modes
+
+- In `StrictRevert`, unhealthy reads revert and do not return stale/invalid data.
+- In `UseConfiguredQuote`, unhealthy reads return the configured fallback quote.
+- If fallback mode is enabled without a configured quote, reads revert with `OracleAdapterFallbackUnavailable`.

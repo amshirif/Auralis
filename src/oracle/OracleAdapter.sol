@@ -273,33 +273,21 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     /// @return quotePayload The validated live quote payload.
     function _readLiveQuoteStrict() internal view returns (OracleQuote memory quotePayload) {
         address source = oracleSource();
-        uint80 roundId;
-        int256 answer;
-        uint256 updatedAt;
-        uint80 answeredInRound;
-
-        try IOracleFeed(source).latestRoundData() returns (
-            uint80 returnedRoundId,
-            int256 returnedAnswer,
-            uint256,
-            uint256 returnedUpdatedAt,
-            uint80 returnedAnsweredInRound
-        ) {
-            roundId = returnedRoundId;
-            answer = returnedAnswer;
-            updatedAt = returnedUpdatedAt;
-            answeredInRound = returnedAnsweredInRound;
-        } catch {
+        (bool roundDataCallSuccess, bytes memory roundDataRaw) =
+            source.staticcall(abi.encodeWithSelector(IOracleFeed.latestRoundData.selector));
+        if (!roundDataCallSuccess || roundDataRaw.length != 160) {
             revert OracleAdapterLiveReadFailed();
         }
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            abi.decode(roundDataRaw, (uint80, int256, uint256, uint256, uint80));
 
         uint64 normalizedUpdatedAt = _validateRoundData(roundId, answer, updatedAt, answeredInRound);
-        uint8 decimals;
-        try IOracleFeed(source).decimals() returns (uint8 returnedDecimals) {
-            decimals = returnedDecimals;
-        } catch {
+        (bool decimalsCallSuccess, bytes memory decimalsRaw) =
+            source.staticcall(abi.encodeWithSelector(IOracleFeed.decimals.selector));
+        if (!decimalsCallSuccess || decimalsRaw.length != 32) {
             revert OracleAdapterLiveReadFailed();
         }
+        uint8 decimals = abi.decode(decimalsRaw, (uint8));
 
         quotePayload = OracleQuote({value: answer, updatedAt: normalizedUpdatedAt, decimals: decimals});
     }

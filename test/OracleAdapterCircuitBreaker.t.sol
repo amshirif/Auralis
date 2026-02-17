@@ -38,6 +38,26 @@ contract OracleAdapterCircuitBreakerTest is OracleAdapterFixture {
         adapter.quote();
     }
 
+    function testQuoteRevertsWhenRoundDataPayloadMalformedInStrictMode() public {
+        MalformedRoundDataFeed malformedFeed = new MalformedRoundDataFeed();
+
+        VM.prank(admin);
+        adapter.setOracleSource(address(malformedFeed));
+
+        VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterLiveReadFailed.selector));
+        adapter.quote();
+    }
+
+    function testQuoteRevertsWhenDecimalsPayloadMalformedInStrictMode() public {
+        MalformedDecimalsFeed malformedFeed = new MalformedDecimalsFeed();
+
+        VM.prank(admin);
+        adapter.setOracleSource(address(malformedFeed));
+
+        VM.expectRevert(abi.encodeWithSelector(IOracleAdapter.OracleAdapterLiveReadFailed.selector));
+        adapter.quote();
+    }
+
     function testQuoteUsesFallbackWhenLiveReadFails() public {
         VM.prank(admin);
         adapter.setFallbackQuote(55, 777_000, 8);
