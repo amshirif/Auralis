@@ -46,6 +46,7 @@ Use a split test layout so modules stay readable as complexity grows.
 - Core example: `test/OracleAdapterCircuitBreaker.t.sol`
 - Core example: `test/UpgradeGuardrailsCore.t.sol`
 - Fuzz example: `test/AccessControlFuzz.t.sol`
+- Fuzz example: `test/OracleAdapterFuzz.t.sol`
 - Fuzz example: `test/PausableFuzz.t.sol`
 - Fuzz example: `test/UpgradeGuardrailsFuzz.t.sol`
 - Time example: `test/AccessControlTime.t.sol`
