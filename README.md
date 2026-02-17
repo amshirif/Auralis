@@ -1,6 +1,7 @@
 # smart-contracts
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
+[![Foundry CI](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml)
 ![License](https://img.shields.io/github/license/amshirif/smart-contracts)
 
 Portfolio-focused Solidity modules built with Foundry. The codebase is kept
