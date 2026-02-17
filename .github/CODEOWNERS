@@ -1,0 +1,18 @@
+# Default ownership for repository paths.
+* @amshirif
+
+# Smart contracts and interfaces.
+/src/ @amshirif
+
+# Tests and test fixtures.
+/test/ @amshirif
+
+# Workflow and repository automation configuration.
+/.github/workflows/ @amshirif
+
+# Documentation and runbooks.
+/docs/ @amshirif
+
+# Build and package configuration.
+/foundry.toml @amshirif
+/README.md @amshirif

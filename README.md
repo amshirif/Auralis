@@ -41,6 +41,7 @@ forge fmt
 - Convention guide: `docs/testing-conventions.md`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
+- Governance policy: `docs/repository-governance.md`
 
 ## Module Docs
 - Access control: `docs/access-control.md`
