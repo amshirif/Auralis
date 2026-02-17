@@ -18,9 +18,11 @@ facets without a full rewrite.
 - `src/access/storage`: module-local storage libraries (diamond-ready slots).
 - `src/security`: security primitives such as reentrancy protection.
 - `src/security/storage`: module-local storage libraries (diamond-ready slots).
+- `src/oracle`: oracle adapter and feed safety primitives.
+- `src/oracle/storage`: module-local storage libraries (diamond-ready slots).
 - `src/upgrade`: upgrade authorization and execution guardrails.
 - `src/upgrade/storage`: module-local storage libraries (diamond-ready slots).
-- `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, `IPausable`, `IReentrancyGuard`, `IUpgradeGuardrails`, etc.).
+- `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, `IOracleAdapter`, `IOracleFeed`, `IPausable`, `IReentrancyGuard`, `IUpgradeGuardrails`, etc.).
 - `src/libraries`: shared cross-module libraries.
 - `test`: split by concern (`*Core.t.sol`, `*Time.t.sol`, `*Integration.t.sol`).
 - `test/helpers`: shared test fixtures and harnesses.
@@ -36,9 +38,11 @@ forge fmt
 
 ## Testing
 - Convention guide: `docs/testing-conventions.md`
+- Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 
 ## Module Docs
 - Access control: `docs/access-control.md`
+- Oracle adapter: `docs/oracle-adapter.md`
 - Pausability: `docs/pausable.md`
 - Reentrancy guard: `docs/reentrancy-guard.md`
 - Upgrade guardrails: `docs/upgrade-guardrails.md`
