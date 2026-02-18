@@ -23,7 +23,9 @@ facets without a full rewrite.
 - `src/oracle/storage`: module-local storage libraries (diamond-ready slots).
 - `src/upgrade`: upgrade authorization and execution guardrails.
 - `src/upgrade/storage`: module-local storage libraries (diamond-ready slots).
-- `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, `IOracleAdapter`, `IOracleFeed`, `IPausable`, `IReentrancyGuard`, `IUpgradeGuardrails`, etc.).
+- `src/vault`: ERC-4626 vault foundation utilities.
+- `src/vault/storage`: module-local storage libraries (diamond-ready slots).
+- `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, `IERC20`, `IERC20Metadata`, `IERC4626`, `IERC4626VaultBase`, `IOracleAdapter`, `IOracleFeed`, `IPausable`, `IReentrancyGuard`, `IUpgradeGuardrails`, etc.).
 - `src/libraries`: shared cross-module libraries.
 - `test`: split by concern (`*Core.t.sol`, `*Time.t.sol`, `*Integration.t.sol`).
 - `test/helpers`: shared test fixtures and harnesses.
@@ -39,6 +41,7 @@ forge fmt
 
 ## Testing
 - Convention guide: `docs/testing-conventions.md`
+- Vault foundation suite: `test/ERC4626VaultFoundationCore.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
 
