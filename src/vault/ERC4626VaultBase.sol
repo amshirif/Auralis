@@ -22,7 +22,7 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
 
     /// @notice Returns vault asset token.
     /// @return The underlying asset token address.
-    function asset() public view returns (address) {
+    function asset() public view virtual returns (address) {
         return LibERC4626VaultStorage.layout().asset;
     }
 
