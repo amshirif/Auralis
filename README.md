@@ -42,6 +42,7 @@ forge fmt
 ## Testing
 - Convention guide: `docs/testing-conventions.md`
 - Vault foundation suite: `test/ERC4626VaultFoundationCore.t.sol`
+- Vault core suite: `test/ERC4626Core.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
 
