@@ -67,7 +67,7 @@ contract MockVaultAsset is IERC20Metadata {
         return true;
     }
 
-    function transfer(address to, uint256 value) external returns (bool) {
+    function transfer(address to, uint256 value) public virtual returns (bool) {
         if (_failTransfer) {
             return false;
         }
@@ -76,7 +76,7 @@ contract MockVaultAsset is IERC20Metadata {
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 value) external returns (bool) {
+    function transferFrom(address from, address to, uint256 value) public virtual returns (bool) {
         if (_failTransferFrom) {
             return false;
         }
