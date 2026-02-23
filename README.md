@@ -44,6 +44,8 @@ forge fmt
 - Vault foundation suite: `test/ERC4626VaultFoundationCore.t.sol`
 - Vault core suite: `test/ERC4626Core.t.sol`
 - Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
+- Vault accounting fuzz suite: `test/ERC4626VaultAccountingFuzz.t.sol`
+- Vault accounting invariant suite: `test/ERC4626VaultAccountingInvariant.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
 
