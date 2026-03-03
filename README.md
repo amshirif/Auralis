@@ -17,6 +17,8 @@ facets without a full rewrite.
 ## Structure
 - `src/access`: access control and upgrade-safety primitives.
 - `src/access/storage`: module-local storage libraries (diamond-ready slots).
+- `src/diamond`: diamond core primitives and shared routing helpers.
+- `src/diamond/storage`: diamond routing and ownership storage layout.
 - `src/security`: security primitives such as reentrancy protection.
 - `src/security/storage`: module-local storage libraries (diamond-ready slots).
 - `src/oracle`: oracle adapter and feed safety primitives.
