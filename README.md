@@ -51,6 +51,7 @@ forge fmt
 
 ## Module Docs
 - Access control: `docs/access-control.md`
+- ERC-4626 vault: `docs/erc4626-vault.md`
 - Oracle adapter: `docs/oracle-adapter.md`
 - Pausability: `docs/pausable.md`
 - Reentrancy guard: `docs/reentrancy-guard.md`
