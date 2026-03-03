@@ -1,11 +1,13 @@
 # Threat Model
 
-This summary covers the security assumptions and guard rails for the
-Access, Oracle, and Upgrade Safety Kit modules.
+This summary covers security assumptions and guard rails for access, oracle,
+upgrade, and vault modules.
 
 ## In-Scope Modules
 
 - `AccessControl`
+- `ERC4626Vault`
+- `ERC4626VaultControls`
 - `OracleAdapter`
 - `Pausable`
 - `ReentrancyGuard`
@@ -19,6 +21,7 @@ Access, Oracle, and Upgrade Safety Kit modules.
 - Emergency pause controls can contain incidents.
 - Reentrant state-changing entrypoints are blocked.
 - Upgrade execution follows explicit authorization and guardrail checks.
+- Vault share/accounting behavior remains explicit under rounding and low-liquidity edge conditions.
 
 ## Trust Assumptions
 
@@ -51,6 +54,15 @@ Access, Oracle, and Upgrade Safety Kit modules.
 7. Unsafe or rushed upgrades
 - Mitigation: upgrader role, queued intent model, optional timelock delay, strict implementation matching, cancel flow.
 
+8. Donation-style vault share-price manipulation
+- Mitigation: vault conversions use managed accounting (`totalManagedAssets`) instead of raw token balance.
+
+9. Rounding edge exploitation in low-liquidity vault states
+- Mitigation: deterministic rounding direction plus fuzz/invariant tests for roundtrip and accounting properties.
+
+10. Emergency response lag on vault write paths
+- Mitigation: pausable controls block `deposit`, `mint`, `withdraw`, and `redeem` when paused.
+
 ## Residual Risks / Out of Scope
 
 - Compromised privileged keys can still perform privileged actions.
@@ -58,6 +70,7 @@ Access, Oracle, and Upgrade Safety Kit modules.
 - Oracle market manipulation resistance is feed/provider-specific and must be handled at integration and policy layers.
 - Diamond-specific `diamondCut` payload validation and multi-step governance workflows are deferred to the diamond milestone.
 - The current upgrade guardrails check nonzero implementation; deeper bytecode/interface validation is protocol-specific and should be added where needed.
+- Direct token donations to vault addresses can create untracked surplus unless explicitly reconciled by integration policy.
 
 ## Operational Guidance
 

@@ -7,6 +7,7 @@ Use a split test layout so modules stay readable as complexity grows.
 - `test/<Module>Core.t.sol`
 - `test/<Module>Time.t.sol` (only when time-window behavior exists)
 - `test/<Module>Fuzz.t.sol` (for property/fuzz coverage)
+- `test/<Module>Invariant.t.sol` (for stateful invariant coverage)
 - `test/<Module>Integration.t.sol` (optional, cross-module workflows)
 - `test/helpers/<Module>TestHarness.sol`
 
@@ -16,11 +17,13 @@ Use a split test layout so modules stay readable as complexity grows.
 - `Time`: schedule/window logic, boundary timestamps, active/inactive checks.
 - `Integration`: interactions between modules and end-to-end flows.
 - `Fuzz`: property-style checks across random inputs and edge value ranges.
+- `Invariant`: stateful safety properties across randomized action sequences.
 - `helpers`: shared fixture setup, actors, harness wrappers, and utility assertions.
 
 ## Naming
 
 - Test contract names: `<Module>CoreTest`, `<Module>TimeTest`, `<Module>IntegrationTest`.
+- Test contract names: `<Module>FuzzTest`, `<Module>InvariantTest`.
 - Test function names should describe one behavior each, for example:
   - `testNonAdminCannotSetRoleWindow`
   - `testRoleWindowBoundariesAndOnlyActiveRole`
@@ -38,6 +41,7 @@ Use a split test layout so modules stay readable as complexity grows.
 
 ## Current Reference
 
+- Vault usage/math reference: `docs/erc4626-vault.md`
 - Core example: `test/AccessControlCore.t.sol`
 - Core example: `test/PausableCore.t.sol`
 - Core example: `test/ReentrancyGuardCore.t.sol`
@@ -45,10 +49,15 @@ Use a split test layout so modules stay readable as complexity grows.
 - Core example: `test/OracleAdapterValidation.t.sol`
 - Core example: `test/OracleAdapterCircuitBreaker.t.sol`
 - Core example: `test/UpgradeGuardrailsCore.t.sol`
+- Core example: `test/ERC4626VaultFoundationCore.t.sol`
+- Core example: `test/ERC4626Core.t.sol`
+- Core example: `test/ERC4626VaultControlsCore.t.sol`
 - Fuzz example: `test/AccessControlFuzz.t.sol`
 - Fuzz example: `test/OracleAdapterFuzz.t.sol`
 - Fuzz example: `test/PausableFuzz.t.sol`
 - Fuzz example: `test/UpgradeGuardrailsFuzz.t.sol`
+- Fuzz example: `test/ERC4626VaultAccountingFuzz.t.sol`
+- Invariant example: `test/ERC4626VaultAccountingInvariant.t.sol`
 - Time example: `test/AccessControlTime.t.sol`
 - Time example: `test/UpgradeGuardrailsTime.t.sol`
 - Helper example: `test/helpers/AccessControlTestHarness.sol`
@@ -56,3 +65,7 @@ Use a split test layout so modules stay readable as complexity grows.
 - Helper example: `test/helpers/OracleAdapterTestHarness.sol`
 - Helper example: `test/helpers/ReentrancyGuardTestHarness.sol`
 - Helper example: `test/helpers/UpgradeGuardrailsTestHarness.sol`
+- Helper example: `test/helpers/ERC4626VaultTestHarness.sol`
+- Helper example: `test/helpers/ERC4626VaultControlsTestHarness.sol`
+- Helper example: `test/helpers/ERC4626CoreTestHarness.sol`
+- Helper example: `test/helpers/ERC4626VaultAccountingTestHarness.sol`
