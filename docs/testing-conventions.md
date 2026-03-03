@@ -41,6 +41,7 @@ Use a split test layout so modules stay readable as complexity grows.
 
 ## Current Reference
 
+- Vault usage/math reference: `docs/erc4626-vault.md`
 - Core example: `test/AccessControlCore.t.sol`
 - Core example: `test/PausableCore.t.sol`
 - Core example: `test/ReentrancyGuardCore.t.sol`
