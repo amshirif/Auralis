@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Diamond} from "../../src/diamond/Diamond.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {LibDiamond} from "../../src/diamond/libraries/LibDiamond.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
@@ -12,6 +13,10 @@ contract DiamondFacetOne {
 
     function beta() external pure returns (uint256) {
         return 2;
+    }
+
+    function caller() external view returns (address) {
+        return msg.sender;
     }
 }
 
@@ -73,6 +78,18 @@ contract DiamondLibraryHarness {
 
     function facets() external view returns (IDiamondLoupe.Facet[] memory) {
         return LibDiamond.facets();
+    }
+}
+
+contract DiamondProxyHarness is Diamond {
+    constructor(address initialOwner) Diamond(initialOwner) {}
+
+    function owner() external view returns (address) {
+        return LibDiamond.contractOwner();
+    }
+
+    function installSelector(address facetAddress_, bytes4 selector) external {
+        LibDiamond.addSelector(facetAddress_, selector);
     }
 }
 
