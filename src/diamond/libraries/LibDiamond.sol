@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IDiamondCut} from "../../interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../interfaces/IDiamondLoupe.sol";
 import {LibDiamondStorage} from "../storage/LibDiamondStorage.sol";
 
@@ -24,6 +25,18 @@ library LibDiamond {
     error DiamondSelectorNotFound(bytes4 selector);
     /// @notice Thrown when replacing a selector with the same facet.
     error DiamondReplaceWithSameFacet(bytes4 selector, address facetAddress);
+    /// @notice Thrown when a facet cut contains no selectors.
+    error DiamondCutEmptySelectors();
+    /// @notice Thrown when removing selectors with a nonzero facet address.
+    error DiamondCutRemoveFacetAddressNotZero(address facetAddress);
+    /// @notice Thrown when a facet or init target has no code.
+    error DiamondTargetHasNoCode(address target);
+    /// @notice Thrown when init calldata is provided without an init target.
+    error DiamondCutInitTargetRequired();
+    /// @notice Thrown when an init target is provided without calldata.
+    error DiamondCutInitCalldataRequired();
+    /// @notice Thrown when the init delegatecall fails.
+    error DiamondCutInitFailed(address init, bytes reason);
 
     /// @notice Returns the current contract owner.
     /// @return owner_ The current contract owner.
@@ -180,6 +193,79 @@ library LibDiamond {
 
         if (selectors.length == 0) {
             _removeFacetAddress(diamondStorage, facetAddress_);
+        }
+    }
+
+    /// @notice Applies a full diamond cut and optional init delegatecall.
+    /// @param diamondCut_ The selector mutations to apply.
+    /// @param init The optional init target for post-cut initialization.
+    /// @param initCalldata The optional init calldata.
+    function diamondCut(IDiamondCut.FacetCut[] calldata diamondCut_, address init, bytes calldata initCalldata)
+        internal
+    {
+        uint256 cutLength = diamondCut_.length;
+        for (uint256 i = 0; i < cutLength; i++) {
+            IDiamondCut.FacetCut calldata facetCut = diamondCut_[i];
+            bytes4[] calldata selectors = facetCut.functionSelectors;
+            uint256 selectorCount = selectors.length;
+            if (selectorCount == 0) {
+                revert DiamondCutEmptySelectors();
+            }
+
+            if (facetCut.action == IDiamondCut.FacetCutAction.Add) {
+                _enforceTargetHasCode(facetCut.facetAddress);
+                for (uint256 j = 0; j < selectorCount; j++) {
+                    addSelector(facetCut.facetAddress, selectors[j]);
+                }
+                continue;
+            }
+
+            if (facetCut.action == IDiamondCut.FacetCutAction.Replace) {
+                _enforceTargetHasCode(facetCut.facetAddress);
+                for (uint256 j = 0; j < selectorCount; j++) {
+                    replaceSelector(facetCut.facetAddress, selectors[j]);
+                }
+                continue;
+            }
+
+            if (facetCut.facetAddress != address(0)) {
+                revert DiamondCutRemoveFacetAddressNotZero(facetCut.facetAddress);
+            }
+            for (uint256 j = 0; j < selectorCount; j++) {
+                removeSelector(selectors[j]);
+            }
+        }
+
+        initializeDiamondCut(init, initCalldata);
+    }
+
+    /// @notice Executes the optional init delegatecall after a cut.
+    /// @param init The optional init target for post-cut initialization.
+    /// @param initCalldata The optional init calldata.
+    function initializeDiamondCut(address init, bytes calldata initCalldata) internal {
+        if (init == address(0)) {
+            if (initCalldata.length != 0) {
+                revert DiamondCutInitTargetRequired();
+            }
+            return;
+        }
+        if (initCalldata.length == 0) {
+            revert DiamondCutInitCalldataRequired();
+        }
+
+        _enforceTargetHasCode(init);
+
+        (bool success, bytes memory reason) = init.delegatecall(initCalldata);
+        if (!success) {
+            revert DiamondCutInitFailed(init, reason);
+        }
+    }
+
+    /// @dev Reverts when `target` has no runtime code.
+    /// @param target The facet or init target to validate.
+    function _enforceTargetHasCode(address target) private view {
+        if (target.code.length == 0) {
+            revert DiamondTargetHasNoCode(target);
         }
     }
 
