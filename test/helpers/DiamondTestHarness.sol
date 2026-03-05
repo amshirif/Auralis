@@ -2,7 +2,9 @@
 pragma solidity ^0.8.30;
 
 import {Diamond} from "../../src/diamond/Diamond.sol";
+import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
+import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {LibDiamond} from "../../src/diamond/libraries/LibDiamond.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 
@@ -18,6 +20,16 @@ contract DiamondFacetOne {
     function caller() external view returns (address) {
         return msg.sender;
     }
+
+    function version() external pure returns (uint256) {
+        return 1;
+    }
+}
+
+contract DiamondFacetReplacement {
+    function version() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 contract DiamondFacetTwo {
@@ -27,6 +39,37 @@ contract DiamondFacetTwo {
 
     function delta() external pure returns (uint256) {
         return 4;
+    }
+}
+
+library LibDiamondInitTestStorage {
+    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.test.diamond-init.storage");
+
+    struct Layout {
+        uint256 value;
+    }
+
+    function layout() internal pure returns (Layout storage l) {
+        bytes32 slot = STORAGE_SLOT;
+        assembly {
+            l.slot := slot
+        }
+    }
+}
+
+contract DiamondInitMock {
+    error InitFailure();
+
+    function initializeValue(uint256 value_) external {
+        LibDiamondInitTestStorage.layout().value = value_;
+    }
+
+    function readValue() external view returns (uint256) {
+        return LibDiamondInitTestStorage.layout().value;
+    }
+
+    function revertInit() external pure {
+        revert InitFailure();
     }
 }
 
