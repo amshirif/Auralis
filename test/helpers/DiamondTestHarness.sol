@@ -134,6 +134,14 @@ contract DiamondProxyHarness is Diamond {
     function installSelector(address facetAddress_, bytes4 selector) external {
         LibDiamond.addSelector(facetAddress_, selector);
     }
+
+    function replaceSelector(address facetAddress_, bytes4 selector) external {
+        LibDiamond.replaceSelector(facetAddress_, selector);
+    }
+
+    function removeSelector(bytes4 selector) external {
+        LibDiamond.removeSelector(selector);
+    }
 }
 
 abstract contract DiamondFixture is TestBase {

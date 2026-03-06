@@ -18,6 +18,7 @@ facets without a full rewrite.
 - `src/access`: access control and upgrade-safety primitives.
 - `src/access/storage`: module-local storage libraries (diamond-ready slots).
 - `src/diamond`: diamond core primitives and shared routing helpers.
+- `src/diamond/facets`: diamond facet implementations.
 - `src/diamond/storage`: diamond routing and ownership storage layout.
 - `src/security`: security primitives such as reentrancy protection.
 - `src/security/storage`: module-local storage libraries (diamond-ready slots).
@@ -48,6 +49,7 @@ forge fmt
 - Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
 - Vault accounting fuzz suite: `test/ERC4626VaultAccountingFuzz.t.sol`
 - Vault accounting invariant suite: `test/ERC4626VaultAccountingInvariant.t.sol`
+- Diamond core suites: `test/DiamondFoundationCore.t.sol`, `test/DiamondProxyCore.t.sol`, `test/DiamondCutCore.t.sol`, `test/DiamondLoupeCore.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
 
