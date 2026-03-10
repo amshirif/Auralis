@@ -17,6 +17,9 @@ facets without a full rewrite.
 ## Structure
 - `src/access`: access control and upgrade-safety primitives.
 - `src/access/storage`: module-local storage libraries (diamond-ready slots).
+- `src/diamond`: diamond core primitives and shared routing helpers.
+- `src/diamond/facets`: diamond facet implementations.
+- `src/diamond/storage`: diamond routing and ownership storage layout.
 - `src/security`: security primitives such as reentrancy protection.
 - `src/security/storage`: module-local storage libraries (diamond-ready slots).
 - `src/oracle`: oracle adapter and feed safety primitives.
@@ -46,11 +49,13 @@ forge fmt
 - Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
 - Vault accounting fuzz suite: `test/ERC4626VaultAccountingFuzz.t.sol`
 - Vault accounting invariant suite: `test/ERC4626VaultAccountingInvariant.t.sol`
+- Diamond core suites: `test/DiamondFoundationCore.t.sol`, `test/DiamondProxyCore.t.sol`, `test/DiamondCutCore.t.sol`, `test/DiamondLoupeCore.t.sol`, `test/DiamondSelectorIntegrityCore.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
 
 ## Module Docs
 - Access control: `docs/access-control.md`
+- Diamond core: `docs/diamond-core.md`
 - ERC-4626 vault: `docs/erc4626-vault.md`
 - Oracle adapter: `docs/oracle-adapter.md`
 - Pausability: `docs/pausable.md`
@@ -62,6 +67,7 @@ forge fmt
 - Ops docs index: `docs/ops/README.md`
 - Release checklist: `docs/ops/release-checklist.md`
 - Release notes template: `docs/ops/release-notes-template.md`
+- Diamond cut runbook: `docs/ops/runbook-diamond-cut.md`
 - Oracle incident runbook: `docs/ops/runbook-oracle-incident.md`
 - Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
