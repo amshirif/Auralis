@@ -32,6 +32,20 @@ contract DiamondFacetReplacement {
     }
 }
 
+contract DiamondFacetAlphaReplacement {
+    function alpha() external pure returns (uint256) {
+        return 11;
+    }
+
+    function epsilon() external pure returns (uint256) {
+        return 5;
+    }
+
+    function caller() external view returns (address) {
+        return msg.sender;
+    }
+}
+
 contract DiamondFacetTwo {
     function gamma() external pure returns (uint256) {
         return 3;

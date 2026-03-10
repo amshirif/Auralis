@@ -92,3 +92,4 @@ To stay diamond-safe:
 - `test/DiamondProxyCore.t.sol`
 - `test/DiamondCutCore.t.sol`
 - `test/DiamondLoupeCore.t.sol`
+- `test/DiamondSelectorIntegrityCore.t.sol`
