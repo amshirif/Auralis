@@ -49,7 +49,7 @@ forge fmt
 - Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
 - Vault accounting fuzz suite: `test/ERC4626VaultAccountingFuzz.t.sol`
 - Vault accounting invariant suite: `test/ERC4626VaultAccountingInvariant.t.sol`
-- Diamond core suites: `test/DiamondFoundationCore.t.sol`, `test/DiamondProxyCore.t.sol`, `test/DiamondCutCore.t.sol`, `test/DiamondLoupeCore.t.sol`
+- Diamond core suites: `test/DiamondFoundationCore.t.sol`, `test/DiamondProxyCore.t.sol`, `test/DiamondCutCore.t.sol`, `test/DiamondLoupeCore.t.sol`, `test/DiamondSelectorIntegrityCore.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
 
