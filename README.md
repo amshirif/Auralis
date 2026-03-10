@@ -55,6 +55,7 @@ forge fmt
 
 ## Module Docs
 - Access control: `docs/access-control.md`
+- Diamond core: `docs/diamond-core.md`
 - ERC-4626 vault: `docs/erc4626-vault.md`
 - Oracle adapter: `docs/oracle-adapter.md`
 - Pausability: `docs/pausable.md`
@@ -66,6 +67,7 @@ forge fmt
 - Ops docs index: `docs/ops/README.md`
 - Release checklist: `docs/ops/release-checklist.md`
 - Release notes template: `docs/ops/release-notes-template.md`
+- Diamond cut runbook: `docs/ops/runbook-diamond-cut.md`
 - Oracle incident runbook: `docs/ops/runbook-oracle-incident.md`
 - Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`

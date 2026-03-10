@@ -68,7 +68,7 @@ upgrade, and vault modules.
 - Compromised privileged keys can still perform privileged actions.
 - Economic attacks and protocol-specific business logic exploits are out of scope for this base kit.
 - Oracle market manipulation resistance is feed/provider-specific and must be handled at integration and policy layers.
-- Diamond-specific `diamondCut` payload validation and multi-step governance workflows are deferred to the diamond milestone.
+- Diamond `diamondCut` flows include core guardrails, but governance policy (timelocks/multisig approvals) remains an integration responsibility.
 - The current upgrade guardrails check nonzero implementation; deeper bytecode/interface validation is protocol-specific and should be added where needed.
 - Direct token donations to vault addresses can create untracked surplus unless explicitly reconciled by integration policy.
 
