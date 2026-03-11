@@ -44,6 +44,12 @@ library LibDiamond {
         return LibDiamondStorage.layout().contractOwner;
     }
 
+    /// @notice Reverts when `target` has no runtime code.
+    /// @param target The facet or init target to validate.
+    function enforceHasContractCode(address target) internal view {
+        _enforceTargetHasCode(target);
+    }
+
     /// @notice Sets the current contract owner and emits the ERC-173 event.
     /// @param newOwner The new owner account.
     function setContractOwner(address newOwner) internal {

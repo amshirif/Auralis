@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {LibDiamond} from "./libraries/LibDiamond.sol";
 
 /// @title Diamond
@@ -11,8 +12,11 @@ contract Diamond {
     error DiamondFunctionNotFound(bytes4 selector);
 
     /// @param initialOwner The account that becomes the initial diamond owner.
-    constructor(address initialOwner) {
+    /// @param initialCutFacet The initial cut facet installed during bootstrap.
+    constructor(address initialOwner, address initialCutFacet) {
         LibDiamond.setContractOwner(initialOwner);
+        LibDiamond.enforceHasContractCode(initialCutFacet);
+        LibDiamond.addSelector(initialCutFacet, IDiamondCut.diamondCut.selector);
     }
 
     /// @notice Accepts plain ETH transfers.

@@ -27,8 +27,8 @@ contract DiamondSelectorIntegrityCoreTest is TestBase {
     DiamondFacetAlphaReplacement internal alphaReplacement;
 
     function setUp() public {
-        diamond = new DiamondProxyHarness(admin);
         cutFacet = new DiamondCutFacet();
+        diamond = new DiamondProxyHarness(admin, address(cutFacet));
         loupeFacet = new DiamondLoupeFacet();
         facetOne = new DiamondFacetOne();
         facetTwo = new DiamondFacetTwo();
@@ -213,7 +213,6 @@ contract DiamondSelectorIntegrityCoreTest is TestBase {
     }
 
     function _bootstrapCoreFacets() internal {
-        diamond.installSelector(address(cutFacet), DiamondCutFacet.diamondCut.selector);
         diamond.installSelector(address(loupeFacet), DiamondLoupeFacet.facets.selector);
         diamond.installSelector(address(loupeFacet), DiamondLoupeFacet.facetFunctionSelectors.selector);
         diamond.installSelector(address(loupeFacet), DiamondLoupeFacet.facetAddresses.selector);
