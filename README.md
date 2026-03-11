@@ -30,6 +30,8 @@ facets without a full rewrite.
 - `src/vault/storage`: module-local storage libraries (diamond-ready slots).
 - `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, `IERC20`, `IERC20Metadata`, `IERC4626`, `IERC4626VaultBase`, `IERC4626VaultControls`, `IOracleAdapter`, `IOracleFeed`, `IPausable`, `IReentrancyGuard`, `IUpgradeGuardrails`, etc.).
 - `src/libraries`: shared cross-module libraries.
+- `script`: Foundry deployment and bootstrap flows.
+- `deployments`: local deployment artifacts written by scripts.
 - `test`: split by concern (`*Core.t.sol`, `*Time.t.sol`, `*Integration.t.sol`).
 - `test/helpers`: shared test fixtures and harnesses.
 - `docs`: usage notes and design decisions.
@@ -40,6 +42,8 @@ forge build
 forge test
 forge coverage
 forge fmt
+anvil
+forge script script/DeployDiamondCore.s.sol:DeployDiamondCoreScript --rpc-url http://127.0.0.1:8545 --broadcast
 ```
 
 ## Testing
@@ -72,6 +76,7 @@ forge fmt
 - Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
 - Milestone close checklist: `docs/ops/milestone-close-checklist.md`
+- Local diamond bootstrap: `docs/ops/local-diamond-bootstrap.md`
 
 ## Tooling
 - Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)

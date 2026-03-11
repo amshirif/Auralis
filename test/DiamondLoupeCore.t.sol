@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {DiamondFacetOne, DiamondFacetTwo, DiamondProxyHarness, TestBase} from "./helpers/DiamondTestHarness.sol";
+import {DiamondCutFacet} from "../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
@@ -12,12 +13,14 @@ contract DiamondLoupeCoreTest is TestBase {
     address internal eve = address(0xE11E);
 
     DiamondProxyHarness internal diamond;
+    DiamondCutFacet internal cutFacet;
     DiamondLoupeFacet internal loupeFacet;
     DiamondFacetOne internal facetOne;
     DiamondFacetTwo internal facetTwo;
 
     function setUp() public {
-        diamond = new DiamondProxyHarness(admin);
+        cutFacet = new DiamondCutFacet();
+        diamond = new DiamondProxyHarness(admin, address(cutFacet));
         loupeFacet = new DiamondLoupeFacet();
         facetOne = new DiamondFacetOne();
         facetTwo = new DiamondFacetTwo();
@@ -32,14 +35,19 @@ contract DiamondLoupeCoreTest is TestBase {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
         address[] memory facetAddresses_ = loupe.facetAddresses();
 
-        assertTrue(facetAddresses_.length == 3, "facet address count mismatch");
-        assertTrue(facetAddresses_[0] == address(loupeFacet), "loupe facet ordering mismatch");
-        assertTrue(facetAddresses_[1] == address(facetOne), "facet one ordering mismatch");
-        assertTrue(facetAddresses_[2] == address(facetTwo), "facet two ordering mismatch");
+        assertTrue(facetAddresses_.length == 4, "facet address count mismatch");
+        assertTrue(facetAddresses_[0] == address(cutFacet), "cut facet ordering mismatch");
+        assertTrue(facetAddresses_[1] == address(loupeFacet), "loupe facet ordering mismatch");
+        assertTrue(facetAddresses_[2] == address(facetOne), "facet one ordering mismatch");
+        assertTrue(facetAddresses_[3] == address(facetTwo), "facet two ordering mismatch");
 
         assertTrue(
             loupe.facetAddress(DiamondLoupeFacet.facets.selector) == address(loupeFacet),
             "loupe selector should resolve to loupe facet"
+        );
+        assertTrue(
+            loupe.facetAddress(DiamondCutFacet.diamondCut.selector) == address(cutFacet),
+            "diamondCut selector should resolve to cut facet"
         );
         assertTrue(
             loupe.facetAddress(DiamondFacetOne.alpha.selector) == address(facetOne),
@@ -55,21 +63,24 @@ contract DiamondLoupeCoreTest is TestBase {
     function testLoupeFacetFunctionSelectorsAndFacetsSnapshot() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
 
+        bytes4[] memory cutSelectors = loupe.facetFunctionSelectors(address(cutFacet));
         bytes4[] memory loupeSelectors = loupe.facetFunctionSelectors(address(loupeFacet));
         bytes4[] memory facetOneSelectors = loupe.facetFunctionSelectors(address(facetOne));
         bytes4[] memory facetTwoSelectors = loupe.facetFunctionSelectors(address(facetTwo));
         bytes4[] memory unknownFacetSelectors = loupe.facetFunctionSelectors(eve);
 
+        assertTrue(cutSelectors.length == 1, "cut facet selector count mismatch");
         assertTrue(loupeSelectors.length == 6, "loupe selector count mismatch");
         assertTrue(facetOneSelectors.length == 2, "facet one selector count mismatch");
         assertTrue(facetTwoSelectors.length == 1, "facet two selector count mismatch");
         assertTrue(unknownFacetSelectors.length == 0, "unknown facet should have no selectors");
 
         IDiamondLoupe.Facet[] memory facets_ = loupe.facets();
-        assertTrue(facets_.length == 3, "facets snapshot count mismatch");
-        assertTrue(facets_[0].facetAddress == address(loupeFacet), "loupe snapshot ordering mismatch");
-        assertTrue(facets_[1].facetAddress == address(facetOne), "facet one snapshot ordering mismatch");
-        assertTrue(facets_[2].facetAddress == address(facetTwo), "facet two snapshot ordering mismatch");
+        assertTrue(facets_.length == 4, "facets snapshot count mismatch");
+        assertTrue(facets_[0].facetAddress == address(cutFacet), "cut snapshot ordering mismatch");
+        assertTrue(facets_[1].facetAddress == address(loupeFacet), "loupe snapshot ordering mismatch");
+        assertTrue(facets_[2].facetAddress == address(facetOne), "facet one snapshot ordering mismatch");
+        assertTrue(facets_[3].facetAddress == address(facetTwo), "facet two snapshot ordering mismatch");
     }
 
     function testOwnershipSurfaceReportsCurrentOwner() public view {
