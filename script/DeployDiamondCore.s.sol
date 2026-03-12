@@ -7,33 +7,11 @@ import {DiamondLoupeFacet} from "../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
-
-interface Vm {
-    function addr(uint256 privateKey) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function projectRoot() external view returns (string memory);
-    function serializeAddress(string calldata objectKey, string calldata valueKey, address value)
-        external
-        returns (string memory);
-    function serializeString(string calldata objectKey, string calldata valueKey, string calldata value)
-        external
-        returns (string memory);
-    function serializeUint(string calldata objectKey, string calldata valueKey, uint256 value)
-        external
-        returns (string memory);
-    function startBroadcast(uint256 privateKey) external;
-    function stopBroadcast() external;
-    function writeJson(string calldata json, string calldata path) external;
-}
+import {DiamondCoreScriptBase} from "./common/DiamondCoreScriptBase.sol";
 
 /// @title DeployDiamondCoreScript
 /// @notice Reference local deployment flow for a bootstrapped diamond core.
-contract DeployDiamondCoreScript {
-    Vm internal constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-
-    string internal constant DEPLOYMENT_OBJECT = "diamondCore";
-    string internal constant OUTPUT_RELATIVE_PATH = "/deployments/diamond-core.local.json";
-
+contract DeployDiamondCoreScript is DiamondCoreScriptBase {
     /// @notice Deploys `Diamond`, `DiamondCutFacet`, and `DiamondLoupeFacet`, then bootstraps loupe selectors.
     /// @dev Requires `PRIVATE_KEY` to be set in the environment.
     /// @return diamondAddress The deployed diamond proxy.
@@ -101,7 +79,7 @@ contract DeployDiamondCoreScript {
         json = VM.serializeAddress(DEPLOYMENT_OBJECT, "diamond", diamondAddress);
         json = VM.serializeAddress(DEPLOYMENT_OBJECT, "diamondCutFacet", cutFacetAddress);
         json = VM.serializeAddress(DEPLOYMENT_OBJECT, "diamondLoupeFacet", loupeFacetAddress);
-        VM.writeJson(json, string.concat(VM.projectRoot(), OUTPUT_RELATIVE_PATH));
+        VM.writeJson(json, deploymentArtifactPath());
     }
 
     function _loupeSelectors() internal pure returns (bytes4[] memory selectors) {
