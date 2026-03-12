@@ -58,3 +58,12 @@ Current fields:
 - `diamondLoupeFacet`
 
 These outputs are intended to feed later E2E and upgrade rehearsal work.
+
+## Follow-Up Smoke Checks
+
+After bootstrap, run the local smoke suite to validate live routing and a
+reference admin state transition against the deployed environment:
+
+```shell
+bash script/run-local-diamond-smoke.sh
+```

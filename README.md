@@ -32,6 +32,7 @@ facets without a full rewrite.
 - `src/libraries`: shared cross-module libraries.
 - `script`: Foundry deployment and bootstrap flows.
 - `deployments`: local deployment artifacts written by scripts.
+- `script/common`: shared Foundry script helpers and cheatcode interfaces.
 - `test`: split by concern (`*Core.t.sol`, `*Time.t.sol`, `*Integration.t.sol`).
 - `test/helpers`: shared test fixtures and harnesses.
 - `docs`: usage notes and design decisions.
@@ -44,6 +45,7 @@ forge coverage
 forge fmt
 anvil
 forge script script/DeployDiamondCore.s.sol:DeployDiamondCoreScript --rpc-url http://127.0.0.1:8545 --broadcast
+bash script/run-local-diamond-smoke.sh
 ```
 
 ## Testing
@@ -77,6 +79,7 @@ forge script script/DeployDiamondCore.s.sol:DeployDiamondCoreScript --rpc-url ht
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
 - Milestone close checklist: `docs/ops/milestone-close-checklist.md`
 - Local diamond bootstrap: `docs/ops/local-diamond-bootstrap.md`
+- Local diamond smoke flow: `docs/ops/local-diamond-smoke.md`
 
 ## Tooling
 - Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
