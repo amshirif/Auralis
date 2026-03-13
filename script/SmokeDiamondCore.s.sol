@@ -18,31 +18,16 @@ contract SmokeDiamondCoreScript is DiamondCoreScriptBase {
         uint256 nextOwnerPrivateKey = VM.envUint("NEXT_OWNER_PRIVATE_KEY");
         address owner = VM.addr(ownerPrivateKey);
         address nextOwner = VM.addr(nextOwnerPrivateKey);
-        address cutFacetAddress;
-        address loupeFacetAddress;
+        DeploymentArtifact memory deployment;
 
         require(nextOwner != owner, "smoke next owner matches owner");
 
-        (diamondAddress, cutFacetAddress, loupeFacetAddress) = _loadDeploymentArtifact();
+        deployment = loadDeploymentArtifact();
+        diamondAddress = deployment.diamond;
 
-        _validateBootstrap(diamondAddress, owner, cutFacetAddress, loupeFacetAddress);
+        _validateBootstrap(diamondAddress, owner, deployment.diamondCutFacet, deployment.diamondLoupeFacet);
         _exerciseOwnershipTransfer(diamondAddress, ownerPrivateKey, nextOwner);
-        _validatePostTransfer(diamondAddress, nextOwner, cutFacetAddress, loupeFacetAddress);
-    }
-
-    function _loadDeploymentArtifact()
-        internal
-        view
-        returns (address diamondAddress, address cutFacet, address loupeFacet)
-    {
-        string memory json = VM.readFile(deploymentArtifactPath());
-        diamondAddress = VM.parseJsonAddress(json, ".diamond");
-        cutFacet = VM.parseJsonAddress(json, ".diamondCutFacet");
-        loupeFacet = VM.parseJsonAddress(json, ".diamondLoupeFacet");
-
-        require(diamondAddress != address(0), "smoke diamond missing");
-        require(cutFacet != address(0), "smoke cut facet missing");
-        require(loupeFacet != address(0), "smoke loupe facet missing");
+        _validatePostTransfer(diamondAddress, nextOwner, deployment.diamondCutFacet, deployment.diamondLoupeFacet);
     }
 
     function _validateBootstrap(

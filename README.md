@@ -46,6 +46,7 @@ forge fmt
 anvil
 forge script script/DeployDiamondCore.s.sol:DeployDiamondCoreScript --rpc-url http://127.0.0.1:8545 --broadcast
 bash script/run-local-diamond-smoke.sh
+bash script/run-local-diamond-upgrade-rehearsal.sh
 ```
 
 ## Testing
