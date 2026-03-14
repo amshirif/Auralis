@@ -47,6 +47,7 @@ anvil
 forge script script/DeployDiamondCore.s.sol:DeployDiamondCoreScript --rpc-url http://127.0.0.1:8545 --broadcast
 bash script/run-local-diamond-smoke.sh
 bash script/run-local-diamond-upgrade-rehearsal.sh
+bash script/run-local-system-hardening.sh
 ```
 
 ## Testing
@@ -56,9 +57,12 @@ bash script/run-local-diamond-upgrade-rehearsal.sh
 - Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
 - Vault accounting fuzz suite: `test/ERC4626VaultAccountingFuzz.t.sol`
 - Vault accounting invariant suite: `test/ERC4626VaultAccountingInvariant.t.sol`
+- Vault system stress invariant suite: `test/SystemVaultStressInvariant.t.sol`
 - Diamond core suites: `test/DiamondFoundationCore.t.sol`, `test/DiamondProxyCore.t.sol`, `test/DiamondCutCore.t.sol`, `test/DiamondLoupeCore.t.sol`, `test/DiamondSelectorIntegrityCore.t.sol`
 - Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
+- Oracle system failure suite: `test/SystemOracleFailureScenarios.t.sol`
 - Security CI/local checks: `docs/security-checks.md`
+- System hardening note: `docs/system-hardening.md`
 
 ## Module Docs
 - Access control: `docs/access-control.md`
