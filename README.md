@@ -52,6 +52,7 @@ bash script/run-local-system-hardening.sh
 
 ## Testing
 - Convention guide: `docs/testing-conventions.md`
+- CI note: targeted system suites run broadly in the `System Hardening` workflow, while the full local hardening flow gates `milestone/**`, `main`, and manual runs
 - Vault foundation suite: `test/ERC4626VaultFoundationCore.t.sol`
 - Vault core suite: `test/ERC4626Core.t.sol`
 - Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
@@ -88,3 +89,4 @@ bash script/run-local-system-hardening.sh
 
 ## Tooling
 - Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
+- GitHub Actions: `.github/workflows/ci.yml`, `.github/workflows/system-hardening.yml`, `.github/workflows/slither.yml`
