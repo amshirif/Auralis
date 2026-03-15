@@ -4,6 +4,17 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
 
 ## CI Policy
 
+### System Hardening (`.github/workflows/system-hardening.yml`)
+
+- Trigger: pull requests, pushes to `main` and `milestone/**`, manual dispatch.
+- Tooling: GitHub Actions + Foundry.
+- Policy:
+  - `Targeted System Suites` runs on every workflow trigger and executes:
+    - `forge test --offline --match-path test/SystemVaultStressInvariant.t.sol`
+    - `forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol`
+  - `Full Local Hardening Flow` runs on pushes to `main`/`milestone/**`, on manual dispatch, and on pull requests targeting `main` or `milestone/**`.
+- Scope: deployment bootstrap, smoke flow, upgrade rehearsal, vault stress invariants, and oracle failure scenarios.
+
 ### Slither (`.github/workflows/slither.yml`)
 
 - Trigger: pull requests, pushes to `main` and `milestone/**`, manual dispatch.
@@ -22,6 +33,18 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
     `ENABLE_PRIVATE_DEPENDENCY_REVIEW=true` is set.
 
 ## Local Reproduction
+
+### System Hardening
+
+Run the same bounded and full entrypoints locally:
+
+```bash
+forge test --offline --match-path test/SystemVaultStressInvariant.t.sol
+forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
+bash script/run-local-system-hardening.sh
+```
+
+Use the targeted suites for faster iteration and the full hardening runner for the same deployment-backed flow used by the higher-signal CI gate.
 
 ### Slither
 

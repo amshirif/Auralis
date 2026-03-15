@@ -1,0 +1,75 @@
+name: System Hardening
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "milestone/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: system-hardening-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  system-suites:
+    name: Targeted System Suites
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Cache Foundry Artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.foundry/cache
+          key: ${{ runner.os }}-foundry-cache-${{ hashFiles('foundry.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-foundry-cache-
+
+      - name: Run System Vault Stress Invariants
+        run: forge test --offline --match-path test/SystemVaultStressInvariant.t.sol
+
+      - name: Run System Oracle Failure Scenarios
+        run: forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
+
+  system-hardening-e2e:
+    name: Full Local Hardening Flow
+    runs-on: ubuntu-latest
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'push' ||
+        (github.event_name == 'pull_request' &&
+          (github.base_ref == 'main' || startsWith(github.base_ref, 'milestone/')))
+      }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Cache Foundry Artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.foundry/cache
+          key: ${{ runner.os }}-foundry-cache-${{ hashFiles('foundry.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-foundry-cache-
+
+      - name: Run Full Local Hardening Flow
+        run: bash script/run-local-system-hardening.sh
