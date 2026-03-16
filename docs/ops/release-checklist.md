@@ -37,11 +37,15 @@ Required outcomes:
 - no build failures
 - no failing tests
 - coverage report generated and reviewed for regressions in touched modules
+- deployment-backed validation run where the release scope touches diamond or
+  system-hardening flows:
+  - `bash script/run-local-system-hardening.sh`
 
 ## 4. Security/Quality Gates
 
 - Confirm CI status is green for:
   - Foundry CI
+  - System Hardening
   - Slither
   - Dependency Review (when enabled)
 - Confirm no unresolved high-severity findings introduced by this release.

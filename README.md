@@ -1,92 +1,67 @@
-# smart-contracts
+# Keystone
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
 [![Foundry CI](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml)
 ![License](https://img.shields.io/github/license/amshirif/smart-contracts)
 
-Portfolio-focused Solidity modules built with Foundry. The codebase is kept
-dependency-light and "diamond-ready" so core modules can later be wrapped as
-facets without a full rewrite.
+Security-first, diamond-ready Solidity systems.
 
-## Goals
-- Security-first primitives with clear admin and upgrade boundaries.
-- Clean, testable modules with minimal external dependencies.
-- Diamond-ready storage patterns for future EIP-2535 integration.
-- Global and scope-level emergency controls for safer operations.
+`Keystone` is a portfolio-focused Solidity repository built to show
+security-first protocol engineering, dependency-light design, and
+deployment-backed validation. The codebase is intentionally diamond-ready, so
+core modules can evolve into facetized systems without rewriting storage or
+control-plane assumptions.
 
-## Structure
-- `src/access`: access control and upgrade-safety primitives.
-- `src/access/storage`: module-local storage libraries (diamond-ready slots).
-- `src/diamond`: diamond core primitives and shared routing helpers.
-- `src/diamond/facets`: diamond facet implementations.
-- `src/diamond/storage`: diamond routing and ownership storage layout.
-- `src/security`: security primitives such as reentrancy protection.
-- `src/security/storage`: module-local storage libraries (diamond-ready slots).
-- `src/oracle`: oracle adapter and feed safety primitives.
-- `src/oracle/storage`: module-local storage libraries (diamond-ready slots).
-- `src/upgrade`: upgrade authorization and execution guardrails.
-- `src/upgrade/storage`: module-local storage libraries (diamond-ready slots).
-- `src/vault`: ERC-4626 vault core and control-layer utilities.
-- `src/vault/storage`: module-local storage libraries (diamond-ready slots).
-- `src/interfaces`: local interfaces (ERC-165, `IAccessControl`, `IAccessControlTime`, `IERC20`, `IERC20Metadata`, `IERC4626`, `IERC4626VaultBase`, `IERC4626VaultControls`, `IOracleAdapter`, `IOracleFeed`, `IPausable`, `IReentrancyGuard`, `IUpgradeGuardrails`, etc.).
-- `src/libraries`: shared cross-module libraries.
-- `script`: Foundry deployment and bootstrap flows.
-- `deployments`: local deployment artifacts written by scripts.
-- `script/common`: shared Foundry script helpers and cheatcode interfaces.
-- `test`: split by concern (`*Core.t.sol`, `*Time.t.sol`, `*Integration.t.sol`).
-- `test/helpers`: shared test fixtures and harnesses.
-- `docs`: usage notes and design decisions.
+## Why This Repo Exists
 
-## Commands
+This repo is meant to demonstrate more than isolated contract snippets. It
+shows how access control, guard rails, oracle safety, vault logic, diamond
+routing, deployment scripts, rehearsal flows, and CI checks fit together as a
+reviewable engineering system.
+
+## What It Currently Demonstrates
+
+- A security-first control plane with RBAC, time-based permissions,
+  pausability, reentrancy protection, and upgrade guardrails.
+- Oracle safety patterns including validation bounds, stale-data handling,
+  circuit breakers, and controlled fallback behavior.
+- A diamond core with selector routing, cut/loupe support, ownership
+  introspection, and selector-integrity regression coverage.
+- Operational maturity through local bootstrap, smoke validation, upgrade
+  rehearsal, system-hardening flows, and matching CI gates.
+
+## Current Status
+
+Implemented milestones so far:
+
+- Access Control + Upgrade Safety Kit
+- Oracle Adapter + Circuit Breaker
+- Diamond Core (EIP-2535)
+- System-Level Testing & Hardening
+
+## Validation
+
+Run the highest-signal local checks with:
+
 ```shell
-forge build
-forge test
-forge coverage
-forge fmt
-anvil
-forge script script/DeployDiamondCore.s.sol:DeployDiamondCoreScript --rpc-url http://127.0.0.1:8545 --broadcast
+forge test --offline
 bash script/run-local-diamond-smoke.sh
 bash script/run-local-diamond-upgrade-rehearsal.sh
 bash script/run-local-system-hardening.sh
 ```
 
-## Testing
-- Convention guide: `docs/testing-conventions.md`
-- CI note: targeted system suites run broadly in the `System Hardening` workflow, while the full local hardening flow gates `milestone/**`, `main`, and manual runs
-- Vault foundation suite: `test/ERC4626VaultFoundationCore.t.sol`
-- Vault core suite: `test/ERC4626Core.t.sol`
-- Vault controls suite: `test/ERC4626VaultControlsCore.t.sol`
-- Vault accounting fuzz suite: `test/ERC4626VaultAccountingFuzz.t.sol`
-- Vault accounting invariant suite: `test/ERC4626VaultAccountingInvariant.t.sol`
-- Vault system stress invariant suite: `test/SystemVaultStressInvariant.t.sol`
-- Diamond core suites: `test/DiamondFoundationCore.t.sol`, `test/DiamondProxyCore.t.sol`, `test/DiamondCutCore.t.sol`, `test/DiamondLoupeCore.t.sol`, `test/DiamondSelectorIntegrityCore.t.sol`
-- Oracle hardening suite: `test/OracleAdapterCore.t.sol`, `test/OracleAdapterValidation.t.sol`, `test/OracleAdapterCircuitBreaker.t.sol`, `test/OracleAdapterFuzz.t.sol`
-- Oracle system failure suite: `test/SystemOracleFailureScenarios.t.sol`
-- Security CI/local checks: `docs/security-checks.md`
-- System hardening note: `docs/system-hardening.md`
+## Documentation
 
-## Module Docs
-- Access control: `docs/access-control.md`
-- Diamond core: `docs/diamond-core.md`
-- ERC-4626 vault: `docs/erc4626-vault.md`
-- Oracle adapter: `docs/oracle-adapter.md`
-- Pausability: `docs/pausable.md`
-- Reentrancy guard: `docs/reentrancy-guard.md`
-- Upgrade guardrails: `docs/upgrade-guardrails.md`
-- Threat model: `docs/threat-model.md`
+Architecture and module docs live in `docs/diamond-core.md`,
+`docs/oracle-adapter.md`, `docs/erc4626-vault.md`, and `docs/threat-model.md`.
 
-## Operations
-- Ops docs index: `docs/ops/README.md`
-- Release checklist: `docs/ops/release-checklist.md`
-- Release notes template: `docs/ops/release-notes-template.md`
-- Diamond cut runbook: `docs/ops/runbook-diamond-cut.md`
-- Oracle incident runbook: `docs/ops/runbook-oracle-incident.md`
-- Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
-- Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
-- Milestone close checklist: `docs/ops/milestone-close-checklist.md`
-- Local diamond bootstrap: `docs/ops/local-diamond-bootstrap.md`
-- Local diamond smoke flow: `docs/ops/local-diamond-smoke.md`
+Operational guidance lives in `docs/ops/README.md`, with the end-to-end
+execution order collected in `docs/ops/runbook-system-hardening.md`.
+
+CI and local validation parity are documented in `docs/security-checks.md`.
 
 ## Tooling
-- Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
-- GitHub Actions: `.github/workflows/ci.yml`, `.github/workflows/system-hardening.yml`, `.github/workflows/slither.yml`
+
+Built with Foundry. CI workflows live under `.github/workflows/`.
+
+Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)

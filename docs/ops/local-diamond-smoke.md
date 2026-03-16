@@ -40,3 +40,23 @@ through a system proxy.
 
 This flow is intended to become the baseline smoke suite reused by later
 upgrade rehearsal and CI work.
+
+## Success Signals
+
+The flow succeeds only if all of the following hold:
+
+- the deployed diamond routes loupe selectors correctly
+- the live owner can be read and updated
+- ownership state remains correct after the transfer check
+- the script ends with `Local diamond smoke flow passed.`
+
+## Failure Interpretation
+
+- Artifact read failures usually mean bootstrap did not complete correctly.
+- Loupe or ownership mismatches indicate selector-routing or state-surface
+  regressions.
+- Ownership transfer validation failures indicate deployed admin flows are not
+  behaving as expected.
+
+Use this flow before the upgrade rehearsal when you want the simplest
+deployment-backed validation pass.

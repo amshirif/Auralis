@@ -3,6 +3,9 @@
 This note defines the reproducible system-level hardening coverage added for
 issue `#69`.
 
+For the operator-facing execution order and failure interpretation, see
+`docs/ops/runbook-system-hardening.md`.
+
 ## What Is Simulated
 
 - Local diamond bootstrap and smoke validation through the Foundry deployment

@@ -14,6 +14,8 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
     - `forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol`
   - `Full Local Hardening Flow` runs on pushes to `main`/`milestone/**`, on manual dispatch, and on pull requests targeting `main` or `milestone/**`.
 - Scope: deployment bootstrap, smoke flow, upgrade rehearsal, vault stress invariants, and oracle failure scenarios.
+- Operational execution order and local reproduction context:
+  `docs/ops/runbook-system-hardening.md`
 
 ### Slither (`.github/workflows/slither.yml`)
 
