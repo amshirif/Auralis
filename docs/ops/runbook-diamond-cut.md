@@ -18,6 +18,8 @@ Use this runbook for production-facing selector upgrades on the diamond core.
    - `init` target has code.
    - calldata is non-empty.
    - init routine is idempotent and storage-safe.
+6. Rehearse the cut path locally with:
+   - `bash script/run-local-diamond-upgrade-rehearsal.sh`
 
 ## Execution
 
@@ -33,7 +35,9 @@ Use this runbook for production-facing selector upgrades on the diamond core.
    - `facetAddress(selector)`
 2. Verify expected selector ownership matches planned diff.
 3. Run smoke checks on critical external functions.
-4. Verify owner is unchanged unless ownership transfer was planned.
+4. For broader branch validation, run:
+   - `bash script/run-local-system-hardening.sh`
+5. Verify owner is unchanged unless ownership transfer was planned.
 
 ## Failure Handling
 

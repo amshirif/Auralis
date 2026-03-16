@@ -1,13 +1,27 @@
 # Operations Docs
 
-This folder contains release and incident-response operational guides.
+This folder is the operator-facing guide set for deployment rehearsal,
+validation, incident response, and milestone hygiene.
 
-- Release checklist: `docs/ops/release-checklist.md`
-- Release notes template: `docs/ops/release-notes-template.md`
+## Start Here
+
+- System hardening runbook: `docs/ops/runbook-system-hardening.md`
+
+## Local Validation Flows
+
 - Local diamond bootstrap: `docs/ops/local-diamond-bootstrap.md`
 - Local diamond smoke flow: `docs/ops/local-diamond-smoke.md`
+- Local diamond upgrade rehearsal: `docs/ops/local-diamond-upgrade-rehearsal.md`
+
+## Runbooks
+
 - Diamond cut runbook: `docs/ops/runbook-diamond-cut.md`
 - Oracle incident runbook: `docs/ops/runbook-oracle-incident.md`
 - Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
+
+## Release And Milestone Hygiene
+
+- Release checklist: `docs/ops/release-checklist.md`
+- Release notes template: `docs/ops/release-notes-template.md`
 - Milestone close checklist: `docs/ops/milestone-close-checklist.md`

@@ -1,0 +1,15 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Keystone logo</title>
+  <desc id="desc">A geometric diamond mark with a highlighted central cut seam.</desc>
+  <path d="M128 28L212 92V164L128 228L44 164V92L128 28Z" fill="#111827"/>
+  <path d="M128 28L212 92L128 116L44 92L128 28Z" fill="#374151"/>
+  <path d="M44 92L128 116V228L44 164V92Z" fill="#1F2937"/>
+  <path d="M212 92L128 116V228L212 164V92Z" fill="#0F172A"/>
+  <path d="M128 28L152 98L128 116L104 98L128 28Z" fill="#C59D5F"/>
+  <path d="M128 116L152 98L212 92L128 228V116Z" fill="#7C5A2A"/>
+  <path d="M128 116L104 98L44 92L128 228V116Z" fill="#4B5563"/>
+  <path d="M128 40L195 91L195 161L128 212L61 161L61 91L128 40Z" stroke="#F9FAFB" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M61 91L128 116L195 91" stroke="#F9FAFB" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M128 40L128 212" stroke="#C59D5F" stroke-width="8" stroke-linecap="round"/>
+  <path d="M104 98L128 116L152 98" stroke="#F9FAFB" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

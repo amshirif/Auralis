@@ -59,6 +59,12 @@ Current fields:
 
 These outputs are intended to feed later E2E and upgrade rehearsal work.
 
+Downstream flows that consume this artifact:
+
+- `bash script/run-local-diamond-smoke.sh`
+- `bash script/run-local-diamond-upgrade-rehearsal.sh`
+- `bash script/run-local-system-hardening.sh`
+
 ## Follow-Up Smoke Checks
 
 After bootstrap, run the local smoke suite to validate live routing and a
@@ -67,3 +73,13 @@ reference admin state transition against the deployed environment:
 ```shell
 bash script/run-local-diamond-smoke.sh
 ```
+
+## Failure Interpretation
+
+- If Anvil never becomes reachable, inspect local RPC startup and port
+  conflicts first.
+- If the deployment artifact is missing or incomplete, do not continue to smoke
+  or rehearsal flows.
+- If constructor bootstrap or loupe installation fails, treat it as a diamond
+  deployment regression and inspect the deployment script output before
+  retrying.
