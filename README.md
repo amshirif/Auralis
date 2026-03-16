@@ -57,7 +57,8 @@ bash script/run-local-system-hardening.sh
 ## Documentation
 
 Architecture and module docs live in `docs/diamond-core.md`,
-`docs/oracle-adapter.md`, `docs/erc4626-vault.md`, and `docs/threat-model.md`.
+`docs/oracle-adapter.md`, `docs/erc4626-vault.md`, `docs/token-facets.md`, and
+`docs/threat-model.md`.
 
 Operational guidance lives in `docs/ops/README.md`, with the end-to-end
 execution order collected in `docs/ops/runbook-system-hardening.md`.
