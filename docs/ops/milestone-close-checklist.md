@@ -24,6 +24,7 @@ Use this checklist before merging a milestone branch into `main`.
   - `forge build --sizes`
   - `forge test --offline`
   - `forge coverage --offline`
+  - `bash script/run-local-system-hardening.sh`
 
 ## 4. Security and Operations
 

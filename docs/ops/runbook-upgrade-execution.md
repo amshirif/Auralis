@@ -18,6 +18,9 @@ Use this runbook for guarded upgrade operations.
 - Confirm implementation address is final and deployed.
 - Confirm compatibility and migration assumptions.
 - Confirm rollback or cancel path is clear.
+- If the change touches the diamond upgrade path or system-level validation
+  surface, rehearse locally first:
+  - `bash script/run-local-diamond-upgrade-rehearsal.sh`
 
 ## Execution Flow
 
@@ -40,6 +43,9 @@ Use this runbook for guarded upgrade operations.
 
 - Confirm expected implementation is active (module-specific check).
 - Run smoke checks on critical paths.
+- For deployment-backed validation, run:
+  - `bash script/run-local-diamond-smoke.sh`
+  - `bash script/run-local-system-hardening.sh`
 - Record:
   - queued by / executed by
   - queue and execution timestamps

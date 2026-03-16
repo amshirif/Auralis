@@ -14,15 +14,17 @@ rules, and upgrade review guidance.
 
 ## Deployment And Bootstrap Flow
 
-Current `Diamond` constructor initializes only the owner:
+Current `Diamond` constructor bootstraps the owner and initial cut facet:
 
-- deploy `Diamond(initialOwner)`.
-- deploy initial facets (`DiamondCutFacet`, `DiamondLoupeFacet`, others).
-- install initial selectors through a bootstrap path.
+- deploy `DiamondCutFacet`.
+- deploy `Diamond(initialOwner, initialCutFacet)`.
+- deploy remaining initial facets (`DiamondLoupeFacet`, others).
+- install additional selectors through `diamondCut`.
 
-In tests, bootstrap is done through `DiamondProxyHarness.installSelector(...)`.
-For production, use a deploy flow that installs initial selectors before regular
-operations begin (for example via a dedicated deploy/factory path).
+In tests, extra selectors can still be installed through
+`DiamondProxyHarness.installSelector(...)`. For production, the constructor now
+bootstraps `diamondCut`, and the deploy flow should use that to install the
+rest of the initial selector set before regular operations begin.
 
 ## `diamondCut` And Init Delegatecall Flow
 

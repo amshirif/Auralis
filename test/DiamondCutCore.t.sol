@@ -26,13 +26,11 @@ contract DiamondCutCoreTest is TestBase {
     DiamondInitMock internal initMock;
 
     function setUp() public {
-        diamond = new DiamondProxyHarness(admin);
         cutFacet = new DiamondCutFacet();
+        diamond = new DiamondProxyHarness(admin, address(cutFacet));
         facetOne = new DiamondFacetOne();
         facetReplacement = new DiamondFacetReplacement();
         initMock = new DiamondInitMock();
-
-        diamond.installSelector(address(cutFacet), DiamondCutFacet.diamondCut.selector);
     }
 
     function testOwnerCanAddSelectorViaDiamondCut() public {

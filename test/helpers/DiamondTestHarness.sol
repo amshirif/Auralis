@@ -139,7 +139,7 @@ contract DiamondLibraryHarness {
 }
 
 contract DiamondProxyHarness is Diamond {
-    constructor(address initialOwner) Diamond(initialOwner) {}
+    constructor(address initialOwner, address initialCutFacet) Diamond(initialOwner, initialCutFacet) {}
 
     function owner() external view returns (address) {
         return LibDiamond.contractOwner();
