@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/keystone-logo.svg" alt="Keystone logo" width="140" />
+</p>
+
 # Keystone
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
