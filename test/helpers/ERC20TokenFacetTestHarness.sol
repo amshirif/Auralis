@@ -5,6 +5,7 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IAccessControl} from "../../src/interfaces/IAccessControl.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
 import {IERC20Metadata} from "../../src/interfaces/IERC20Metadata.sol";
+import {IERC20Permit} from "../../src/interfaces/IERC20Permit.sol";
 import {IERC20TokenBase} from "../../src/interfaces/IERC20TokenBase.sol";
 import {IERC20TokenFacet} from "../../src/interfaces/IERC20TokenFacet.sol";
 import {IPausable} from "../../src/interfaces/IPausable.sol";
@@ -14,15 +15,31 @@ import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 
 abstract contract ERC20TokenFacetFixture is TestBase {
-    address internal admin = address(0xA11CE);
-    address internal bob = address(0xB0B);
-    address internal eve = address(0xE11E);
+    bytes32 internal constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    uint256 internal constant ADMIN_PK = uint256(keccak256("erc20-facet-admin"));
+    uint256 internal constant BOB_PK = uint256(keccak256("erc20-facet-bob"));
+    uint256 internal constant EVE_PK = uint256(keccak256("erc20-facet-eve"));
+    uint256 internal constant CAROL_PK = uint256(keccak256("erc20-facet-carol"));
+    uint256 internal constant DAVE_PK = uint256(keccak256("erc20-facet-dave"));
+
+    address internal admin;
+    address internal bob;
+    address internal eve;
+    address internal carol;
+    address internal dave;
 
     ERC20TokenFacet internal facet;
     DiamondCutFacet internal cutFacet;
     DiamondProxyHarness internal diamond;
 
     function setUp() public virtual {
+        admin = VM.addr(ADMIN_PK);
+        bob = VM.addr(BOB_PK);
+        eve = VM.addr(EVE_PK);
+        carol = VM.addr(CAROL_PK);
+        dave = VM.addr(DAVE_PK);
+
         facet = new ERC20TokenFacet();
         cutFacet = new DiamondCutFacet();
         diamond = new DiamondProxyHarness(admin, address(cutFacet));
@@ -33,7 +50,7 @@ abstract contract ERC20TokenFacetFixture is TestBase {
     }
 
     function _addErc20FacetToDiamond() internal {
-        bytes4[] memory selectors = new bytes4[](26);
+        bytes4[] memory selectors = new bytes4[](29);
         selectors[0] = IERC20TokenFacet.initializeErc20.selector;
         selectors[1] = IERC20Metadata.name.selector;
         selectors[2] = IERC20Metadata.symbol.selector;
@@ -60,6 +77,9 @@ abstract contract ERC20TokenFacetFixture is TestBase {
         selectors[23] = IPausable.pauseScope.selector;
         selectors[24] = IPausable.unpauseScope.selector;
         selectors[25] = IPausable.scopePaused.selector;
+        selectors[26] = IERC20Permit.permit.selector;
+        selectors[27] = IERC20Permit.nonces.selector;
+        selectors[28] = IERC20Permit.DOMAIN_SEPARATOR.selector;
 
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
@@ -68,5 +88,43 @@ abstract contract ERC20TokenFacetFixture is TestBase {
 
         VM.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _permitDigest(
+        address target,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        return keccak256(abi.encodePacked("\x19\x01", IERC20Permit(target).DOMAIN_SEPARATOR(), structHash));
+    }
+
+    function _signPermit(
+        uint256 ownerKey,
+        address target,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 nonce,
+        uint256 deadline
+    ) internal returns (uint8 v, bytes32 r, bytes32 s) {
+        return VM.sign(ownerKey, _permitDigest(target, owner, spender, value, nonce, deadline));
+    }
+
+    function _recoverPermitSigner(
+        address target,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 nonce,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) internal view returns (address) {
+        return ecrecover(_permitDigest(target, owner, spender, value, nonce, deadline), v, r, s);
     }
 }

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
+import {IERC20Permit} from "../src/interfaces/IERC20Permit.sol";
 import {IERC20TokenBase} from "../src/interfaces/IERC20TokenBase.sol";
 import {IERC20TokenFacet} from "../src/interfaces/IERC20TokenFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
@@ -11,6 +12,8 @@ import {ERC20TokenFacetFixture} from "./helpers/ERC20TokenFacetTestHarness.sol";
 contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
+    bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     function testInitializeSeedsMetadataAndSharedRoles() public {
         _erc20Init(address(facet));
@@ -191,6 +194,9 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
             IERC20TokenFacet(address(facet)).supportsInterface(type(IPausable).interfaceId), "pausable unsupported"
         );
         assertTrue(
+            IERC20TokenFacet(address(facet)).supportsInterface(type(IERC20Permit).interfaceId), "permit unsupported"
+        );
+        assertTrue(
             IERC20TokenFacet(address(facet)).supportsInterface(type(IERC20TokenFacet).interfaceId),
             "facet interface unsupported"
         );
@@ -245,5 +251,111 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
         VM.prank(admin);
         VM.expectRevert(abi.encodeWithSelector(IERC20TokenBase.ERC20TokenAlreadyInitialized.selector));
         IERC20TokenFacet(address(diamond)).initializeErc20("Facet Token", "FTKN", 18, admin);
+    }
+
+    function testPermitSetsAllowanceEmitsApprovalAndIncrementsNonce() public {
+        _erc20Init(address(facet));
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(facet), bob, eve, 55, 0, deadline);
+
+        VM.expectEmit(true, true, false, true, address(facet));
+        emit Approval(bob, eve, 55);
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 55, deadline, v, r, s);
+
+        assertTrue(IERC20TokenFacet(address(facet)).allowance(bob, eve) == 55, "permit allowance mismatch");
+        assertTrue(IERC20TokenFacet(address(facet)).nonces(bob) == 1, "permit nonce mismatch");
+    }
+
+    function testPermitRevertsOnReplay() public {
+        _erc20Init(address(facet));
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(facet), bob, eve, 55, 0, deadline);
+
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 55, deadline, v, r, s);
+
+        address replaySigner = _recoverPermitSigner(address(facet), bob, eve, 55, 1, deadline, v, r, s);
+        VM.expectRevert(abi.encodeWithSelector(IERC20TokenFacet.ERC20PermitInvalidSigner.selector, replaySigner, bob));
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 55, deadline, v, r, s);
+    }
+
+    function testPermitRevertsOnExpiredDeadline() public {
+        _erc20Init(address(facet));
+        uint256 deadline = block.timestamp;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(facet), bob, eve, 55, 0, deadline);
+
+        VM.warp(block.timestamp + 1);
+        VM.expectRevert(abi.encodeWithSelector(IERC20TokenFacet.ERC20PermitExpired.selector, deadline, block.timestamp));
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 55, deadline, v, r, s);
+    }
+
+    function testPermitRevertsOnWrongPayload() public {
+        _erc20Init(address(facet));
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(facet), bob, eve, 55, 0, deadline);
+
+        address wrongSpenderSigner = _recoverPermitSigner(address(facet), bob, admin, 55, 0, deadline, v, r, s);
+        VM.expectRevert(
+            abi.encodeWithSelector(IERC20TokenFacet.ERC20PermitInvalidSigner.selector, wrongSpenderSigner, bob)
+        );
+        IERC20TokenFacet(address(facet)).permit(bob, admin, 55, deadline, v, r, s);
+
+        address wrongValueSigner = _recoverPermitSigner(address(facet), bob, eve, 54, 0, deadline, v, r, s);
+        VM.expectRevert(
+            abi.encodeWithSelector(IERC20TokenFacet.ERC20PermitInvalidSigner.selector, wrongValueSigner, bob)
+        );
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 54, deadline, v, r, s);
+
+        address wrongDeadlineSigner = _recoverPermitSigner(address(facet), bob, eve, 55, 0, deadline + 1, v, r, s);
+        VM.expectRevert(
+            abi.encodeWithSelector(IERC20TokenFacet.ERC20PermitInvalidSigner.selector, wrongDeadlineSigner, bob)
+        );
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 55, deadline + 1, v, r, s);
+    }
+
+    function testDomainSeparatorMatchesInitializedContext() public {
+        _erc20Init(address(facet));
+
+        bytes32 expectedSeparator = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes("Facet Token")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(facet)
+            )
+        );
+
+        assertTrue(
+            IERC20TokenFacet(address(facet)).DOMAIN_SEPARATOR() == expectedSeparator, "domain separator mismatch"
+        );
+    }
+
+    function testPermitRespectsApprovalPauseScope() public {
+        _erc20Init(address(facet));
+        bytes32 approvalScope = IERC20TokenFacet(address(facet)).ERC20_APPROVAL_SCOPE();
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(facet), bob, eve, 55, 0, deadline);
+
+        VM.startPrank(admin);
+        IERC20TokenFacet(address(facet)).pauseScope(approvalScope);
+        VM.stopPrank();
+
+        VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, approvalScope));
+        IERC20TokenFacet(address(facet)).permit(bob, eve, 55, deadline, v, r, s);
+    }
+
+    function testDiamondPermitWorksThroughFallback() public {
+        _addErc20FacetToDiamond();
+
+        VM.prank(admin);
+        IERC20TokenFacet(address(diamond)).initializeErc20("Facet Token", "FTKN", 18, admin);
+
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(diamond), bob, eve, 77, 0, deadline);
+
+        IERC20TokenFacet(address(diamond)).permit(bob, eve, 77, deadline, v, r, s);
+
+        assertTrue(IERC20TokenFacet(address(diamond)).allowance(bob, eve) == 77, "diamond permit allowance mismatch");
+        assertTrue(IERC20TokenFacet(address(diamond)).nonces(bob) == 1, "diamond permit nonce mismatch");
     }
 }

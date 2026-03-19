@@ -8,6 +8,9 @@ interface Vm {
     function startPrank(address) external;
     function stopPrank() external;
     function assume(bool) external;
+    function addr(uint256) external returns (address);
+    function sign(uint256, bytes32) external returns (uint8, bytes32, bytes32);
+    function expectRevert(bytes4) external;
     function expectRevert(bytes calldata) external;
     function expectEmit(bool, bool, bool, bool) external;
     function expectEmit(bool, bool, bool, bool, address) external;
