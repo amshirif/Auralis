@@ -3,12 +3,18 @@ pragma solidity ^0.8.30;
 
 import {IAccessControl} from "./IAccessControl.sol";
 import {IERC20Metadata} from "./IERC20Metadata.sol";
+import {IERC20Permit} from "./IERC20Permit.sol";
 import {IERC20TokenBase} from "./IERC20TokenBase.sol";
 import {IPausable} from "./IPausable.sol";
 
 /// @title IERC20TokenFacet
 /// @notice Hosted ERC-20 facet surface for diamond deployments.
-interface IERC20TokenFacet is IERC20Metadata, IERC20TokenBase, IAccessControl, IPausable {
+interface IERC20TokenFacet is IERC20Metadata, IERC20TokenBase, IERC20Permit, IAccessControl, IPausable {
+    /// @notice Thrown when a Permit signature is expired.
+    error ERC20PermitExpired(uint256 deadline, uint256 currentTimestamp);
+    /// @notice Thrown when a Permit signature does not recover the expected signer.
+    error ERC20PermitInvalidSigner(address signer, address owner);
+
     /// @notice Returns the shared token admin role identifier.
     /// @return The role identifier.
     function TOKEN_ADMIN_ROLE() external view returns (bytes32);

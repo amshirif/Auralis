@@ -13,9 +13,13 @@ library LibERC20TokenStorage {
         uint8 decimals;
         string name;
         string symbol;
+        bytes32 hashedName;
         uint256 totalSupply;
+        uint256 cachedChainId;
+        bytes32 cachedDomainSeparator;
         mapping(address => uint256) balances;
         mapping(address => mapping(address => uint256)) allowances;
+        mapping(address => uint256) nonces;
     }
 
     /// @notice Returns the ERC-20 storage layout.
