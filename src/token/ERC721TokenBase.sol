@@ -89,7 +89,7 @@ abstract contract ERC721TokenBase is IERC721TokenBase {
 
     /// @notice Returns current live token count tracked by the foundation.
     /// @return The token count.
-    function totalSupply() public view returns (uint256) {
+    function totalSupply() public view virtual returns (uint256) {
         return LibERC721TokenStorage.layout().totalSupply;
     }
 
