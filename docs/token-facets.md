@@ -67,3 +67,47 @@ advertises:
 When ERC-721 is installed behind a diamond, the init or deployment flow should
 ensure the diamond-level interface surface remains consistent with the facet
 selectors that are actually installed.
+
+### Selector Collision Constraint
+
+ERC20 and ERC721 storage layouts are intentionally separate and can coexist
+without storage collision. Their raw external selector surfaces cannot.
+
+The standard interfaces collide on shared selectors such as:
+
+- `name()`
+- `symbol()`
+- `totalSupply()`
+- `balanceOf(address)`
+- `supportsInterface(bytes4)` once shared control and ERC165 surfaces are
+  included
+
+That means one diamond cannot expose both standards unchanged at the same
+address. The reference deployment model in this repo is therefore:
+
+- one diamond hosting ERC20
+- one diamond hosting ERC721
+
+If both standards ever need to coexist in one host, that future design will
+need namespaced selectors or a different routing surface.
+
+### Reference Host Deployment Model
+
+The current reference deployment scripts install and initialize token facets as
+separate host flows:
+
+- `script/DeployDiamondErc20Host.s.sol`
+- `script/DeployDiamondErc721Host.s.sol`
+
+Each flow:
+
+- deploys a fresh diamond core
+- installs loupe selectors
+- installs one token facet selector set
+- immediately calls the token initializer through the diamond
+- validates selector ownership and initialized token metadata
+
+Deployment artifacts are written separately for replayable local validation:
+
+- `deployments/diamond-erc20.local.json`
+- `deployments/diamond-erc721.local.json`
