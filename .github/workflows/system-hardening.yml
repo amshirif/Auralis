@@ -38,7 +38,7 @@ jobs:
             ${{ runner.os }}-foundry-cache-
 
       - name: Build With Sizes
-        run: forge build --sizes
+        run: forge build --sizes --skip script
 
       - name: Run System Vault Stress Invariants
         run: forge test --offline --match-path test/SystemVaultStressInvariant.t.sol
@@ -75,7 +75,7 @@ jobs:
             ${{ runner.os }}-foundry-cache-
 
       - name: Build With Sizes
-        run: forge build --sizes
+        run: forge build --sizes --skip script
 
       - name: Run Full Local Hardening Flow
         run: bash script/run-local-system-hardening.sh

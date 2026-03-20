@@ -65,6 +65,10 @@ execution order collected in `docs/ops/runbook-system-hardening.md`.
 
 CI and local validation parity are documented in `docs/security-checks.md`.
 
+Token facet deployment notes live in `docs/token-facets.md`, including the
+current reference rule that standard ERC20 and ERC721 surfaces are deployed as
+separate diamond hosts because their selectors collide.
+
 ## Tooling
 
 Built with Foundry. CI workflows live under `.github/workflows/`.
