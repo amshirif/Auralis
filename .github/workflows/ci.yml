@@ -44,7 +44,7 @@ jobs:
         run: forge fmt --check
 
       - name: Build With Sizes
-        run: forge build --sizes
+        run: forge build --sizes --skip script
 
       - name: Run Offline Tests
         run: forge test --offline
