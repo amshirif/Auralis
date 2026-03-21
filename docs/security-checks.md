@@ -48,6 +48,21 @@ bash script/run-local-system-hardening.sh
 
 Use the targeted suites for faster iteration and the full hardening runner for the same deployment-backed flow used by the higher-signal CI gate.
 
+### Token Hosts
+
+The diamond token milestone also has reviewer-facing validation suites for the
+separate ERC20-host and ERC721-host deployment model:
+
+```bash
+forge test --offline --match-path test/DiamondTokenDeploymentIntegration.t.sol
+forge test --offline --match-path test/DiamondTokenHostHardening.t.sol
+forge test --offline --match-path test/DiamondErc20HostInvariant.t.sol
+forge test --offline --match-path test/DiamondErc721HostInvariant.t.sol
+```
+
+Use these to reproduce token-host deployment, selector ownership, replace and
+reinstall persistence, and diamond-routed invariant coverage locally.
+
 ### Slither
 
 Install and run the same high-severity gate locally:
