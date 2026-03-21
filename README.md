@@ -31,6 +31,9 @@ reviewable engineering system.
   circuit breakers, and controlled fallback behavior.
 - A diamond core with selector routing, cut/loupe support, ownership
   introspection, and selector-integrity regression coverage.
+- Hosted ERC20 and ERC721 token facets deployed behind separate diamond hosts,
+  with init, selector ownership, Permit/metadata support, and host-level
+  hardening coverage.
 - Operational maturity through local bootstrap, smoke validation, upgrade
   rehearsal, system-hardening flows, and matching CI gates.
 
@@ -41,6 +44,7 @@ Implemented milestones so far:
 - Access Control + Upgrade Safety Kit
 - Oracle Adapter + Circuit Breaker
 - Diamond Core (EIP-2535)
+- Diamond Token Facets
 - System-Level Testing & Hardening
 
 ## Validation
@@ -57,12 +61,17 @@ bash script/run-local-system-hardening.sh
 ## Documentation
 
 Architecture and module docs live in `docs/diamond-core.md`,
-`docs/oracle-adapter.md`, `docs/erc4626-vault.md`, and `docs/threat-model.md`.
+`docs/oracle-adapter.md`, `docs/erc4626-vault.md`, `docs/token-facets.md`, and
+`docs/threat-model.md`.
 
 Operational guidance lives in `docs/ops/README.md`, with the end-to-end
 execution order collected in `docs/ops/runbook-system-hardening.md`.
 
 CI and local validation parity are documented in `docs/security-checks.md`.
+
+Token-host architecture and safety assumptions live in `docs/token-facets.md`,
+including the init model, selector ownership rules, separate-host deployment
+constraint, and token-host upgrade assumptions.
 
 ## Tooling
 

@@ -27,7 +27,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          version: 1.4.3
 
       - name: Run Slither (fail on high)
         uses: crytic/slither-action@v0.4.1
