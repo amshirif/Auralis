@@ -26,6 +26,7 @@ library LibERC4626VaultStorage {
     /// @notice Vault storage layout.
     struct Layout {
         bool initialized;
+        bool controlPlaneInitialized;
         address asset;
         uint8 decimals;
         string name;
