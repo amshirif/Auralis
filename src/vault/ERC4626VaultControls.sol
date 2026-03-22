@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Pausable} from "../access/Pausable.sol";
 import {IERC165} from "../interfaces/IERC165.sol";
 import {IERC4626VaultControls} from "../interfaces/IERC4626VaultControls.sol";
-import {ReentrancyGuard} from "../security/ReentrancyGuard.sol";
 import {LibERC4626VaultStorage} from "./storage/LibERC4626VaultStorage.sol";
 import {ERC4626Vault} from "./ERC4626Vault.sol";
+import {VaultFacetControl} from "./VaultFacetControl.sol";
 
 /// @title ERC4626VaultControls
 /// @notice ERC-4626 extension with role-gated fee/limit controls and safety hooks.
-abstract contract ERC4626VaultControls is ERC4626Vault, Pausable, ReentrancyGuard, IERC4626VaultControls {
-    /// @notice Role that can manage fee and limit configuration.
-    bytes32 public constant VAULT_MANAGER_ROLE = keccak256("VAULT_MANAGER_ROLE");
-
+abstract contract ERC4626VaultControls is ERC4626Vault, VaultFacetControl, IERC4626VaultControls {
     /// @dev Basis points denominator.
     uint256 internal constant BPS_DENOMINATOR = 10_000;
 
@@ -21,12 +17,21 @@ abstract contract ERC4626VaultControls is ERC4626Vault, Pausable, ReentrancyGuar
     /// @param vaultAsset Underlying vault asset token.
     /// @param vaultName ERC-20 share token name.
     /// @param vaultSymbol ERC-20 share token symbol.
-    constructor(address initialAdmin, address vaultAsset, string memory vaultName, string memory vaultSymbol)
-        Pausable(initialAdmin)
-        ReentrancyGuard()
-    {
+    constructor(address initialAdmin, address vaultAsset, string memory vaultName, string memory vaultSymbol) {
+        _initializeVaultFacetControl(initialAdmin);
         _initializeErc4626Vault(vaultAsset, vaultName, vaultSymbol);
-        _initializeVaultControls(initialAdmin);
+    }
+
+    /// @notice Role that can manage vault fees and limits.
+    /// @return The vault manager role identifier.
+    function VAULT_MANAGER_ROLE()
+        public
+        pure
+        virtual
+        override(VaultFacetControl, IERC4626VaultControls)
+        returns (bytes32)
+    {
+        return VaultFacetControl.VAULT_MANAGER_ROLE();
     }
 
     /// @notice Returns true if this contract implements `interfaceId`.
@@ -36,11 +41,11 @@ abstract contract ERC4626VaultControls is ERC4626Vault, Pausable, ReentrancyGuar
         public
         view
         virtual
-        override(Pausable, ReentrancyGuard, IERC165)
+        override(VaultFacetControl, IERC165)
         returns (bool)
     {
         return interfaceId == type(IERC4626VaultControls).interfaceId || interfaceId == type(IERC165).interfaceId
-            || Pausable.supportsInterface(interfaceId) || ReentrancyGuard.supportsInterface(interfaceId);
+            || VaultFacetControl.supportsInterface(interfaceId);
     }
 
     /// @notice Returns current fee configuration.
@@ -80,7 +85,7 @@ abstract contract ERC4626VaultControls is ERC4626Vault, Pausable, ReentrancyGuar
     /// @param feeRecipient Fee recipient account.
     function setFeeConfig(uint16 depositFeeBps, uint16 withdrawFeeBps, address feeRecipient)
         public
-        onlyRole(VAULT_MANAGER_ROLE)
+        onlyRole(VAULT_MANAGER_ROLE())
     {
         _validateFeeBps(depositFeeBps);
         _validateFeeBps(withdrawFeeBps);
@@ -122,7 +127,7 @@ abstract contract ERC4626VaultControls is ERC4626Vault, Pausable, ReentrancyGuar
         uint128 limitMaxMint,
         uint128 limitMaxWithdraw,
         uint128 limitMaxRedeem
-    ) public onlyRole(VAULT_MANAGER_ROLE) {
+    ) public onlyRole(VAULT_MANAGER_ROLE()) {
         LibERC4626VaultStorage.LimitConfig storage limits = LibERC4626VaultStorage.layout().limits;
 
         limits.maxTotalAssets = limitMaxTotalAssets;
@@ -431,13 +436,6 @@ abstract contract ERC4626VaultControls is ERC4626Vault, Pausable, ReentrancyGuar
         _payoutFee(feeAssets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
-
-    /// @dev Initializes control-plane defaults.
-    /// @param initialManager Account receiving `VAULT_MANAGER_ROLE`.
-    function _initializeVaultControls(address initialManager) internal {
-        LibERC4626VaultStorage.layout().fees.feeRecipient = initialManager;
-        _grantRole(VAULT_MANAGER_ROLE, initialManager);
     }
 
     /// @dev Enforces configured total-assets cap.
