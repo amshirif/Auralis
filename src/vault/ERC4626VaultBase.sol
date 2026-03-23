@@ -16,7 +16,7 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
 
     /// @notice Returns true when vault storage is initialized.
     /// @return True if initialized.
-    function isVaultInitialized() public view returns (bool) {
+    function isVaultInitialized() public view virtual returns (bool) {
         return LibERC4626VaultStorage.layout().initialized;
     }
 
@@ -28,7 +28,7 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
 
     /// @notice Returns currently managed asset accounting amount.
     /// @return The tracked managed asset amount.
-    function totalManagedAssets() public view returns (uint256) {
+    function totalManagedAssets() public view virtual returns (uint256) {
         return LibERC4626VaultStorage.layout().totalManagedAssets;
     }
 
