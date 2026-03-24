@@ -112,10 +112,10 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         VM.prank(admin);
         facet.pause();
 
-        assertTrue(facet.maxDeposit(bob) == type(uint256).max, "maxDeposit should remain baseline");
-        assertTrue(facet.maxMint(bob) == type(uint256).max, "maxMint should remain baseline");
-        assertTrue(facet.maxWithdraw(bob) == 40, "maxWithdraw should remain baseline");
-        assertTrue(facet.maxRedeem(bob) == 40, "maxRedeem should remain baseline");
+        assertTrue(facet.maxDeposit(bob) == 0, "maxDeposit should pause");
+        assertTrue(facet.maxMint(bob) == 0, "maxMint should pause");
+        assertTrue(facet.maxWithdraw(bob) == 0, "maxWithdraw should pause");
+        assertTrue(facet.maxRedeem(bob) == 0, "maxRedeem should pause");
 
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(IPausable.PausableEnforcedPause.selector));

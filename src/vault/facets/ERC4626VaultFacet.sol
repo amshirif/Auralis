@@ -5,11 +5,12 @@ import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
+import {ERC4626VaultControlledCore} from "../ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
 
 /// @title ERC4626VaultFacet
 /// @notice Hosted ERC-4626 core facet with constructor-free initialization.
-contract ERC4626VaultFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultFacet {
+contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC4626VaultFacet {
     /// @notice Returns true when vault storage is initialized.
     /// @return True if initialized.
     function isVaultInitialized() public view virtual override(IERC4626VaultFacet, ERC4626VaultBase) returns (bool) {
@@ -60,7 +61,7 @@ contract ERC4626VaultFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultFace
         nonReentrant
         returns (uint256 shares)
     {
-        return super.deposit(assets, receiver);
+        return _depositWithControls(assets, receiver);
     }
 
     /// @notice Mints `shares` to `receiver`.
@@ -75,7 +76,7 @@ contract ERC4626VaultFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultFace
         nonReentrant
         returns (uint256 assets)
     {
-        return super.mint(shares, receiver);
+        return _mintWithControls(shares, receiver);
     }
 
     /// @notice Withdraws `assets` to `receiver` from `owner`.
@@ -91,7 +92,7 @@ contract ERC4626VaultFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultFace
         nonReentrant
         returns (uint256 shares)
     {
-        return super.withdraw(assets, receiver, owner);
+        return _withdrawWithControls(assets, receiver, owner);
     }
 
     /// @notice Redeems `shares` from `owner` to `receiver`.
@@ -107,6 +108,10 @@ contract ERC4626VaultFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultFace
         nonReentrant
         returns (uint256 assets)
     {
-        return super.redeem(shares, receiver, owner);
+        return _redeemWithControls(shares, receiver, owner);
+    }
+
+    function _vaultOperationsPaused() internal view virtual override returns (bool) {
+        return paused();
     }
 }
