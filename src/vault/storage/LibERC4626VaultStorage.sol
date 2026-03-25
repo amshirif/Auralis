@@ -37,6 +37,9 @@ library LibERC4626VaultStorage {
         uint256 totalManagedAssets;
         FeeConfig fees;
         LimitConfig limits;
+        address oracleAdapter;
+        address strategy;
+        uint256 strategyReportedAssets;
     }
 
     /// @notice Returns the storage layout for vault state.

@@ -10,6 +10,7 @@ import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC4626VaultBase} from "../../interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultIntegrationFacet} from "../../interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IPausable} from "../../interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../../interfaces/IReentrancyGuard.sol";
 
@@ -80,5 +81,19 @@ library LibVaultFacetSelectors {
         selectors[25] = IPausable.unpauseScope.selector;
         selectors[26] = IReentrancyGuard.reentrancyGuardEntered.selector;
         selectors[27] = IERC165.supportsInterface.selector;
+    }
+
+    /// @notice Returns the hosted vault integration selector group.
+    function vaultIntegrationSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](9);
+        selectors[0] = IERC4626VaultIntegrationFacet.oracleAdapter.selector;
+        selectors[1] = IERC4626VaultIntegrationFacet.strategy.selector;
+        selectors[2] = IERC4626VaultIntegrationFacet.strategyReportedAssets.selector;
+        selectors[3] = IERC4626VaultIntegrationFacet.idleAssets.selector;
+        selectors[4] = IERC4626VaultIntegrationFacet.estimatedTotalManagedAssets.selector;
+        selectors[5] = IERC4626VaultIntegrationFacet.oracleQuote.selector;
+        selectors[6] = IERC4626VaultIntegrationFacet.setOracleAdapter.selector;
+        selectors[7] = IERC4626VaultIntegrationFacet.setStrategy.selector;
+        selectors[8] = IERC4626VaultIntegrationFacet.reportStrategyAssets.selector;
     }
 }
