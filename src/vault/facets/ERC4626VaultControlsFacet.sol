@@ -6,6 +6,7 @@ import {IAccessControlTime} from "../../interfaces/IAccessControlTime.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../../interfaces/IERC4626VaultControlsFacet.sol";
+import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../../interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IPausable} from "../../interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../../interfaces/IReentrancyGuard.sol";
@@ -28,6 +29,8 @@ contract ERC4626VaultControlsFacet is ERC4626VaultControlSurface {
     {
         return interfaceId == type(IERC165).interfaceId || interfaceId == type(IERC4626VaultControls).interfaceId
             || interfaceId == type(IERC4626VaultControlsFacet).interfaceId
+            || (interfaceId == type(IERC4626VaultFacet).interfaceId
+                && LibDiamond.selectorExists(IERC4626VaultFacet.initializeVault.selector))
             || (interfaceId == type(IERC4626VaultIntegrationFacet).interfaceId
                 && LibDiamond.selectorExists(IERC4626VaultIntegrationFacet.oracleAdapter.selector))
             || interfaceId == type(IAccessControl).interfaceId || interfaceId == type(IAccessControlTime).interfaceId
