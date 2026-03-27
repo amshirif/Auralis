@@ -63,6 +63,20 @@ forge test --offline --match-path test/DiamondErc721HostInvariant.t.sol
 Use these to reproduce token-host deployment, selector ownership, replace and
 reinstall persistence, and diamond-routed invariant coverage locally.
 
+### Hosted Vault
+
+The hosted vault milestone has matching deployment, hardening, and invariant
+coverage for the supported three-facet vault host:
+
+```bash
+forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
+forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
+```
+
+Use these to reproduce hosted-vault deployment, selector ownership, facet
+replacement/reinstall persistence, and diamond-routed vault invariants locally.
+
 ### Slither
 
 Install and run the same high-severity gate locally:

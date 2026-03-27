@@ -6,6 +6,9 @@ repository:
 - `ERC4626Vault`
 - `ERC4626VaultControls`
 
+It covers the standalone vault modules and their math/control behavior. For the
+diamond-hosted vault platform, see `docs/vault-facets.md`.
+
 ## Contract Roles
 
 - `ERC4626VaultBase`: initializer + share/asset accounting primitives.
