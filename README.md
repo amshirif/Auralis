@@ -105,8 +105,7 @@ Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
 
 ## AI Usage
 
-AI assistance was used for tests, documentation, scripts, planning support,
-and some implementation acceleration.
+AI assistance was used for tests, documentation, scripts, planning support.
 
 The protocol architecture, technical decisions, and final review/integration of
 changes were directed and owned by me.
