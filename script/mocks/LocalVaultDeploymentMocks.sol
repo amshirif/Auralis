@@ -95,11 +95,11 @@ contract LocalMintableVaultAsset is IERC20Metadata {
 /// @title LocalMockOracleFeed
 /// @notice Minimal oracle feed used for local hosted-vault deployment rehearsal.
 contract LocalMockOracleFeed is IOracleFeed {
-    uint8 internal immutable _decimals;
-    uint80 internal immutable _roundId;
-    int256 internal immutable _answer;
-    uint256 internal immutable _updatedAt;
-    uint80 internal immutable _answeredInRound;
+    uint8 internal _decimals;
+    uint80 internal _roundId;
+    int256 internal _answer;
+    uint256 internal _updatedAt;
+    uint80 internal _answeredInRound;
 
     constructor(uint8 decimals_, int256 answer_, uint256 updatedAt_) {
         _decimals = decimals_;
@@ -107,6 +107,13 @@ contract LocalMockOracleFeed is IOracleFeed {
         _answer = answer_;
         _updatedAt = updatedAt_;
         _answeredInRound = 1;
+    }
+
+    function setRoundData(int256 answer_, uint256 updatedAt_) external {
+        _roundId += 1;
+        _answer = answer_;
+        _updatedAt = updatedAt_;
+        _answeredInRound = _roundId;
     }
 
     function decimals() external view returns (uint8) {
