@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Storage layout for upgrade guardrails modules (diamond-ready).
 library LibUpgradeGuardrailsStorage {
     /// @dev Storage slot for upgrade guardrails layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.upgrade-guardrails.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.upgrade-guardrails.storage");
 
     /// @notice Queued upgrade metadata.
     struct UpgradeIntent {

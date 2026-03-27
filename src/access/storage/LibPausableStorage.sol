@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Storage layout for pausability modules (diamond-ready).
 library LibPausableStorage {
     /// @dev Storage slot for pausable layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.pausable.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.pausable.storage");
 
     /// @notice Pausable storage layout.
     struct Layout {

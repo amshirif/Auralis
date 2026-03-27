@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Diamond-safe storage layout for hosted ERC-20 facets.
 library LibERC20TokenStorage {
     /// @dev Storage slot for ERC-20 token layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.token.erc20.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.token.erc20.storage");
 
     /// @notice ERC-20 token storage layout.
     struct Layout {

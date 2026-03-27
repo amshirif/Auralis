@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Storage layout for oracle adapter modules (diamond-ready).
 library LibOracleAdapterStorage {
     /// @dev Storage slot for oracle adapter layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.oracle-adapter.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.oracle-adapter.storage");
 
     /// @notice Oracle adapter storage layout.
     struct Layout {

@@ -146,8 +146,8 @@ transfer or approval pause scopes.
 
 The token facets use fixed storage slots:
 
-- ERC20: `keccak256("smart-contracts.token.erc20.storage")`
-- ERC721: `keccak256("smart-contracts.token.erc721.storage")`
+- ERC20: `keccak256("auralis.token.erc20.storage")`
+- ERC721: `keccak256("auralis.token.erc721.storage")`
 
 Those layouts are separate, so ERC20 and ERC721 state do not collide at the
 storage level. The repo still deploys them as separate hosts because the raw
