@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Storage layout for reentrancy guard modules (diamond-ready).
 library LibReentrancyGuardStorage {
     /// @dev Storage slot for reentrancy guard layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.reentrancy-guard.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.reentrancy-guard.storage");
 
     /// @notice Reentrancy guard storage layout.
     struct Layout {

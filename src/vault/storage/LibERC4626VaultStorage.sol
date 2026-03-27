@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Storage layout for ERC-4626 vault modules (diamond-ready).
 library LibERC4626VaultStorage {
     /// @dev Storage slot for vault layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.erc4626-vault.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.erc4626-vault.storage");
 
     /// @notice Configurable fee settings for vault flows.
     struct FeeConfig {

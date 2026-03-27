@@ -57,7 +57,7 @@ contract DiamondFacetTwo {
 }
 
 library LibDiamondInitTestStorage {
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.test.diamond-init.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.test.diamond-init.storage");
 
     struct Layout {
         uint256 value;

@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="docs/assets/keystone-logo.svg" alt="Keystone logo" width="140" />
+  <img src="docs/assets/auralis-logo.svg" alt="Auralis logo" width="140" />
 </p>
 
-# Keystone
+# Auralis
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
-[![Foundry CI](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml)
-![License](https://img.shields.io/github/license/amshirif/smart-contracts)
+[![Foundry CI](https://github.com/amshirif/Auralis/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/Auralis/actions/workflows/ci.yml)
+![License](https://img.shields.io/github/license/amshirif/Auralis)
 
 Security-first, diamond-ready Solidity systems.
 
-`Keystone` is a portfolio-focused Solidity repository built to show
+`Auralis` is a portfolio-focused Solidity repository built to show
 security-first protocol engineering, dependency-light design, and
 deployment-backed validation. The codebase is intentionally diamond-ready, so
 core modules can evolve into facetized systems without rewriting storage or
@@ -40,6 +40,8 @@ reviewable engineering system.
   coverage.
 - Operational maturity through local bootstrap, smoke validation, upgrade
   rehearsal, system-hardening flows, and matching CI gates.
+- A local Auralis workflow for full-stack bootstrap, smoke checks, simulated
+  activity, reset flows, and unified deployment artifacts.
 
 ## Current Status
 
@@ -51,6 +53,7 @@ Implemented milestones so far:
 - System-Level Testing & Hardening
 - Diamond Token Facets
 - Diamond-Hosted Vault Platform
+- Auralis Launch Readiness
 
 ## Validation
 
@@ -61,6 +64,15 @@ forge test --offline
 bash script/run-local-diamond-smoke.sh
 bash script/run-local-diamond-upgrade-rehearsal.sh
 bash script/run-local-system-hardening.sh
+```
+
+For the local Auralis workflow:
+
+```shell
+bash scripts/auralis-up.sh
+bash scripts/auralis-smoke.sh
+bash scripts/auralis-activity.sh
+bash scripts/auralis-reset.sh
 ```
 
 ## Documentation
@@ -82,8 +94,18 @@ Hosted-vault architecture and safety assumptions live in
 `docs/vault-facets.md`, including the init model, selector ownership split,
 pause behavior, deployment references, and hosted-vault upgrade assumptions.
 
+Local Auralis bootstrap, smoke, simulated activity, reset flow, and artifact
+layout are documented in `docs/auralis-local.md`.
+
 ## Tooling
 
 Built with Foundry. CI workflows live under `.github/workflows/`.
 
 Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
+
+## AI Usage
+
+AI assistance was used for tests, documentation, scripts, planning support.
+
+The protocol architecture, technical decisions, and final review/integration of
+changes were directed and owned by me.

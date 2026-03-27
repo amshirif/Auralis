@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Time-window storage layout for AccessControl modules (diamond-ready).
 library LibAccessControlTimeStorage {
     /// @dev Storage slot for time-window layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.access-control.time.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.access-control.time.storage");
 
     /// @notice Per-account role activation window.
     struct RoleWindow {

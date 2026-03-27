@@ -423,3 +423,6 @@ broadcast/
 
 # Local portfolio tracking
 PORTFOLIO_PROJECTS.md
+
+# Local Auralis workflow state
+.auralis/

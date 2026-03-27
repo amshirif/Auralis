@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Diamond-safe storage layout for hosted ERC-721 facets.
 library LibERC721TokenStorage {
     /// @dev Storage slot for ERC-721 token layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.token.erc721.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.token.erc721.storage");
 
     /// @notice ERC-721 token storage layout.
     struct Layout {

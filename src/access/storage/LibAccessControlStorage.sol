@@ -5,7 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Storage layout for AccessControl modules (diamond-ready).
 library LibAccessControlStorage {
     /// @dev Storage slot for the layout.
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.access-control.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.access-control.storage");
 
     /// @notice Role membership and admin role data.
     struct RoleData {

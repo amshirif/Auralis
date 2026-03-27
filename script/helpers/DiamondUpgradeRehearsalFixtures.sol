@@ -54,7 +54,7 @@ contract DiamondUpgradeFailureFacet {
 }
 
 library LibDiamondUpgradeRehearsalStorage {
-    bytes32 internal constant STORAGE_SLOT = keccak256("smart-contracts.script.diamond-upgrade-rehearsal.storage");
+    bytes32 internal constant STORAGE_SLOT = keccak256("auralis.script.diamond-upgrade-rehearsal.storage");
 
     struct Layout {
         uint256 value;
