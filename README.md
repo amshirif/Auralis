@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="docs/assets/keystone-logo.svg" alt="Keystone logo" width="140" />
+  <img src="docs/assets/auralis-logo.svg" alt="Auralis logo" width="140" />
 </p>
 
-# Keystone
+# Auralis
 
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
-[![Foundry CI](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/smart-contracts/actions/workflows/ci.yml)
-![License](https://img.shields.io/github/license/amshirif/smart-contracts)
+[![Foundry CI](https://github.com/amshirif/Auralis/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/Auralis/actions/workflows/ci.yml)
+![License](https://img.shields.io/github/license/amshirif/Auralis)
 
 Security-first, diamond-ready Solidity systems.
 
-`Keystone` is a portfolio-focused Solidity repository built to show
+`Auralis` is a portfolio-focused Solidity repository built to show
 security-first protocol engineering, dependency-light design, and
 deployment-backed validation. The codebase is intentionally diamond-ready, so
 core modules can evolve into facetized systems without rewriting storage or
