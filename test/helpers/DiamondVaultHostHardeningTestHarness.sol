@@ -1,0 +1,300 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {IERC4626VaultControls} from "../../src/interfaces/IERC4626VaultControls.sol";
+import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultIntegrationFacet} from "../../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
+import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
+import {ERC4626VaultIntegrationFacet} from "../../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
+import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
+import {DiamondVaultDeploymentFixture} from "./DiamondVaultDeploymentTestHarness.sol";
+
+interface IFacetVersionMarker {
+    function facetVersion() external view returns (uint256);
+}
+
+contract ERC4626VaultFacetReplacement is ERC4626VaultFacet {
+    function facetVersion() external pure returns (uint256) {
+        return 2;
+    }
+}
+
+contract ERC4626VaultControlsFacetReplacement is ERC4626VaultControlsFacet {
+    function facetVersion() external pure returns (uint256) {
+        return 2;
+    }
+}
+
+contract ERC4626VaultIntegrationFacetReplacement is ERC4626VaultIntegrationFacet {
+    function facetVersion() external pure returns (uint256) {
+        return 2;
+    }
+}
+
+abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixture {
+    struct AccountingSnapshot {
+        uint256 totalAssets;
+        uint256 totalSupply;
+        uint256 vaultUnderlyingBalance;
+        uint256 feeSinkBalance;
+        uint256 actorUnderlyingBalanceSum;
+        uint256 actorShareBalanceSum;
+    }
+
+    uint256 internal constant INITIAL_ASSETS = 1_000_000;
+    uint256 internal constant ACTOR_COUNT = 4;
+    uint256 internal constant BOB_DEPOSIT = 200_000;
+    uint256 internal constant CAROL_DEPOSIT = 150_000;
+    uint256 internal constant SHARE_ALLOWANCE = 25_000;
+    uint256 internal constant STRATEGY_REPORTED_ASSETS = 75_000;
+
+    address internal bob = address(0xB0B);
+    address internal carol = address(0xCA11);
+    address internal dave = address(0xD0D);
+    address internal eve = address(0xE11E);
+    address internal feeSink = address(0xFEE);
+    address internal strategyReporter = address(0x57A7);
+
+    address[ACTOR_COUNT] internal actors;
+
+    ERC4626VaultFacetReplacement internal coreReplacement;
+    ERC4626VaultControlsFacetReplacement internal controlsReplacement;
+    ERC4626VaultIntegrationFacetReplacement internal integrationReplacement;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        coreReplacement = new ERC4626VaultFacetReplacement();
+        controlsReplacement = new ERC4626VaultControlsFacetReplacement();
+        integrationReplacement = new ERC4626VaultIntegrationFacetReplacement();
+
+        actors[0] = bob;
+        actors[1] = carol;
+        actors[2] = dave;
+        actors[3] = eve;
+
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            address actor = actors[i];
+            asset.mint(actor, INITIAL_ASSETS);
+            VM.prank(actor);
+            asset.approve(address(diamond), type(uint256).max);
+        }
+    }
+
+    function _installAndSeedVaultHost() internal {
+        _installVaultHostFacets();
+        _initializeVaultHost();
+        _wireOracleAdapter();
+        _seedCoreState();
+        _seedControlsState();
+        _seedIntegrationState();
+    }
+
+    function _seedCoreState() internal {
+        VM.prank(bob);
+        coreFacetInterface().deposit(BOB_DEPOSIT, bob);
+
+        VM.prank(carol);
+        coreFacetInterface().deposit(CAROL_DEPOSIT, carol);
+
+        VM.prank(bob);
+        coreFacetInterface().approve(eve, SHARE_ALLOWANCE);
+    }
+
+    function _seedControlsState() internal {
+        bytes32 managerRole = controlsFacetInterface().VAULT_MANAGER_ROLE();
+
+        VM.prank(admin);
+        controlsFacetInterface().setFeeConfig(100, 50, feeSink);
+
+        VM.prank(admin);
+        controlsFacetInterface().setLimitConfig(900_000, 300_000, 300_000, 250_000, 250_000);
+
+        VM.prank(admin);
+        controlsFacetInterface().grantRole(managerRole, eve);
+
+        VM.prank(admin);
+        controlsFacetInterface()
+            .grantRoleWithWindow(managerRole, dave, uint64(currentTime - 100), uint64(currentTime + 1_000));
+    }
+
+    function _seedIntegrationState() internal {
+        VM.prank(admin);
+        integrationFacetInterface().setStrategy(strategyReporter);
+
+        VM.prank(strategyReporter);
+        integrationFacetInterface().reportStrategyAssets(STRATEGY_REPORTED_ASSETS);
+    }
+
+    function _replaceCoreFacet(address facetAddress_) internal {
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultCoreSelectors());
+    }
+
+    function _replaceControlsFacet(address facetAddress_) internal {
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultControlsSelectors());
+    }
+
+    function _replaceIntegrationFacet(address facetAddress_) internal {
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultIntegrationSelectors());
+    }
+
+    function _addCoreReplacementMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _markerSelectors());
+    }
+
+    function _addControlsReplacementMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _markerSelectors());
+    }
+
+    function _addIntegrationReplacementMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _markerSelectors());
+    }
+
+    function _removeCoreFacetWithMarker() internal {
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+    }
+
+    function _removeControlsFacetWithMarker() internal {
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultControlsSelectors(), _markerSelectors()));
+    }
+
+    function _removeIntegrationFacetWithMarker() internal {
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultIntegrationSelectors(), _markerSelectors()));
+    }
+
+    function _reAddCoreFacetWithMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+    }
+
+    function _reAddControlsFacetWithMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultControlsSelectors(), _markerSelectors()));
+    }
+
+    function _reAddIntegrationFacetWithMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultIntegrationSelectors(), _markerSelectors()));
+    }
+
+    function _pauseVault() internal {
+        VM.prank(admin);
+        controlsFacetInterface().pause();
+    }
+
+    function _unpauseVault() internal {
+        VM.prank(admin);
+        controlsFacetInterface().unpause();
+    }
+
+    function _actor(uint8 seed) internal view returns (address) {
+        return actors[uint256(seed) % ACTOR_COUNT];
+    }
+
+    function _actorExcluding(address excluded, uint8 seed) internal view returns (address actor) {
+        actor = _actor(seed);
+        if (actor == excluded) {
+            actor = _actor(seed + 1);
+        }
+    }
+
+    function _boundAmount(uint256 raw, uint256 max) internal pure returns (uint256) {
+        if (max == 0) {
+            return 0;
+        }
+        return (raw % max) + 1;
+    }
+
+    function _min(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x < y ? x : y;
+    }
+
+    function _sumTrackedShareBalances() internal view returns (uint256 sum) {
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            sum += coreFacetInterface().balanceOf(actors[i]);
+        }
+    }
+
+    function _sumTrackedUnderlying() internal view returns (uint256 sum) {
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            sum += asset.balanceOf(actors[i]);
+        }
+
+        sum += asset.balanceOf(address(diamond));
+        sum += asset.balanceOf(feeSink);
+    }
+
+    function _snapshotAccounting() internal view returns (AccountingSnapshot memory snapshot) {
+        snapshot.totalAssets = coreFacetInterface().totalAssets();
+        snapshot.totalSupply = coreFacetInterface().totalSupply();
+        snapshot.vaultUnderlyingBalance = asset.balanceOf(address(diamond));
+        snapshot.feeSinkBalance = asset.balanceOf(feeSink);
+
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            snapshot.actorUnderlyingBalanceSum += asset.balanceOf(actors[i]);
+            snapshot.actorShareBalanceSum += coreFacetInterface().balanceOf(actors[i]);
+        }
+    }
+
+    function _assertAccountingUnchanged(AccountingSnapshot memory snapshot, string memory reason) internal view {
+        AccountingSnapshot memory afterSnapshot = _snapshotAccounting();
+        assertTrue(afterSnapshot.totalAssets == snapshot.totalAssets, reason);
+        assertTrue(afterSnapshot.totalSupply == snapshot.totalSupply, reason);
+        assertTrue(afterSnapshot.vaultUnderlyingBalance == snapshot.vaultUnderlyingBalance, reason);
+        assertTrue(afterSnapshot.feeSinkBalance == snapshot.feeSinkBalance, reason);
+        assertTrue(afterSnapshot.actorUnderlyingBalanceSum == snapshot.actorUnderlyingBalanceSum, reason);
+        assertTrue(afterSnapshot.actorShareBalanceSum == snapshot.actorShareBalanceSum, reason);
+    }
+
+    function _addFacet(address facetAddress_, bytes4[] memory selectors) internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: facetAddress_, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _replaceFacet(address facetAddress_, bytes4[] memory selectors) internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: facetAddress_, action: IDiamondCut.FacetCutAction.Replace, functionSelectors: selectors
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _removeSelectors(bytes4[] memory selectors) internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: selectors
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _assertMissingSelector(bytes memory callData, string memory reason) internal {
+        (bool success,) = address(diamond).call(callData);
+        assertFalse(success, reason);
+    }
+
+    function _markerSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IFacetVersionMarker.facetVersion.selector;
+    }
+
+    function _concat(bytes4[] memory first, bytes4[] memory second) internal pure returns (bytes4[] memory combined) {
+        combined = new bytes4[](first.length + second.length);
+
+        uint256 i;
+        for (; i < first.length; i++) {
+            combined[i] = first[i];
+        }
+
+        for (uint256 j = 0; j < second.length; j++) {
+            combined[i + j] = second[j];
+        }
+    }
+}
