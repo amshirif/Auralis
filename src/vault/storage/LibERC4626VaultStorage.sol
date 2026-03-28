@@ -40,6 +40,8 @@ library LibERC4626VaultStorage {
         address oracleAdapter;
         address strategy;
         uint256 strategyReportedAssets;
+        uint256 strategyDebt;
+        bool strategyEmergencyExit;
     }
 
     /// @notice Returns the storage layout for vault state.
