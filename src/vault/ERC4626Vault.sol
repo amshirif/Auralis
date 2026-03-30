@@ -26,7 +26,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @notice Returns total assets managed by the vault.
     /// @return The total managed asset amount.
     function totalAssets() public view virtual returns (uint256) {
-        return totalManagedAssets();
+        return _managedAssetsForPricing();
     }
 
     /// @notice Converts `assets` to shares, rounding down.

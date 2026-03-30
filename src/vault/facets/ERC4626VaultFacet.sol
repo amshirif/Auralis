@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IERC20} from "../../interfaces/IERC20.sol";
 import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
 import {ERC4626VaultControlledCore} from "../ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
+import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
 /// @notice Hosted ERC-4626 core facet with constructor-free initialization.
@@ -109,6 +112,28 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         returns (uint256 assets)
     {
         return _redeemWithControls(shares, receiver, owner);
+    }
+
+    function _managedAssetsForPricing() internal view virtual override returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+            return layout.totalManagedAssets;
+        }
+
+        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
+        uint256 liveStrategyAssets = IERC4626VaultStrategy(layout.strategy).totalAssets();
+        return idleBookAssets + liveStrategyAssets;
+    }
+
+    function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+            return type(uint256).max;
+        }
+
+        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
+        uint256 idleVaultAssets = IERC20(asset()).balanceOf(address(this));
+        return idleVaultAssets < idleBookAssets ? idleVaultAssets : idleBookAssets;
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {
