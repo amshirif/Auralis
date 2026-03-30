@@ -30,6 +30,8 @@ contract ERC4626VaultStrategyStorageHarness is ERC4626VaultIntegrationFacet {
 error MockVaultStrategyForcedRevert(bytes4 selector);
 
 abstract contract MockVaultStrategyBase is IERC4626VaultStrategy {
+    address internal constant LOSS_SINK = address(0x1055);
+
     address internal immutable _vault;
     address internal immutable _asset;
 
@@ -67,18 +69,25 @@ abstract contract MockVaultStrategyBase is IERC4626VaultStrategy {
     function deployFunds(uint256 assets) external virtual override onlyVault {
         _trackedAssets += assets;
         _withdrawableAssets += assets;
+        require(MockVaultAsset(_asset).balanceOf(address(this)) >= _trackedAssets, "STRATEGY_BALANCE_UNDERFUNDED");
     }
 
     function withdrawToVault(uint256 assets) external virtual override onlyVault returns (uint256 assetsReturned) {
         assetsReturned = _min(assets, maxWithdrawableAssets());
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
     }
 
     function withdrawAllToVault() external virtual override onlyVault returns (uint256 assetsReturned) {
         assetsReturned = maxWithdrawableAssets();
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
     }
 
     function setWithdrawableAssets(uint256 assets) external {
@@ -94,6 +103,11 @@ contract ProfitMockVaultStrategy is MockVaultStrategyBase {
     constructor(address vault_, address asset_) MockVaultStrategyBase(vault_, asset_) {}
 
     function injectProfit(uint256 assets) external {
+        if (assets == 0) {
+            return;
+        }
+
+        MockVaultAsset(_asset).mint(address(this), assets);
         _trackedAssets += assets;
         _withdrawableAssets += assets;
     }
@@ -103,7 +117,11 @@ contract LossShortfallMockVaultStrategy is MockVaultStrategyBase {
     constructor(address vault_, address asset_) MockVaultStrategyBase(vault_, asset_) {}
 
     function applyLoss(uint256 lossAssets, uint256 withdrawableAssets_) external {
-        _trackedAssets = lossAssets >= _trackedAssets ? 0 : _trackedAssets - lossAssets;
+        uint256 realizedLoss = _min(lossAssets, _trackedAssets);
+        if (realizedLoss != 0) {
+            MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss);
+            _trackedAssets -= realizedLoss;
+        }
         _withdrawableAssets = _min(withdrawableAssets_, _trackedAssets);
     }
 }
@@ -138,6 +156,7 @@ contract RevertingMockVaultStrategy is MockVaultStrategyBase {
         }
         _trackedAssets += assets;
         _withdrawableAssets += assets;
+        require(MockVaultAsset(_asset).balanceOf(address(this)) >= _trackedAssets, "STRATEGY_BALANCE_UNDERFUNDED");
     }
 
     function withdrawToVault(uint256 assets) external override onlyVault returns (uint256 assetsReturned) {
@@ -147,6 +166,9 @@ contract RevertingMockVaultStrategy is MockVaultStrategyBase {
         assetsReturned = _min(assets, maxWithdrawableAssets());
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
     }
 
     function withdrawAllToVault() external override onlyVault returns (uint256 assetsReturned) {
@@ -156,6 +178,9 @@ contract RevertingMockVaultStrategy is MockVaultStrategyBase {
         assetsReturned = maxWithdrawableAssets();
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
     }
 }
 
@@ -166,6 +191,9 @@ contract EmergencyUnwindMockVaultStrategy is MockVaultStrategyBase {
         assetsReturned = _trackedAssets;
         _trackedAssets = 0;
         _withdrawableAssets = 0;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
     }
 }
 

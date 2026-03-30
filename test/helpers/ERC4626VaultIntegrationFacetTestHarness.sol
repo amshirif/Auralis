@@ -13,6 +13,8 @@ import {ERC4626VaultControlsFacetHarness} from "./ERC4626VaultControlsFacetTestH
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 import {ERC4626VaultFacetHarness} from "./ERC4626VaultFacetTestHarness.sol";
 import {MockOracleFeed, OracleAdapterHarness} from "./OracleAdapterTestHarness.sol";
+import {MockVaultAsset} from "./ERC4626CoreTestHarness.sol";
+import {LossShortfallMockVaultStrategy, ProfitMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC4626VaultIntegrationFacetHarness is ERC4626VaultIntegrationFacet {
     function initializeHostedVaultForTest(
@@ -38,6 +40,7 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
     uint64 internal quoteUpdatedAt = 999_900;
 
     ReentrantMockVaultAsset internal asset;
+    MockVaultAsset internal otherAsset;
     ERC4626VaultFacetHarness internal coreFacet;
     ERC4626VaultControlsFacetHarness internal controlsFacet;
     ERC4626VaultIntegrationFacetHarness internal integrationFacet;
@@ -46,11 +49,17 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
     DiamondProxyHarness internal diamond;
     MockOracleFeed internal feed;
     OracleAdapterHarness internal adapter;
+    ProfitMockVaultStrategy internal directProfitStrategy;
+    LossShortfallMockVaultStrategy internal directLossStrategy;
+    ProfitMockVaultStrategy internal diamondProfitStrategy;
+    ProfitMockVaultStrategy internal wrongVaultStrategy;
+    ProfitMockVaultStrategy internal directWrongAssetStrategy;
 
     function setUp() public virtual {
         VM.warp(currentTime);
 
         asset = new ReentrantMockVaultAsset();
+        otherAsset = new MockVaultAsset("Other USD", "oUSD", 6);
         coreFacet = new ERC4626VaultFacetHarness();
         controlsFacet = new ERC4626VaultControlsFacetHarness();
         integrationFacet = new ERC4626VaultIntegrationFacetHarness();
@@ -60,6 +69,11 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
         feed = new MockOracleFeed(8);
         feed.setLatestRoundData(1, 100_000_000, quoteUpdatedAt, quoteUpdatedAt, 1);
         adapter = new OracleAdapterHarness(admin, address(feed), maxStaleness);
+        directProfitStrategy = new ProfitMockVaultStrategy(address(integrationFacet), address(asset));
+        directLossStrategy = new LossShortfallMockVaultStrategy(address(integrationFacet), address(asset));
+        diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
+        wrongVaultStrategy = new ProfitMockVaultStrategy(address(0xBAD), address(asset));
+        directWrongAssetStrategy = new ProfitMockVaultStrategy(address(integrationFacet), address(otherAsset));
 
         asset.mint(bob, INITIAL_ASSETS);
         asset.mint(eve, INITIAL_ASSETS);

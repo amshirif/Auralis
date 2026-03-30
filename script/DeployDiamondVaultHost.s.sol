@@ -186,7 +186,8 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
 
         require(vaultIntegration.oracleAdapter() == state.oracleAdapterAddress, "vault oracle adapter mismatch");
         require(vaultIntegration.strategy() == address(0), "vault strategy should be unset");
-        require(vaultIntegration.strategyReportedAssets() == 0, "vault reported assets should be zero");
+        require(vaultIntegration.strategyDebt() == 0, "vault strategy debt should be zero");
+        require(vaultIntegration.liveStrategyAssets() == 0, "vault live strategy assets should be zero");
 
         IOracleAdapter.OracleQuote memory quotePayload = vaultIntegration.oracleQuote();
         require(quotePayload.value == ORACLE_ANSWER, "vault quote value mismatch");

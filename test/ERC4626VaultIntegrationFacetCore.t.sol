@@ -12,8 +12,12 @@ import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelect
 import {ERC4626VaultIntegrationFacetFixture} from "./helpers/ERC4626VaultIntegrationFacetTestHarness.sol";
 
 contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFixture {
-    function testDirectIntegrationFacetRequiresManagerForConfigAndReporterAuth() public {
+    function testDirectIntegrationFacetRequiresManagerForConfigAndLifecycle() public {
         _initializeDirectIntegrationFacet();
+        _approveAsset(bob, address(integrationFacet), 100);
+
+        VM.prank(bob);
+        integrationFacet.deposit(100, bob);
 
         VM.expectRevert(
             abi.encodeWithSelector(
@@ -27,67 +31,158 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         integrationFacet.setOracleAdapter(address(adapter));
         assertTrue(integrationFacet.oracleAdapter() == address(adapter), "adapter mismatch");
 
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorized.selector, bob, integrationFacet.VAULT_MANAGER_ROLE()
+            )
+        );
+        VM.prank(bob);
+        integrationFacet.setStrategy(address(directProfitStrategy));
+
         VM.prank(admin);
-        integrationFacet.setStrategy(bob);
-        assertTrue(integrationFacet.strategy() == bob, "strategy mismatch");
+        integrationFacet.setStrategy(address(directProfitStrategy));
+        assertTrue(integrationFacet.strategy() == address(directProfitStrategy), "strategy mismatch");
 
         VM.expectRevert(
             abi.encodeWithSelector(
-                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyReporterUnauthorized.selector, eve, bob
+                IAccessControl.AccessControlUnauthorized.selector, bob, integrationFacet.VAULT_MANAGER_ROLE()
             )
         );
-        VM.prank(eve);
-        integrationFacet.reportStrategyAssets(25);
-
         VM.prank(bob);
-        integrationFacet.reportStrategyAssets(25);
-        assertTrue(integrationFacet.strategyReportedAssets() == 25, "reported assets mismatch");
+        integrationFacet.deployToStrategy(40);
+
+        VM.prank(admin);
+        integrationFacet.deployToStrategy(40);
+
+        assertTrue(integrationFacet.strategyDebt() == 40, "strategy debt mismatch");
+        assertTrue(integrationFacet.idleAssets() == 60, "idle assets mismatch");
+        assertTrue(integrationFacet.liveStrategyAssets() == 40, "live strategy assets mismatch");
     }
 
-    function testDirectIntegrationFacetChangingStrategyClearsReportedAssets() public {
+    function testDirectIntegrationFacetRejectsInvalidBindingAndOutstandingDebtOnStrategySwap() public {
         _initializeDirectIntegrationFacet();
+        _approveAsset(bob, address(integrationFacet), 100);
 
-        VM.prank(admin);
-        integrationFacet.setStrategy(bob);
         VM.prank(bob);
-        integrationFacet.reportStrategyAssets(75);
-
-        VM.prank(admin);
-        integrationFacet.setStrategy(eve);
-
-        assertTrue(integrationFacet.strategy() == eve, "strategy should update");
-        assertTrue(integrationFacet.strategyReportedAssets() == 0, "reported assets should reset");
-
-        VM.prank(admin);
-        integrationFacet.setStrategy(address(0));
-        assertTrue(integrationFacet.strategy() == address(0), "strategy should clear");
-        assertTrue(integrationFacet.strategyReportedAssets() == 0, "reported assets should stay cleared");
-    }
-
-    function testDirectIntegrationFacetOracleQuoteAndEstimatedAssets() public {
-        _initializeDirectIntegrationFacet();
+        integrationFacet.deposit(100, bob);
 
         VM.expectRevert(
-            abi.encodeWithSelector(IERC4626VaultIntegrationFacet.ERC4626VaultOracleAdapterNotConfigured.selector)
+            abi.encodeWithSelector(
+                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyInvalidVault.selector,
+                address(wrongVaultStrategy),
+                address(integrationFacet),
+                address(0xBAD)
+            )
         );
-        integrationFacet.oracleQuote();
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(wrongVaultStrategy));
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyInvalidAsset.selector,
+                address(directWrongAssetStrategy),
+                address(asset),
+                address(otherAsset)
+            )
+        );
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(directWrongAssetStrategy));
 
         VM.prank(admin);
-        integrationFacet.setOracleAdapter(address(adapter));
+        integrationFacet.setStrategy(address(directProfitStrategy));
+        VM.prank(admin);
+        integrationFacet.deployToStrategy(40);
 
-        asset.mint(address(integrationFacet), 40);
+        VM.expectRevert(
+            abi.encodeWithSelector(IERC4626VaultIntegrationFacet.ERC4626VaultStrategyDebtOutstanding.selector, 40)
+        );
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(0));
 
         VM.prank(admin);
-        integrationFacet.reportStrategyAssets(25);
+        integrationFacet.withdrawFromStrategy(40);
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(0));
 
-        IOracleAdapter.OracleQuote memory quotePayload = integrationFacet.oracleQuote();
+        assertTrue(integrationFacet.strategy() == address(0), "strategy should clear after debt reaches zero");
+        assertTrue(integrationFacet.strategyDebt() == 0, "strategy debt should clear after full withdraw");
+    }
 
-        assertTrue(quotePayload.value == 100_000_000, "quote value mismatch");
-        assertTrue(quotePayload.updatedAt == quoteUpdatedAt, "quote timestamp mismatch");
-        assertTrue(quotePayload.decimals == 8, "quote decimals mismatch");
-        assertTrue(integrationFacet.idleAssets() == 40, "idle assets mismatch");
-        assertTrue(integrationFacet.estimatedTotalManagedAssets() == 65, "estimated assets mismatch");
-        assertTrue(integrationFacet.totalManagedAssets() == 0, "managed assets should remain unchanged");
+    function testDirectIntegrationFacetSyncRealizesProfitAndPartialWithdrawPreservesBookValue() public {
+        _initializeDirectIntegrationFacet();
+        _approveAsset(bob, address(integrationFacet), 100);
+
+        VM.prank(bob);
+        integrationFacet.deposit(100, bob);
+
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(directProfitStrategy));
+        VM.prank(admin);
+        integrationFacet.deployToStrategy(60);
+        directProfitStrategy.injectProfit(20);
+
+        assertTrue(integrationFacet.totalManagedAssets() == 100, "book value should remain unchanged before sync");
+        assertTrue(integrationFacet.liveStrategyAssets() == 80, "live strategy assets should reflect unsynced profit");
+
+        VM.prank(admin);
+        integrationFacet.syncStrategyAssets();
+
+        assertTrue(integrationFacet.strategyDebt() == 80, "strategy debt should sync to live assets");
+        assertTrue(integrationFacet.liveStrategyAssets() == 80, "live strategy assets mismatch after profit sync");
+        assertTrue(integrationFacet.totalManagedAssets() == 120, "book value should realize profit on sync");
+        assertTrue(integrationFacet.totalAssets() == 120, "total assets should remain mark-to-market after sync");
+
+        VM.prank(admin);
+        integrationFacet.withdrawFromStrategy(30);
+
+        assertTrue(integrationFacet.strategyDebt() == 50, "strategy debt should decrease after withdraw");
+        assertTrue(integrationFacet.liveStrategyAssets() == 50, "live strategy assets should decrease after withdraw");
+        assertTrue(integrationFacet.idleAssets() == 70, "idle assets should increase after withdraw");
+        assertTrue(integrationFacet.totalManagedAssets() == 120, "book value should stay unchanged after pull");
+    }
+
+    function testDirectIntegrationFacetSyncRealizesLoss() public {
+        _initializeDirectIntegrationFacet();
+        _approveAsset(bob, address(integrationFacet), 100);
+
+        VM.prank(bob);
+        integrationFacet.deposit(100, bob);
+
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(directLossStrategy));
+        VM.prank(admin);
+        integrationFacet.deployToStrategy(60);
+        directLossStrategy.applyLoss(15, 35);
+
+        VM.prank(admin);
+        integrationFacet.syncStrategyAssets();
+
+        assertTrue(integrationFacet.strategyDebt() == 45, "strategy debt should sync to loss-adjusted live assets");
+        assertTrue(integrationFacet.liveStrategyAssets() == 45, "live strategy assets mismatch after loss sync");
+        assertTrue(integrationFacet.totalManagedAssets() == 85, "book value should realize loss on sync");
+        assertTrue(integrationFacet.totalAssets() == 85, "total assets should reflect realized loss");
+    }
+
+    function testDirectIntegrationFacetRejectsUnexpectedPartialWithdrawResult() public {
+        _initializeDirectIntegrationFacet();
+        _approveAsset(bob, address(integrationFacet), 100);
+
+        VM.prank(bob);
+        integrationFacet.deposit(100, bob);
+
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(directLossStrategy));
+        VM.prank(admin);
+        integrationFacet.deployToStrategy(60);
+        directLossStrategy.applyLoss(0, 30);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyUnexpectedWithdrawResult.selector, 40, 30
+            )
+        );
+        VM.prank(admin);
+        integrationFacet.withdrawFromStrategy(40);
     }
 
     function testDirectIntegrationFacetHelpersRevertBeforeVaultInit() public {
@@ -95,7 +190,7 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         integrationFacet.idleAssets();
 
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultBase.ERC4626VaultNotInitialized.selector));
-        integrationFacet.estimatedTotalManagedAssets();
+        integrationFacet.liveStrategyAssets();
 
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultBase.ERC4626VaultNotInitialized.selector));
         VM.prank(admin);
@@ -109,33 +204,37 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         _approveAsset(bob, address(diamond), 100);
 
         VM.prank(bob);
-        uint256 mintedShares = IERC4626VaultFacet(address(diamond)).deposit(40, bob);
+        uint256 mintedShares = IERC4626VaultFacet(address(diamond)).deposit(100, bob);
 
         VM.prank(admin);
         IERC4626VaultIntegrationFacet(address(diamond)).setOracleAdapter(address(adapter));
         VM.prank(admin);
-        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(eve);
-
-        VM.prank(eve);
-        IERC4626VaultIntegrationFacet(address(diamond)).reportStrategyAssets(25);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondProfitStrategy.injectProfit(20);
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).syncStrategyAssets();
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).withdrawFromStrategy(30);
 
         IOracleAdapter.OracleQuote memory quotePayload = IERC4626VaultIntegrationFacet(address(diamond)).oracleQuote();
 
-        assertTrue(mintedShares == 40, "deposit shares mismatch");
+        assertTrue(mintedShares == 100, "deposit shares mismatch");
         assertTrue(
             IERC4626VaultIntegrationFacet(address(diamond)).oracleAdapter() == address(adapter), "adapter mismatch"
         );
-        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategy() == eve, "strategy mismatch");
         assertTrue(
-            IERC4626VaultIntegrationFacet(address(diamond)).strategyReportedAssets() == 25, "reported assets mismatch"
+            IERC4626VaultIntegrationFacet(address(diamond)).strategy() == address(diamondProfitStrategy),
+            "strategy mismatch"
         );
-        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).idleAssets() == 40, "idle assets mismatch");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyDebt() == 50, "strategy debt mismatch");
         assertTrue(
-            IERC4626VaultIntegrationFacet(address(diamond)).estimatedTotalManagedAssets() == 65,
-            "estimated assets mismatch"
+            IERC4626VaultIntegrationFacet(address(diamond)).liveStrategyAssets() == 50, "live strategy assets mismatch"
         );
-        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
-        assertTrue(IERC4626VaultFacet(address(diamond)).previewDeposit(10) == 10, "preview should remain core-based");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).idleAssets() == 70, "idle assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 120, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 120, "total assets mismatch");
         assertTrue(quotePayload.value == 100_000_000, "quote value mismatch");
         assertTrue(quotePayload.updatedAt == quoteUpdatedAt, "quote timestamp mismatch");
         assertTrue(quotePayload.decimals == 8, "quote decimals mismatch");

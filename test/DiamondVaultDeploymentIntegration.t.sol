@@ -94,7 +94,8 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
 
         assertTrue(integrationFacetInterface().oracleAdapter() == address(adapter), "adapter mismatch");
         assertTrue(integrationFacetInterface().strategy() == address(0), "strategy should be unset");
-        assertTrue(integrationFacetInterface().strategyReportedAssets() == 0, "reported assets should be zero");
+        assertTrue(integrationFacetInterface().strategyDebt() == 0, "strategy debt should be zero");
+        assertTrue(integrationFacetInterface().liveStrategyAssets() == 0, "live strategy assets should be zero");
         assertTrue(quotePayload.value == 100_000_000, "quote value mismatch");
         assertTrue(quotePayload.updatedAt == quoteUpdatedAt, "quote timestamp mismatch");
         assertTrue(quotePayload.decimals == 8, "quote decimals mismatch");

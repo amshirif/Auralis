@@ -10,7 +10,7 @@ import {
 contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
     function testStorageDefaultsAfterHostedVaultInit() public view {
         assertTrue(storageHarness.strategy() == address(0), "strategy should default to zero");
-        assertTrue(storageHarness.strategyReportedAssets() == 0, "reported assets should default to zero");
+        assertTrue(storageHarness.liveStrategyAssets() == 0, "live strategy assets should default to zero");
         assertTrue(storageHarness.strategyDebtForTest() == 0, "strategy debt should default to zero");
         assertFalse(storageHarness.strategyEmergencyExitForTest(), "emergency exit should default to false");
     }
@@ -30,6 +30,7 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
     }
 
     function testProfitMockReportsHigherAssetsAfterProfitInjection() public {
+        asset.mint(address(profitStrategy), 100);
         VM.prank(vault);
         profitStrategy.deployFunds(100);
 
@@ -37,9 +38,11 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
 
         assertTrue(profitStrategy.totalAssets() == 125, "profit should increase tracked assets");
         assertTrue(profitStrategy.maxWithdrawableAssets() == 125, "profit should increase withdrawable assets");
+        assertTrue(asset.balanceOf(address(profitStrategy)) == 125, "strategy balance should reflect profit");
     }
 
     function testLossShortfallMockReturnsLessThanRequestedAndShrinksAssets() public {
+        asset.mint(address(lossStrategy), 100);
         VM.prank(vault);
         lossStrategy.deployFunds(100);
 
@@ -47,6 +50,7 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
 
         assertTrue(lossStrategy.totalAssets() == 60, "loss should reduce tracked assets");
         assertTrue(lossStrategy.maxWithdrawableAssets() == 35, "shortfall should cap withdrawable assets");
+        assertTrue(asset.balanceOf(address(lossStrategy)) == 60, "strategy balance should reflect realized loss");
 
         VM.prank(vault);
         uint256 returnedAssets = lossStrategy.withdrawToVault(50);
@@ -54,6 +58,7 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
         assertTrue(returnedAssets == 35, "withdraw should return available assets only");
         assertTrue(lossStrategy.totalAssets() == 25, "tracked assets should reduce by returned amount");
         assertTrue(lossStrategy.maxWithdrawableAssets() == 0, "withdrawable assets should be depleted");
+        assertTrue(asset.balanceOf(vault) == 35, "vault should receive returned assets");
     }
 
     function testRevertingMockRevertsOnConfiguredCalls() public {
@@ -63,6 +68,8 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
             abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.totalAssets.selector)
         );
         revertingStrategy.totalAssets();
+
+        asset.mint(address(revertingStrategy), 100);
 
         VM.expectRevert(
             abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.deployFunds.selector)
@@ -86,6 +93,7 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
     }
 
     function testEmergencyUnwindMockReturnsAllAssetsAndClearsState() public {
+        asset.mint(address(unwindStrategy), 100);
         VM.prank(vault);
         unwindStrategy.deployFunds(100);
 
@@ -97,6 +105,7 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
         assertTrue(returnedAssets == 100, "emergency unwind should return all tracked assets");
         assertTrue(unwindStrategy.totalAssets() == 0, "tracked assets should clear on unwind");
         assertTrue(unwindStrategy.maxWithdrawableAssets() == 0, "withdrawable assets should clear on unwind");
+        assertTrue(asset.balanceOf(vault) == 100, "vault should receive unwound assets");
     }
 
     function _assertBinding(IERC4626VaultStrategy strategy_) internal view {
