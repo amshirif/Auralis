@@ -160,6 +160,11 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         uint256 grossAssets = _convertToAssets(balanceOf(owner), Rounding.Down);
+        uint256 liquidityCapAssets = _withdrawLiquidityCapAssets();
+        if (grossAssets > liquidityCapAssets) {
+            grossAssets = liquidityCapAssets;
+        }
+
         (uint256 netAssets,) = LibERC4626VaultControlLogic.withdrawNetFromGross(grossAssets);
 
         (,,, uint128 maxWithdraw_,) = LibERC4626VaultControlLogic.limitConfig();
@@ -176,6 +181,14 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         uint256 redeemableShares = balanceOf(owner);
+        uint256 liquidityCapAssets = _withdrawLiquidityCapAssets();
+        if (liquidityCapAssets != type(uint256).max) {
+            uint256 liquidityCappedShares = _convertToShares(liquidityCapAssets, Rounding.Down);
+            if (liquidityCappedShares < redeemableShares) {
+                redeemableShares = liquidityCappedShares;
+            }
+        }
+
         (,,,, uint128 maxRedeem_) = LibERC4626VaultControlLogic.limitConfig();
         if (maxRedeem_ != 0 && redeemableShares > maxRedeem_) {
             return maxRedeem_;
@@ -346,6 +359,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         _safeTransferAsset(LibERC4626VaultControlLogic.feeRecipient(), feeAssets);
+    }
+
+    function _withdrawLiquidityCapAssets() internal view virtual returns (uint256) {
+        return type(uint256).max;
     }
 
     function _vaultOperationsPaused() internal view virtual returns (bool);
