@@ -45,7 +45,6 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     address internal admin = address(0xA11CE);
     address internal bob = address(0xB0B);
     address internal eve = address(0xE11E);
-    address internal sink = address(0x515E);
 
     ReentrantMockVaultAsset internal asset;
     ERC4626VaultStrategyAccountingFacetHarness internal facet;
@@ -108,7 +107,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         internal
     {
         VM.prank(vaultAccount);
-        asset.transfer(sink, assets_);
+        asset.transfer(address(strategy_), assets_);
 
         VM.prank(vaultAccount);
         strategy_.deployFunds(assets_);

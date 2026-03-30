@@ -114,7 +114,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         );
         assertTrue(coreFacetInterface().asset() == address(asset), "core should still route after controls removal");
         assertTrue(
-            integrationFacetInterface().strategyReportedAssets() == STRATEGY_REPORTED_ASSETS,
+            integrationFacetInterface().strategyDebt() == STRATEGY_DEPLOYED_ASSETS,
             "integration should still route after controls removal"
         );
 
@@ -223,16 +223,15 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
 
     function _assertIntegrationState() internal view {
         assertTrue(integrationFacetInterface().oracleAdapter() == address(adapter), "oracle adapter mismatch");
-        assertTrue(integrationFacetInterface().strategy() == strategyReporter, "strategy mismatch");
+        assertTrue(integrationFacetInterface().strategy() == address(strategyContract), "strategy mismatch");
+        assertTrue(integrationFacetInterface().strategyDebt() == STRATEGY_DEPLOYED_ASSETS, "strategy debt mismatch");
         assertTrue(
-            integrationFacetInterface().strategyReportedAssets() == STRATEGY_REPORTED_ASSETS,
-            "strategy reported assets mismatch"
+            integrationFacetInterface().liveStrategyAssets() == STRATEGY_DEPLOYED_ASSETS,
+            "live strategy assets mismatch"
         );
-        assertTrue(integrationFacetInterface().idleAssets() == BOB_DEPOSIT + CAROL_DEPOSIT, "idle assets mismatch");
         assertTrue(
-            integrationFacetInterface().estimatedTotalManagedAssets()
-                == BOB_DEPOSIT + CAROL_DEPOSIT + STRATEGY_REPORTED_ASSETS,
-            "estimated managed assets mismatch"
+            integrationFacetInterface().idleAssets() == BOB_DEPOSIT + CAROL_DEPOSIT - STRATEGY_DEPLOYED_ASSETS,
+            "idle assets mismatch"
         );
     }
 }

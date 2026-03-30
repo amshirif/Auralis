@@ -88,7 +88,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         assertTrue(facet.maxWithdraw(bob) == DEPOSIT_ASSETS, "maxWithdraw should ignore zero-debt strategy");
     }
 
-    function testDiamondHostedVaultStrategyAccountingUsesLiveStrategyAssetsAndKeepsAdvisoryReportsSeparate() public {
+    function testDiamondHostedVaultStrategyAccountingUsesLiveStrategyAssets() public {
         _installHostedVaultFacetsToDiamond();
         _initializeDiamondVault();
         _approveAsset(bob, address(diamond), DEPOSIT_ASSETS);
@@ -102,8 +102,6 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         _simulateStrategyDeployment(address(diamond), diamondProfitStrategy, STRATEGY_DEBT);
         diamondProfitStrategy.injectProfit(20);
 
-        VM.prank(admin);
-        IERC4626VaultIntegrationFacet(address(diamond)).reportStrategyAssets(25);
         VM.prank(admin);
         IERC4626VaultControlsFacet(address(diamond)).setLimitConfig(125, 0, 0, 0, 0);
 
@@ -120,12 +118,9 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         );
         assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 33, "maxRedeem should cap to idle liquidity");
         assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).idleAssets() == 40, "idle assets mismatch");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyDebt() == 60, "strategy debt mismatch");
         assertTrue(
-            IERC4626VaultIntegrationFacet(address(diamond)).strategyReportedAssets() == 25, "reported assets mismatch"
-        );
-        assertTrue(
-            IERC4626VaultIntegrationFacet(address(diamond)).estimatedTotalManagedAssets() == 65,
-            "estimated assets should remain advisory"
+            IERC4626VaultIntegrationFacet(address(diamond)).liveStrategyAssets() == 80, "live strategy assets mismatch"
         );
     }
 }

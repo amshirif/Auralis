@@ -204,21 +204,22 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         AccountingSnapshot memory snapshot = _snapshotAccounting();
 
         VM.prank(admin);
-        integrationFacetInterface().setStrategy(configured ? strategyReporter : address(0));
+        integrationFacetInterface().setStrategy(configured ? address(strategyContract) : address(0));
 
         _assertAccountingUnchanged(snapshot, "strategy updates should not mutate core accounting");
     }
 
-    function actionReportStrategyAssets(uint96 assetsRaw, bool asStrategyReporter) external {
+    function actionSyncStrategyAssets() external {
         AccountingSnapshot memory snapshot = _snapshotAccounting();
-        uint256 assets_ = uint256(assetsRaw);
-        address configuredStrategy = integrationFacetInterface().strategy();
-        address caller = asStrategyReporter && configuredStrategy != address(0) ? strategyReporter : admin;
 
-        VM.prank(caller);
-        integrationFacetInterface().reportStrategyAssets(assets_);
+        if (integrationFacetInterface().strategy() == address(0)) {
+            return;
+        }
 
-        _assertAccountingUnchanged(snapshot, "strategy reports should not mutate core accounting");
+        VM.prank(admin);
+        integrationFacetInterface().syncStrategyAssets();
+
+        _assertAccountingUnchanged(snapshot, "strategy sync should not mutate core accounting without deployed assets");
     }
 
     function invariantManagedAssetsTrackUnderlyingBalance() public view {
@@ -242,15 +243,11 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         );
     }
 
-    function invariantEstimatedManagedAssetsReflectIdlePlusReported() public view {
+    function invariantStrategyLifecycleStateRemainsZeroWithoutDeploy() public view {
+        assertTrue(integrationFacetInterface().strategyDebt() == 0, "strategy debt should remain zero without deploy");
         assertTrue(
-            integrationFacetInterface().estimatedTotalManagedAssets()
-                == integrationFacetInterface().idleAssets() + integrationFacetInterface().strategyReportedAssets(),
-            "estimated assets should equal idle plus reported strategy assets"
-        );
-        assertTrue(
-            integrationFacetInterface().estimatedTotalManagedAssets() >= coreFacetInterface().totalManagedAssets(),
-            "estimated managed assets should not be less than managed assets"
+            integrationFacetInterface().liveStrategyAssets() == 0,
+            "live strategy assets should remain zero without deploy"
         );
     }
 

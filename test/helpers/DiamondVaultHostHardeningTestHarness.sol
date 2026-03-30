@@ -10,6 +10,7 @@ import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {ERC4626VaultIntegrationFacet} from "../../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultDeploymentFixture} from "./DiamondVaultDeploymentTestHarness.sol";
+import {ProfitMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
 interface IFacetVersionMarker {
     function facetVersion() external view returns (uint256);
@@ -48,16 +49,17 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     uint256 internal constant BOB_DEPOSIT = 200_000;
     uint256 internal constant CAROL_DEPOSIT = 150_000;
     uint256 internal constant SHARE_ALLOWANCE = 25_000;
-    uint256 internal constant STRATEGY_REPORTED_ASSETS = 75_000;
+    uint256 internal constant STRATEGY_DEPLOYED_ASSETS = 75_000;
 
     address internal bob = address(0xB0B);
     address internal carol = address(0xCA11);
     address internal dave = address(0xD0D);
     address internal eve = address(0xE11E);
     address internal feeSink = address(0xFEE);
-    address internal strategyReporter = address(0x57A7);
 
     address[ACTOR_COUNT] internal actors;
+
+    ProfitMockVaultStrategy internal strategyContract;
 
     ERC4626VaultFacetReplacement internal coreReplacement;
     ERC4626VaultControlsFacetReplacement internal controlsReplacement;
@@ -74,6 +76,8 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         actors[1] = carol;
         actors[2] = dave;
         actors[3] = eve;
+
+        strategyContract = new ProfitMockVaultStrategy(address(diamond), address(asset));
 
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
             address actor = actors[i];
@@ -122,10 +126,10 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _seedIntegrationState() internal {
         VM.prank(admin);
-        integrationFacetInterface().setStrategy(strategyReporter);
+        integrationFacetInterface().setStrategy(address(strategyContract));
 
-        VM.prank(strategyReporter);
-        integrationFacetInterface().reportStrategyAssets(STRATEGY_REPORTED_ASSETS);
+        VM.prank(admin);
+        integrationFacetInterface().deployToStrategy(STRATEGY_DEPLOYED_ASSETS);
     }
 
     function _replaceCoreFacet(address facetAddress_) internal {
