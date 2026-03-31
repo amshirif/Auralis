@@ -11,15 +11,17 @@ import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC4626VaultStrategy} from "../src/interfaces/IERC4626VaultStrategy.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultDeploymentFixture} from "./helpers/DiamondVaultDeploymentTestHarness.sol";
 
 contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture {
-    function testVaultHostDeployInstallInitAndOracleWiring() public {
+    function testVaultHostDeployInstallInitOracleAndStrategyWiring() public {
         _installVaultHostFacets();
         _initializeVaultHost();
         _wireOracleAdapter();
+        _wireStrategy();
 
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
         address[] memory facetAddresses = loupe.facetAddresses();
@@ -66,6 +68,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
             "oracle selector owner mismatch"
         );
         assertTrue(
+            loupe.facetAddress(IERC4626VaultIntegrationFacet.deployToStrategy.selector) == address(integrationFacet),
+            "deploy strategy selector owner mismatch"
+        );
+        assertTrue(
             loupe.facetAddress(IERC165.supportsInterface.selector) == address(controlsFacet),
             "supportsInterface owner mismatch"
         );
@@ -93,9 +99,12 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         assertTrue(feeRecipient == admin, "fee recipient mismatch");
 
         assertTrue(integrationFacetInterface().oracleAdapter() == address(adapter), "adapter mismatch");
-        assertTrue(integrationFacetInterface().strategy() == address(0), "strategy should be unset");
+        assertTrue(integrationFacetInterface().strategy() == address(strategy), "strategy should be configured");
         assertTrue(integrationFacetInterface().strategyDebt() == 0, "strategy debt should be zero");
+        assertFalse(integrationFacetInterface().strategyEmergencyExit(), "emergency exit should be inactive");
         assertTrue(integrationFacetInterface().liveStrategyAssets() == 0, "live strategy assets should be zero");
+        assertTrue(IERC4626VaultStrategy(address(strategy)).vault() == address(diamond), "strategy vault mismatch");
+        assertTrue(IERC4626VaultStrategy(address(strategy)).asset() == address(asset), "strategy asset mismatch");
         assertTrue(quotePayload.value == 100_000_000, "quote value mismatch");
         assertTrue(quotePayload.updatedAt == quoteUpdatedAt, "quote timestamp mismatch");
         assertTrue(quotePayload.decimals == 8, "quote decimals mismatch");
@@ -115,6 +124,63 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         VM.prank(admin);
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultBase.ERC4626VaultAlreadyInitialized.selector));
         coreFacetInterface().initializeVault(address(asset), "Vault Share", "vSHARE", admin);
+    }
+
+    function testVaultHostSmokeCoversStrategyLifecycle() public {
+        _installVaultHostFacets();
+        _initializeVaultHost();
+        _wireOracleAdapter();
+        _wireStrategy();
+
+        asset.mint(admin, 1_500_000_000);
+        VM.prank(admin);
+        asset.approve(address(diamond), 1_500_000_000);
+        VM.prank(admin);
+        coreFacetInterface().deposit(1_000_000_000, admin);
+
+        VM.prank(admin);
+        integrationFacetInterface().deployToStrategy(600_000_000);
+        strategy.injectProfit(100_000_000);
+        VM.prank(admin);
+        integrationFacetInterface().syncStrategyAssets();
+
+        assertTrue(integrationFacetInterface().strategyDebt() == 700_000_000, "strategy debt mismatch after sync");
+        assertTrue(coreFacetInterface().totalManagedAssets() == 1_100_000_000, "book value mismatch after sync");
+        assertTrue(coreFacetInterface().totalAssets() == 1_100_000_000, "total assets mismatch after sync");
+
+        VM.prank(admin);
+        uint256 managerReturned = integrationFacetInterface().withdrawFromStrategy(150_000_000);
+        assertTrue(managerReturned == 150_000_000, "manager withdraw should return requested assets");
+        assertTrue(
+            integrationFacetInterface().strategyDebt() == 550_000_000, "strategy debt mismatch after manager withdraw"
+        );
+
+        VM.prank(admin);
+        coreFacetInterface().withdraw(700_000_000, admin, admin);
+
+        assertTrue(
+            integrationFacetInterface().strategyDebt() == 400_000_000, "strategy debt mismatch after user withdraw"
+        );
+        assertTrue(integrationFacetInterface().liveStrategyAssets() == 400_000_000, "live strategy assets mismatch");
+        assertTrue(integrationFacetInterface().idleAssets() == 0, "idle assets should be exhausted after auto-pull");
+        assertTrue(coreFacetInterface().totalManagedAssets() == 400_000_000, "book value mismatch after user withdraw");
+
+        VM.prank(admin);
+        uint256 emergencyAssets = integrationFacetInterface().emergencyExitStrategy();
+
+        assertTrue(emergencyAssets == 400_000_000, "emergency exit should unwind remaining assets");
+        assertTrue(integrationFacetInterface().strategyEmergencyExit(), "emergency exit should be active");
+        assertTrue(integrationFacetInterface().strategyDebt() == 0, "strategy debt should be zero after unwind");
+        assertTrue(integrationFacetInterface().idleAssets() == 400_000_000, "idle assets should contain unwound funds");
+
+        VM.prank(admin);
+        integrationFacetInterface().setStrategy(address(0));
+        VM.prank(admin);
+        integrationFacetInterface().setStrategy(address(strategy));
+
+        assertFalse(integrationFacetInterface().strategyEmergencyExit(), "emergency exit should clear on rebind");
+        assertTrue(integrationFacetInterface().strategy() == address(strategy), "strategy should be rebound");
+        assertTrue(integrationFacetInterface().strategyDebt() == 0, "strategy debt should reset to zero");
     }
 
     function _assertSelectorsOwnedByFacet(bytes4[] memory selectors, address expectedFacet) internal view {
