@@ -14,7 +14,7 @@ import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 import {ERC4626VaultFacetHarness} from "./ERC4626VaultFacetTestHarness.sol";
 import {MockOracleFeed, OracleAdapterHarness} from "./OracleAdapterTestHarness.sol";
 import {MockVaultAsset} from "./ERC4626CoreTestHarness.sol";
-import {LossShortfallMockVaultStrategy, ProfitMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
+import {LossShortfallMockVaultStrategy, ProfitMockVaultStrategy, RevertingMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC4626VaultIntegrationFacetHarness is ERC4626VaultIntegrationFacet {
     function initializeHostedVaultForTest(
@@ -51,6 +51,7 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
     OracleAdapterHarness internal adapter;
     ProfitMockVaultStrategy internal directProfitStrategy;
     LossShortfallMockVaultStrategy internal directLossStrategy;
+    RevertingMockVaultStrategy internal directRevertingStrategy;
     ProfitMockVaultStrategy internal diamondProfitStrategy;
     ProfitMockVaultStrategy internal wrongVaultStrategy;
     ProfitMockVaultStrategy internal directWrongAssetStrategy;
@@ -71,6 +72,7 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
         adapter = new OracleAdapterHarness(admin, address(feed), maxStaleness);
         directProfitStrategy = new ProfitMockVaultStrategy(address(integrationFacet), address(asset));
         directLossStrategy = new LossShortfallMockVaultStrategy(address(integrationFacet), address(asset));
+        directRevertingStrategy = new RevertingMockVaultStrategy(address(integrationFacet), address(asset));
         diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
         wrongVaultStrategy = new ProfitMockVaultStrategy(address(0xBAD), address(asset));
         directWrongAssetStrategy = new ProfitMockVaultStrategy(address(integrationFacet), address(otherAsset));
