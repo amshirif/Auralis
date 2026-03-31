@@ -8,12 +8,7 @@ import {TestBase} from "./AccessControlTestHarness.sol";
 import {MockVaultAsset} from "./ERC4626CoreTestHarness.sol";
 
 contract ERC4626VaultStrategyStorageHarness is ERC4626VaultIntegrationFacet {
-    function initializeHostedVaultForStrategyTest(
-        address vaultAsset,
-        string memory vaultName,
-        string memory vaultSymbol,
-        address admin
-    ) external {
+    constructor(address vaultAsset, string memory vaultName, string memory vaultSymbol, address admin) {
         _initializeVaultFacetControl(admin);
         _initializeErc4626Vault(vaultAsset, vaultName, vaultSymbol);
     }
@@ -211,8 +206,7 @@ abstract contract ERC4626VaultStrategyFixture is TestBase {
 
     function setUp() public virtual {
         asset = new MockVaultAsset("Mock USD", "mUSD", 6);
-        storageHarness = new ERC4626VaultStrategyStorageHarness();
-        storageHarness.initializeHostedVaultForStrategyTest(address(asset), "Vault Share", "vSHARE", admin);
+        storageHarness = new ERC4626VaultStrategyStorageHarness(address(asset), "Vault Share", "vSHARE", admin);
 
         profitStrategy = new ProfitMockVaultStrategy(vault, address(asset));
         lossStrategy = new LossShortfallMockVaultStrategy(vault, address(asset));

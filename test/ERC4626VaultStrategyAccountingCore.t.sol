@@ -168,8 +168,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
             "maxWithdraw should include strategy liquidity"
         );
         assertTrue(
-            IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100,
-            "maxRedeem should include strategy liquidity"
+            IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100, "maxRedeem should include strategy liquidity"
         );
 
         VM.prank(bob);

@@ -149,7 +149,9 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         assertTrue(integrationFacet.liveStrategyAssets() == 20, "live strategy assets mismatch after partial withdraw");
         assertTrue(integrationFacet.idleAssets() == 70, "idle assets should increase by returned assets");
         assertTrue(integrationFacet.totalManagedAssets() == 90, "book value should realize loss on partial withdraw");
-        assertTrue(integrationFacet.totalAssets() == 90, "direct integration facet total assets should match book value");
+        assertTrue(
+            integrationFacet.totalAssets() == 90, "direct integration facet total assets should match book value"
+        );
     }
 
     function testDirectIntegrationFacetSyncRealizesProfit() public {
@@ -171,7 +173,9 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         assertTrue(integrationFacet.strategyDebt() == 80, "strategy debt should sync to profit-adjusted live assets");
         assertTrue(integrationFacet.liveStrategyAssets() == 80, "live strategy assets mismatch after profit sync");
         assertTrue(integrationFacet.totalManagedAssets() == 120, "book value should realize profit on sync");
-        assertTrue(integrationFacet.totalAssets() == 120, "direct integration facet total assets should match book value");
+        assertTrue(
+            integrationFacet.totalAssets() == 120, "direct integration facet total assets should match book value"
+        );
     }
 
     function testDirectIntegrationFacetSyncRealizesLoss() public {
@@ -193,7 +197,9 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         assertTrue(integrationFacet.strategyDebt() == 45, "strategy debt should sync to loss-adjusted live assets");
         assertTrue(integrationFacet.liveStrategyAssets() == 45, "live strategy assets mismatch after loss sync");
         assertTrue(integrationFacet.totalManagedAssets() == 85, "book value should realize loss on sync");
-        assertTrue(integrationFacet.totalAssets() == 85, "direct integration facet total assets should reflect realized loss");
+        assertTrue(
+            integrationFacet.totalAssets() == 85, "direct integration facet total assets should reflect realized loss"
+        );
     }
 
     function testDirectIntegrationFacetEmergencyExitUnwindsAndBlocksRedeploy() public {
@@ -217,7 +223,9 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         assertTrue(integrationFacet.strategyDebt() == 0, "strategy debt should be zero after full unwind");
         assertTrue(integrationFacet.liveStrategyAssets() == 0, "live strategy assets should be zero after unwind");
         assertTrue(integrationFacet.idleAssets() == 120, "idle assets should include fully unwound strategy assets");
-        assertTrue(integrationFacet.totalManagedAssets() == 120, "book value should realize profit during emergency exit");
+        assertTrue(
+            integrationFacet.totalManagedAssets() == 120, "book value should realize profit during emergency exit"
+        );
 
         VM.expectRevert(IERC4626VaultIntegrationFacet.ERC4626VaultStrategyEmergencyExitActive.selector);
         VM.prank(admin);
@@ -249,7 +257,9 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
         assertTrue(integrationFacet.strategyDebt() == 60, "strategy debt should remain unchanged after failed unwind");
         assertTrue(integrationFacet.liveStrategyAssets() == 60, "live strategy assets should remain unchanged");
         assertTrue(integrationFacet.idleAssets() == 40, "idle assets should remain unchanged after failed unwind");
-        assertTrue(integrationFacet.totalManagedAssets() == 100, "book value should remain unchanged after failed unwind");
+        assertTrue(
+            integrationFacet.totalManagedAssets() == 100, "book value should remain unchanged after failed unwind"
+        );
 
         VM.expectRevert(IERC4626VaultIntegrationFacet.ERC4626VaultStrategyEmergencyExitActive.selector);
         VM.prank(admin);
