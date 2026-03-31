@@ -3,6 +3,8 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
+import {IERC4626VaultStrategy} from "../interfaces/IERC4626VaultStrategy.sol";
+import {LibERC4626VaultStorage} from "./storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultBase} from "./ERC4626VaultBase.sol";
 
 /// @title ERC4626Vault
@@ -16,6 +18,10 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     error ERC4626VaultAssetTransferFailed();
     /// @notice Thrown when asset transferFrom fails.
     error ERC4626VaultAssetTransferFromFailed();
+    /// @notice Thrown when the vault cannot source enough immediate liquidity for a withdrawal flow.
+    /// @param requiredAssets The gross asset amount required.
+    /// @param availableAssets The currently sourced idle asset amount.
+    error ERC4626VaultInsufficientLiquidity(uint256 requiredAssets, uint256 availableAssets);
 
     /// @notice Returns vault underlying asset token address.
     /// @return The underlying asset token.
@@ -257,5 +263,76 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
             revert ERC4626VaultAssetTransferFromFailed();
         }
+    }
+
+    /// @dev Returns the vault's immediately idle asset balance.
+    function _idleAssetBalance() internal view returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
+    /// @dev Returns the configured strategy's immediately withdrawable assets.
+    function _strategyWithdrawableAssets() internal view returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+            return 0;
+        }
+
+        IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
+        uint256 liveAssets = configuredStrategy.totalAssets();
+        uint256 withdrawableAssets = configuredStrategy.maxWithdrawableAssets();
+        return liveAssets < withdrawableAssets ? liveAssets : withdrawableAssets;
+    }
+
+    /// @dev Pulls assets from the configured strategy back to the vault.
+    function _withdrawStrategyAssets(uint256 assets)
+        internal
+        returns (uint256 returnedAssets, uint256 postCallLiveAssets)
+    {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
+        returnedAssets = configuredStrategy.withdrawToVault(assets);
+        postCallLiveAssets = configuredStrategy.totalAssets();
+    }
+
+    /// @dev Fully unwinds assets from the configured strategy back to the vault.
+    function _withdrawAllStrategyAssets() internal returns (uint256 returnedAssets, uint256 postCallLiveAssets) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
+        returnedAssets = configuredStrategy.withdrawAllToVault();
+        postCallLiveAssets = configuredStrategy.totalAssets();
+    }
+
+    /// @dev Realizes strategy mark-to-market changes into book accounting without moving idle vault assets.
+    function _syncStrategyDebtToLiveAssets(uint256 liveAssets) internal returns (uint256 previousDebt) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        previousDebt = layout.strategyDebt;
+
+        if (liveAssets > previousDebt) {
+            _increaseManagedAssets(liveAssets - previousDebt);
+        } else if (previousDebt > liveAssets) {
+            _decreaseManagedAssets(previousDebt - liveAssets);
+        }
+
+        layout.strategyDebt = liveAssets;
+        layout.strategyReportedAssets = 0;
+    }
+
+    /// @dev Reconciles book accounting after a strategy withdrawal-like call that returned assets to the vault.
+    function _reconcileStrategyWithdrawalAccounting(uint256 returnedAssets, uint256 postCallLiveAssets)
+        internal
+        returns (uint256 previousDebt)
+    {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        previousDebt = layout.strategyDebt;
+        uint256 combinedAssets = returnedAssets + postCallLiveAssets;
+
+        if (combinedAssets > previousDebt) {
+            _increaseManagedAssets(combinedAssets - previousDebt);
+        } else if (previousDebt > combinedAssets) {
+            _decreaseManagedAssets(previousDebt - combinedAssets);
+        }
+
+        layout.strategyDebt = postCallLiveAssets;
+        layout.strategyReportedAssets = 0;
     }
 }

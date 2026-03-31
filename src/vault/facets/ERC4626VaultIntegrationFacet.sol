@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC20} from "../../interfaces/IERC20.sol";
 import {IERC4626VaultIntegrationFacet} from "../../interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
 import {IOracleAdapter} from "../../interfaces/IOracleAdapter.sol";
@@ -24,6 +23,12 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
         return LibERC4626VaultStorage.layout().strategy;
     }
 
+    /// @notice Returns true when the current strategy is in emergency-exit mode.
+    /// @return True when emergency exit is active.
+    function strategyEmergencyExit() public view returns (bool) {
+        return LibERC4626VaultStorage.layout().strategyEmergencyExit;
+    }
+
     /// @notice Returns the vault's current stored book debt allocated to the configured strategy.
     /// @return The strategy debt amount.
     function strategyDebt() public view returns (uint256) {
@@ -34,7 +39,7 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
     /// @return The idle asset amount held directly by the vault.
     function idleAssets() public view returns (uint256) {
         _requireInitialized();
-        return IERC20(asset()).balanceOf(address(this));
+        return _idleAssetBalance();
     }
 
     /// @notice Returns the configured strategy's live reported assets.
@@ -75,7 +80,7 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
 
     /// @notice Sets the configured strategy reference.
     /// @param newStrategy The new strategy address, or zero to clear.
-    function setStrategy(address newStrategy) public {
+    function setStrategy(address newStrategy) public nonReentrant {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
 
@@ -99,15 +104,20 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
 
     /// @notice Deploys idle vault assets into the configured strategy.
     /// @param assets The asset amount to deploy.
-    function deployToStrategy(uint256 assets) public {
+    function deployToStrategy(uint256 assets) public nonReentrant {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         if (assets == 0) {
             revert ERC4626VaultZeroAssets();
         }
 
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategyEmergencyExit) {
+            revert ERC4626VaultStrategyEmergencyExitActive();
+        }
+
         IERC4626VaultStrategy configuredStrategy = _configuredStrategy();
-        uint256 availableIdleAssets = _availableIdleAssetsForStrategy();
+        uint256 availableIdleAssets = _availableIdleAssetsForStrategyDeploy();
         if (assets > availableIdleAssets) {
             revert ERC4626VaultStrategyInsufficientIdleAssets(assets, availableIdleAssets);
         }
@@ -115,7 +125,6 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
         _safeTransferAsset(address(configuredStrategy), assets);
         configuredStrategy.deployFunds(assets);
 
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         layout.strategyDebt += assets;
         layout.strategyReportedAssets = 0;
 
@@ -123,51 +132,52 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
     }
 
     /// @notice Withdraws assets from the configured strategy back to the vault.
-    /// @param assets The asset amount to withdraw.
-    function withdrawFromStrategy(uint256 assets) public {
+    /// @param assets The requested asset amount to withdraw.
+    /// @return returnedAssets The actual returned asset amount.
+    function withdrawFromStrategy(uint256 assets) public nonReentrant returns (uint256 returnedAssets) {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         if (assets == 0) {
             revert ERC4626VaultZeroAssets();
         }
 
-        IERC4626VaultStrategy configuredStrategy = _configuredStrategy();
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        uint256 currentStrategyDebt = layout.strategyDebt;
-        if (assets > currentStrategyDebt) {
-            revert ERC4626VaultStrategyDebtOutstanding(currentStrategyDebt);
-        }
+        _configuredStrategy();
+        uint256 postCallLiveAssets;
+        (returnedAssets, postCallLiveAssets) = _withdrawStrategyAssets(assets);
+        _reconcileStrategyWithdrawalAccounting(returnedAssets, postCallLiveAssets);
 
-        uint256 returnedAssets = configuredStrategy.withdrawToVault(assets);
-        if (returnedAssets != assets) {
-            revert ERC4626VaultStrategyUnexpectedWithdrawResult(assets, returnedAssets);
-        }
-
-        layout.strategyDebt = currentStrategyDebt - assets;
-        layout.strategyReportedAssets = 0;
-
-        emit VaultStrategyWithdrawn(assets, layout.strategyDebt, msg.sender);
+        emit VaultStrategyWithdrawn(assets, returnedAssets, LibERC4626VaultStorage.layout().strategyDebt, msg.sender);
     }
 
     /// @notice Syncs live strategy assets into vault book accounting.
-    function syncStrategyAssets() public {
+    function syncStrategyAssets() public nonReentrant {
+        _requireInitialized();
+        _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
+
+        uint256 liveAssets = _configuredStrategy().totalAssets();
+        uint256 previousDebt = _syncStrategyDebtToLiveAssets(liveAssets);
+
+        emit VaultStrategySynced(previousDebt, liveAssets, msg.sender);
+    }
+
+    /// @notice Activates emergency-exit mode and attempts to unwind the configured strategy.
+    /// @return assetsReturned The actual returned asset amount from the unwind attempt.
+    function emergencyExitStrategy() public nonReentrant returns (uint256 assetsReturned) {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
 
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        uint256 previousDebt = layout.strategyDebt;
-        uint256 liveAssets = _configuredStrategy().totalAssets();
+        IERC4626VaultStrategy configuredStrategy = _configuredStrategy();
+        layout.strategyEmergencyExit = true;
 
-        if (liveAssets > previousDebt) {
-            _increaseManagedAssets(liveAssets - previousDebt);
-        } else if (previousDebt > liveAssets) {
-            _decreaseManagedAssets(previousDebt - liveAssets);
+        try configuredStrategy.withdrawAllToVault() returns (uint256 returnedAssets) {
+            uint256 postCallLiveAssets = configuredStrategy.totalAssets();
+            assetsReturned = returnedAssets;
+            _reconcileStrategyWithdrawalAccounting(assetsReturned, postCallLiveAssets);
+            emit VaultStrategyEmergencyExitTriggered(assetsReturned, layout.strategyDebt, msg.sender);
+        } catch (bytes memory revertData) {
+            emit VaultStrategyEmergencyExitFailed(address(configuredStrategy), msg.sender, revertData);
         }
-
-        layout.strategyDebt = liveAssets;
-        layout.strategyReportedAssets = 0;
-
-        emit VaultStrategySynced(previousDebt, liveAssets, msg.sender);
     }
 
     function _configuredStrategy() internal view returns (IERC4626VaultStrategy configuredStrategy) {
@@ -194,9 +204,9 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
         }
     }
 
-    function _availableIdleAssetsForStrategy() internal view returns (uint256) {
+    function _availableIdleAssetsForStrategyDeploy() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        uint256 actualIdleAssets = IERC20(asset()).balanceOf(address(this));
+        uint256 actualIdleAssets = _idleAssetBalance();
         uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
         return actualIdleAssets < idleBookAssets ? actualIdleAssets : idleBookAssets;
     }
