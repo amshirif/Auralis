@@ -10,11 +10,13 @@ import {ERC4626VaultIntegrationFacetHarness} from "./ERC4626VaultIntegrationFace
 import {MockVaultAsset} from "./ERC4626CoreTestHarness.sol";
 import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
 import {MockOracleFeed, OracleAdapterHarness} from "./OracleAdapterTestHarness.sol";
+import {ProfitMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 
 abstract contract DiamondVaultDeploymentFixture is TestBase {
     address internal admin = address(0xA11CE);
+    address internal alice = address(0xA11CE0);
 
     uint64 internal maxStaleness = 1 hours;
     uint64 internal currentTime = 1_000_000;
@@ -29,6 +31,7 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
     MockVaultAsset internal asset;
     MockOracleFeed internal feed;
     OracleAdapterHarness internal adapter;
+    ProfitMockVaultStrategy internal strategy;
 
     function setUp() public virtual {
         VM.warp(currentTime);
@@ -43,6 +46,7 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
         feed = new MockOracleFeed(8);
         feed.setLatestRoundData(1, 100_000_000, quoteUpdatedAt, quoteUpdatedAt, 1);
         adapter = new OracleAdapterHarness(admin, address(feed), maxStaleness);
+        strategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
 
         _installLoupeFacet();
     }
@@ -89,6 +93,11 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
     function _wireOracleAdapter() internal {
         VM.prank(admin);
         integrationFacetInterface().setOracleAdapter(address(adapter));
+    }
+
+    function _wireStrategy() internal {
+        VM.prank(admin);
+        integrationFacetInterface().setStrategy(address(strategy));
     }
 
     function coreFacetInterface() internal view returns (ERC4626VaultFacetHarness) {
