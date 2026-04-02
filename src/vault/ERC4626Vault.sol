@@ -127,7 +127,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param owner Share owner.
     /// @return Max withdrawable assets.
     function maxWithdraw(address owner) public view virtual returns (uint256) {
-        if (owner == address(0)) {
+        if (owner == address(0) || totalAssets() == 0) {
             return 0;
         }
         return _convertToAssets(balanceOf(owner), Rounding.Down);
@@ -173,7 +173,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param owner Share owner.
     /// @return Max redeemable shares.
     function maxRedeem(address owner) public view virtual returns (uint256) {
-        if (owner == address(0)) {
+        if (owner == address(0) || totalAssets() == 0) {
             return 0;
         }
         return balanceOf(owner);
