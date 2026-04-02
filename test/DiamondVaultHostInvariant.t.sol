@@ -434,6 +434,4 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         }
         return liquidity;
     }
-
-
 }
