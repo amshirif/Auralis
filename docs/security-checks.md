@@ -65,17 +65,23 @@ reinstall persistence, and diamond-routed invariant coverage locally.
 
 ### Hosted Vault
 
-The hosted vault milestone has matching deployment, hardening, and invariant
-coverage for the supported three-facet vault host:
+The hosted vault now has matching deployment, strategy lifecycle, hardening,
+and invariant coverage for the supported three-facet vault host with one active
+strategy per vault:
 
 ```bash
 forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+forge test --offline --match-path test/ERC4626VaultIntegrationFacetCore.t.sol
+forge test --offline --match-path test/ERC4626VaultStrategyAccountingCore.t.sol
+forge test --offline --match-path test/VaultStrategyFoundationCore.t.sol
 forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
 forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
 ```
 
-Use these to reproduce hosted-vault deployment, selector ownership, facet
-replacement/reinstall persistence, and diamond-routed vault invariants locally.
+Use these to reproduce hosted-vault deployment, strategy binding, live
+strategy-aware accounting, loss and emergency-exit behavior, selector
+ownership, facet replacement persistence, and diamond-routed vault invariants
+locally.
 
 ### Slither
 
