@@ -1,7 +1,7 @@
 # Diamond Vault Facets
 
 This document is the canonical guide for the hosted vault model implemented in
-the `Diamond-Hosted Vault Platform` milestone.
+Auralis.
 
 It covers the supported diamond-hosted vault deployment:
 
@@ -9,6 +9,7 @@ It covers the supported diamond-hosted vault deployment:
 - one `ERC4626VaultFacet`
 - one `ERC4626VaultControlsFacet`
 - one `ERC4626VaultIntegrationFacet`
+- one active strategy per vault
 
 For the standalone ERC-4626 module behavior and math reference, see
 `docs/erc4626-vault.md`.
@@ -28,6 +29,11 @@ control-plane selectors, and integration/config selectors.
 - conversion, preview, and `max*` helpers
 - `asset()` and `totalManagedAssets()`
 
+The core facet also owns runtime liquidity sourcing for user withdrawals and
+redemptions. When idle vault liquidity is insufficient, it will pull
+immediately withdrawable assets from the configured strategy before finishing
+`withdraw` or `redeem`.
+
 ### Controls Facet
 
 `ERC4626VaultControlsFacet` owns the control-plane selector group:
@@ -43,13 +49,17 @@ control-plane selectors, and integration/config selectors.
 `ERC4626VaultIntegrationFacet` owns the integration/config selector group:
 
 - oracle adapter reference
-- strategy reference
-- strategy report hook
+- strategy reference and emergency-exit state
+- strategy lifecycle methods
 - `idleAssets()`
-- `estimatedTotalManagedAssets()`
+- `liveStrategyAssets()`
+- `strategyDebt()`
 - `oracleQuote()`
 
-## Initialization Model
+The integration facet is the manager-facing strategy surface. It does not own
+vault initialization and it does not own user ERC-4626 entrypoints.
+
+## Initialization And Deployment Model
 
 The hosted vault uses one initializer on the core facet only.
 
@@ -60,8 +70,8 @@ Initialization sequence:
 3. Call
    `initializeVault(address vaultAsset, string vaultName, string vaultSymbol, address admin)`
    through the diamond.
-4. Optionally call `setOracleAdapter(address newAdapter)` through the
-   integration facet.
+4. Call `setOracleAdapter(address newAdapter)` through the integration facet.
+5. Call `setStrategy(address newStrategy)` through the integration facet.
 
 Initialization behavior:
 
@@ -72,6 +82,17 @@ Initialization behavior:
 - `ERC4626VaultControlsFacet` has no independent initializer.
 - `ERC4626VaultIntegrationFacet` has no independent initializer.
 - a second call to `initializeVault(...)` reverts.
+
+The local reference deployment in `script/DeployDiamondVaultHost.s.sol` wires a
+vault-bound, asset-bound strategy by default. It leaves the vault in a ready
+state with:
+
+- `strategy()` configured
+- `strategyDebt() == 0`
+- `liveStrategyAssets() == 0`
+- `strategyEmergencyExit() == false`
+
+No funds are deployed to strategy during deployment.
 
 ## Role Model And Pause Behavior
 
@@ -89,10 +110,10 @@ Hosted vault facets reuse the shared control plane.
 - `setLimitConfig(...)`
 - `setOracleAdapter(...)`
 - `setStrategy(...)`
-- manager-authorized `reportStrategyAssets(...)`
-
-If a strategy is configured, the strategy address may also call
-`reportStrategyAssets(...)`.
+- `deployToStrategy(...)`
+- `withdrawFromStrategy(...)`
+- `syncStrategyAssets()`
+- `emergencyExitStrategy()`
 
 ### Pause Behavior
 
@@ -114,42 +135,119 @@ Global pause does not block share-token flows:
 Scoped pause selectors still route through the controls facet, but the hosted
 vault does not currently use per-scope pause behavior for ERC-4626 entrypoints.
 
-## Integration Behavior
+## Strategy Model
 
-The integration facet is config/report infrastructure, not an active strategy
-engine.
+The hosted vault strategy model is intentionally narrow:
 
-Oracle behavior:
+- one active strategy per vault
+- single-asset only
+- strategy instance is vault-bound and asset-bound
+- no allocator or multi-strategy routing
+- no async withdrawal queue
+- no automatic harvest or keeper loop
 
-- the oracle adapter is an external contract reference
-- the reference host deployment wires it after vault initialization
-- `oracleQuote()` reads through the configured adapter
+A strategy must satisfy `IERC4626VaultStrategy` and report:
 
-Strategy behavior:
+- `vault() == address(diamond)`
+- `asset() == asset()`
 
-- `setStrategy(...)` stores a configured strategy reference
-- `reportStrategyAssets(...)` updates an advisory reported amount
-- `strategyReportedAssets` does not mutate core ERC-4626 liquidity accounting
+`setStrategy(...)` validates those bindings and requires `strategyDebt() == 0`
+before a strategy can be cleared or replaced.
 
-Asset helpers:
+### Lifecycle Surface
 
-- `idleAssets()` returns the underlying balance held directly by the vault
-- `estimatedTotalManagedAssets()` returns
-  `idleAssets() + strategyReportedAssets()`
-- `totalManagedAssets()` and ERC-4626 preview/liquidity math continue to use the
-  vault's managed accounting only
+Manager lifecycle methods live on the integration facet:
 
-That means strategy reports are visible to operators and reviewers, but they do
-not automatically change `withdraw`, `redeem`, preview math, or live liquidity
-semantics in this milestone.
+- `setStrategy(address)`
+- `deployToStrategy(uint256)`
+- `withdrawFromStrategy(uint256)`
+- `syncStrategyAssets()`
+- `emergencyExitStrategy()`
+
+Behavior:
+
+- `deployToStrategy(...)` moves idle assets from the vault into strategy and
+  increases `strategyDebt()` by the deployed amount.
+- `withdrawFromStrategy(...)` pulls assets back from strategy, may return less
+  than requested, and realizes any gain or loss into book value.
+- `syncStrategyAssets()` realizes mark-to-market strategy profit or loss into
+  book value without moving idle assets.
+- `emergencyExitStrategy()` sets the sticky emergency-exit flag before trying a
+  full unwind.
+
+Emergency exit is one-way for the current strategy instance:
+
+- once emergency exit is active, new deploys are blocked
+- if unwind succeeds, debt is reconciled down to the remaining live strategy
+  assets
+- if unwind reverts, emergency exit stays active and the call does not revert
+- to resume deploying, the manager must get debt to zero and then clear or
+  replace the strategy
+
+## Accounting Model
+
+The hosted vault separates book accounting from live pricing.
+
+Book accounting:
+
+- `totalManagedAssets()` is the vault's stored book value
+- `strategyDebt()` is the book debt allocated to the configured strategy
+- `idleAssets()` is the underlying currently held by the vault
+
+Live pricing:
+
+- `liveStrategyAssets()` is the strategy's current mark-to-market value
+- hosted `totalAssets()` is priced as:
+  `idleAssets() + liveStrategyAssets()`
+
+Operationally:
+
+- after deploys, book value stays constant and debt increases
+- after manager pulls, syncs, or emergency exit, realized profit or loss is
+  written into `totalManagedAssets()` and `strategyDebt()` is updated to the
+  post-operation live strategy assets
+- when no strategy is configured or debt is zero, hosted pricing collapses back
+  to idle vault assets
+
+This means the hosted vault uses live strategy pricing for ERC-4626 conversions
+while still keeping explicit book accounting for deployed debt.
+
+## User-Facing Withdraw And Redeem Semantics
+
+`withdraw(assets)` and `redeem(shares)` remain core-facet entrypoints, but they
+are strategy-aware.
+
+### `withdraw(assets)`
+
+- exact-assets semantics are preserved
+- if idle vault assets are insufficient, the core facet automatically pulls
+  immediately withdrawable strategy liquidity
+- if the requested assets still cannot be sourced after realizing any loss, the
+  call reverts
+
+### `redeem(shares)`
+
+- exact-shares semantics are preserved
+- the vault burns the requested shares and returns the current post-loss asset
+  value of those shares
+- if strategy liquidity must be sourced first, the vault pulls it before final
+  asset calculation and transfer
+
+### `max*` Helpers
+
+- `maxDeposit()` and `maxMint()` remain strategy-aware through live `totalAssets()`
+  pricing and limit shaping
+- `maxWithdraw()` and `maxRedeem()` are bounded by immediate liquidity, not by
+  total mark-to-market assets alone
+- `maxWithdraw()` and `maxRedeem()` are zero when `totalAssets() == 0`, even if
+  residual dust shares still exist after a full loss event
 
 ## Selector Ownership Model
 
 For the supported hosted vault deployment:
 
 - `diamondCut` is owned by `DiamondCutFacet`
-- loupe and ownership-introspection selectors are owned by
-  `DiamondLoupeFacet`
+- loupe and ownership-introspection selectors are owned by `DiamondLoupeFacet`
 - core selectors are owned by `ERC4626VaultFacet`
 - controls selectors and `supportsInterface(bytes4)` are owned by
   `ERC4626VaultControlsFacet`
@@ -164,7 +262,7 @@ One important implication:
 
 ## Storage And Upgrade Assumptions
 
-Hosted vault state lives in the diamond, not in the facet bytecode.
+Hosted vault state lives in the diamond, not in facet bytecode.
 
 Supported replace/remove/re-add flows assume:
 
@@ -176,7 +274,8 @@ Current hardening coverage explicitly validates persistence for:
 
 - vault metadata and ERC-4626/share-token state
 - fee config, limit config, roles, role windows, and pause state
-- oracle adapter, strategy reference, and reported strategy assets
+- oracle adapter, strategy address, strategy debt, live strategy assets, and
+  emergency-exit state
 
 ## Deployment References
 
@@ -184,21 +283,20 @@ Reference local deployment flow:
 
 - `script/DeployDiamondVaultHost.s.sol`
 
-Reference local artifact:
-
-- `deployments/diamond-vault.local.json`
-
-The reference deployment:
-
-- installs loupe, core, controls, and integration selectors
-- initializes the vault through the core facet
-- wires the oracle adapter through the integration facet
-- leaves `strategy == address(0)` and `strategyReportedAssets == 0`
-
-## Validation References
-
-The hosted vault model is covered by:
+Reference deployment-backed validation:
 
 - `test/DiamondVaultDeploymentIntegration.t.sol`
+- `test/ERC4626VaultIntegrationFacetCore.t.sol`
+- `test/ERC4626VaultStrategyAccountingCore.t.sol`
+- `test/VaultStrategyFoundationCore.t.sol`
 - `test/DiamondVaultHostHardening.t.sol`
 - `test/DiamondVaultHostInvariant.t.sol`
+
+## Out Of Scope
+
+The current hosted strategy model does not include:
+
+- multi-strategy allocation
+- async or queued withdrawals
+- automatic harvest or keeper-driven execution
+- extension-standard work deferred to `#24 Advanced Extensions`
