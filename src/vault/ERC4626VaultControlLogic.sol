@@ -155,7 +155,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
     }
 
     function maxWithdraw(address owner) public view virtual override returns (uint256) {
-        if (owner == address(0) || _vaultOperationsPaused()) {
+        if (owner == address(0) || _vaultOperationsPaused() || totalAssets() == 0) {
             return 0;
         }
 
@@ -176,7 +176,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
     }
 
     function maxRedeem(address owner) public view virtual override returns (uint256) {
-        if (owner == address(0) || _vaultOperationsPaused()) {
+        if (owner == address(0) || _vaultOperationsPaused() || totalAssets() == 0) {
             return 0;
         }
 

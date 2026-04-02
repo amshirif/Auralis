@@ -192,6 +192,59 @@ contract EmergencyUnwindMockVaultStrategy is MockVaultStrategyBase {
     }
 }
 
+contract MutableMockVaultStrategy is MockVaultStrategyBase {
+    address internal immutable _profitSource;
+    bool internal _revertWithdrawAllToVault;
+
+    constructor(address vault_, address asset_, address profitSource_) MockVaultStrategyBase(vault_, asset_) {
+        _profitSource = profitSource_;
+    }
+
+    function profitSource() external view returns (address) {
+        return _profitSource;
+    }
+
+    function lossSink() external pure returns (address) {
+        return LOSS_SINK;
+    }
+
+    function injectProfit(uint256 assets) external {
+        if (assets == 0) {
+            return;
+        }
+
+        MockVaultAsset(_asset).transferFrom(_profitSource, address(this), assets);
+        _trackedAssets += assets;
+        _withdrawableAssets += assets;
+    }
+
+    function applyLoss(uint256 lossAssets, uint256 withdrawableAssets_) external {
+        uint256 realizedLoss = _min(lossAssets, _trackedAssets);
+        if (realizedLoss != 0) {
+            MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss);
+            _trackedAssets -= realizedLoss;
+        }
+        _withdrawableAssets = _min(withdrawableAssets_, _trackedAssets);
+    }
+
+    function setWithdrawAllReverts(bool shouldRevert) external {
+        _revertWithdrawAllToVault = shouldRevert;
+    }
+
+    function withdrawAllToVault() external override onlyVault returns (uint256 assetsReturned) {
+        if (_revertWithdrawAllToVault) {
+            revert MockVaultStrategyForcedRevert(this.withdrawAllToVault.selector);
+        }
+
+        assetsReturned = maxWithdrawableAssets();
+        _trackedAssets -= assetsReturned;
+        _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
+    }
+}
+
 abstract contract ERC4626VaultStrategyFixture is TestBase {
     address internal admin = address(0xA11CE);
     address internal vault = address(0xA417);
