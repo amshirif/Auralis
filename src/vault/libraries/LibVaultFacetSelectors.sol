@@ -85,15 +85,19 @@ library LibVaultFacetSelectors {
 
     /// @notice Returns the hosted vault integration selector group.
     function vaultIntegrationSelectors() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](13);
         selectors[0] = IERC4626VaultIntegrationFacet.oracleAdapter.selector;
         selectors[1] = IERC4626VaultIntegrationFacet.strategy.selector;
-        selectors[2] = IERC4626VaultIntegrationFacet.strategyReportedAssets.selector;
-        selectors[3] = IERC4626VaultIntegrationFacet.idleAssets.selector;
-        selectors[4] = IERC4626VaultIntegrationFacet.estimatedTotalManagedAssets.selector;
-        selectors[5] = IERC4626VaultIntegrationFacet.oracleQuote.selector;
-        selectors[6] = IERC4626VaultIntegrationFacet.setOracleAdapter.selector;
-        selectors[7] = IERC4626VaultIntegrationFacet.setStrategy.selector;
-        selectors[8] = IERC4626VaultIntegrationFacet.reportStrategyAssets.selector;
+        selectors[2] = IERC4626VaultIntegrationFacet.strategyEmergencyExit.selector;
+        selectors[3] = IERC4626VaultIntegrationFacet.strategyDebt.selector;
+        selectors[4] = IERC4626VaultIntegrationFacet.idleAssets.selector;
+        selectors[5] = IERC4626VaultIntegrationFacet.liveStrategyAssets.selector;
+        selectors[6] = IERC4626VaultIntegrationFacet.oracleQuote.selector;
+        selectors[7] = IERC4626VaultIntegrationFacet.setOracleAdapter.selector;
+        selectors[8] = IERC4626VaultIntegrationFacet.setStrategy.selector;
+        selectors[9] = IERC4626VaultIntegrationFacet.deployToStrategy.selector;
+        selectors[10] = IERC4626VaultIntegrationFacet.withdrawFromStrategy.selector;
+        selectors[11] = IERC4626VaultIntegrationFacet.syncStrategyAssets.selector;
+        selectors[12] = IERC4626VaultIntegrationFacet.emergencyExitStrategy.selector;
     }
 }

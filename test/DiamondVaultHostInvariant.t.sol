@@ -7,13 +7,14 @@ import {IPausable} from "../src/interfaces/IPausable.sol";
 import {DiamondVaultHostHardeningFixture} from "./helpers/DiamondVaultHostHardeningTestHarness.sol";
 
 contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
-    uint256 internal constant EXPECTED_INITIAL_ASSET_SUPPLY = INITIAL_ASSETS * ACTOR_COUNT;
+    uint256 internal constant EXPECTED_INITIAL_ASSET_SUPPLY = INITIAL_ASSETS * ACTOR_COUNT + STRATEGY_PROFIT_RESERVE;
 
     function setUp() public override {
         super.setUp();
         _installVaultHostFacets();
         _initializeVaultHost();
         _wireOracleAdapter();
+        _wireStrategy();
 
         VM.prank(admin);
         controlsFacetInterface().setFeeConfig(0, 0, feeSink);
@@ -164,7 +165,7 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         VM.prank(admin);
         controlsFacetInterface().setFeeConfig(depositFeeBps, withdrawFeeBps, feeSink);
 
-        _assertAccountingUnchanged(snapshot, "fee config updates should not mutate core accounting");
+        _assertAccountingUnchanged(snapshot, "fee config updates should not mutate accounting");
     }
 
     function actionSetLimitConfig(
@@ -188,7 +189,7 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         VM.prank(admin);
         controlsFacetInterface().setLimitConfig(maxTotalAssets, maxDeposit, maxMint, maxWithdraw, maxRedeem);
 
-        _assertAccountingUnchanged(snapshot, "limit config updates should not mutate core accounting");
+        _assertAccountingUnchanged(snapshot, "limit config updates should not mutate accounting");
     }
 
     function actionSetOracleAdapter(bool configured) external {
@@ -197,34 +198,173 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         VM.prank(admin);
         integrationFacetInterface().setOracleAdapter(configured ? address(adapter) : address(0));
 
-        _assertAccountingUnchanged(snapshot, "oracle adapter updates should not mutate core accounting");
+        _assertAccountingUnchanged(snapshot, "oracle adapter updates should not mutate accounting");
     }
 
     function actionSetStrategy(bool configured) external {
+        if (integrationFacetInterface().strategyDebt() != 0) {
+            return;
+        }
+
         AccountingSnapshot memory snapshot = _snapshotAccounting();
+
+        if (!configured && integrationFacetInterface().strategy() != address(0)) {
+            VM.prank(admin);
+            integrationFacetInterface().setStrategy(address(0));
+            _assertAccountingUnchanged(snapshot, "strategy clear should not mutate accounting");
+            return;
+        }
+
+        if (configured && integrationFacetInterface().strategy() == address(0)) {
+            strategyContract.setWithdrawAllReverts(false);
+            VM.prank(admin);
+            integrationFacetInterface().setStrategy(address(strategyContract));
+            _assertAccountingUnchanged(snapshot, "strategy rebind should not mutate accounting");
+        }
+    }
+
+    function actionDeployToStrategy(uint96 assetsRaw) external {
+        if (integrationFacetInterface().strategy() != address(strategyContract)) {
+            return;
+        }
+
+        uint256 assets_ = _boundAmount(assetsRaw, integrationFacetInterface().idleAssets());
+        if (assets_ == 0) {
+            return;
+        }
+
+        if (integrationFacetInterface().strategyEmergencyExit()) {
+            VM.expectRevert(IERC4626VaultIntegrationFacet.ERC4626VaultStrategyEmergencyExitActive.selector);
+            VM.prank(admin);
+            integrationFacetInterface().deployToStrategy(assets_);
+            return;
+        }
 
         VM.prank(admin);
-        integrationFacetInterface().setStrategy(configured ? strategyReporter : address(0));
-
-        _assertAccountingUnchanged(snapshot, "strategy updates should not mutate core accounting");
+        integrationFacetInterface().deployToStrategy(assets_);
     }
 
-    function actionReportStrategyAssets(uint96 assetsRaw, bool asStrategyReporter) external {
-        AccountingSnapshot memory snapshot = _snapshotAccounting();
-        uint256 assets_ = uint256(assetsRaw);
-        address configuredStrategy = integrationFacetInterface().strategy();
-        address caller = asStrategyReporter && configuredStrategy != address(0) ? strategyReporter : admin;
+    function actionWithdrawFromStrategy(uint96 assetsRaw) external {
+        if (integrationFacetInterface().strategy() != address(strategyContract)) {
+            return;
+        }
 
-        VM.prank(caller);
-        integrationFacetInterface().reportStrategyAssets(assets_);
+        uint256 strategyDebt = integrationFacetInterface().strategyDebt();
+        uint256 assets_ = _boundAmount(assetsRaw, strategyDebt);
+        if (assets_ == 0) {
+            return;
+        }
 
-        _assertAccountingUnchanged(snapshot, "strategy reports should not mutate core accounting");
+        VM.prank(admin);
+        integrationFacetInterface().withdrawFromStrategy(assets_);
     }
 
-    function invariantManagedAssetsTrackUnderlyingBalance() public view {
+    function actionSyncStrategyAssets() external {
+        if (integrationFacetInterface().strategy() != address(strategyContract)) {
+            return;
+        }
+
+        VM.prank(admin);
+        integrationFacetInterface().syncStrategyAssets();
+    }
+
+    function actionEmergencyExitStrategy(bool forceFailure) external {
+        if (integrationFacetInterface().strategy() != address(strategyContract)) {
+            return;
+        }
+
+        strategyContract.setWithdrawAllReverts(forceFailure && integrationFacetInterface().strategyDebt() != 0);
+
+        VM.prank(admin);
+        integrationFacetInterface().emergencyExitStrategy();
+    }
+
+    function actionInjectStrategyProfit(uint96 assetsRaw) external {
+        if (integrationFacetInterface().strategy() != address(strategyContract)) {
+            return;
+        }
+        if (integrationFacetInterface().strategyDebt() == 0 || integrationFacetInterface().strategyEmergencyExit()) {
+            return;
+        }
+
+        uint256 available = _min(asset.balanceOf(profitSource), INITIAL_ASSETS);
+        uint256 assets_ = _boundAmount(assetsRaw, available);
+        if (assets_ == 0) {
+            return;
+        }
+
+        strategyContract.injectProfit(assets_);
+    }
+
+    function actionApplyStrategyLoss(uint96 lossRaw, uint96 withdrawableRaw) external {
+        if (integrationFacetInterface().strategy() != address(strategyContract)) {
+            return;
+        }
+        if (integrationFacetInterface().strategyEmergencyExit()) {
+            return;
+        }
+
+        uint256 liveAssets = integrationFacetInterface().liveStrategyAssets();
+        if (liveAssets == 0) {
+            return;
+        }
+
+        uint256 lossAssets = _boundAmount(lossRaw, _min(liveAssets, INITIAL_ASSETS));
+        uint256 remainingLiveAssets = liveAssets - lossAssets;
+        uint256 withdrawableAssets = remainingLiveAssets == 0 ? 0 : uint256(withdrawableRaw) % (remainingLiveAssets + 1);
+
+        strategyContract.applyLoss(lossAssets, withdrawableAssets);
+    }
+
+    function actionWithdrawBeyondImmediateLiquidityAttempt(uint8 actorSeed, uint96 extraRaw) external {
+        if (controlsFacetInterface().paused()) {
+            return;
+        }
+
+        address actor = _actor(actorSeed);
+        uint256 ownerShares = coreFacetInterface().balanceOf(actor);
+        if (ownerShares == 0) {
+            return;
+        }
+
+        uint256 maxWithdraw = coreFacetInterface().maxWithdraw(actor);
+        uint256 grossEntitlement = coreFacetInterface().previewRedeem(ownerShares);
+        if (grossEntitlement <= maxWithdraw) {
+            return;
+        }
+
+        uint256 attemptAssets = maxWithdraw + _boundAmount(extraRaw, grossEntitlement - maxWithdraw);
+
+        VM.startPrank(actor);
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultControls.ERC4626VaultWithdrawLimitExceeded.selector, attemptAssets, maxWithdraw
+            )
+        );
+        coreFacetInterface().withdraw(attemptAssets, actor, actor);
+        VM.stopPrank();
+    }
+
+    function invariantIdleAssetsMatchVaultBalance() public view {
         assertTrue(
-            coreFacetInterface().totalAssets() == asset.balanceOf(address(diamond)),
-            "managed assets should match vault-held underlying"
+            integrationFacetInterface().idleAssets() == asset.balanceOf(address(diamond)),
+            "idle assets should match vault-held underlying"
+        );
+    }
+
+    function invariantBookAccountingMatchesIdlePlusStrategyDebt() public view {
+        assertTrue(
+            coreFacetInterface().totalManagedAssets()
+                == integrationFacetInterface().idleAssets() + integrationFacetInterface().strategyDebt(),
+            "book accounting should equal idle assets plus strategy debt"
+        );
+    }
+
+    function invariantLiveAccountingMatchesIdlePlusStrategyAssets() public view {
+        assertTrue(
+            coreFacetInterface().totalAssets()
+                == integrationFacetInterface().idleAssets() + integrationFacetInterface().liveStrategyAssets(),
+            "live accounting should equal idle assets plus live strategy assets"
         );
     }
 
@@ -238,19 +378,7 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
     function invariantTrackedUnderlyingRemainsConserved() public view {
         assertTrue(
             _sumTrackedUnderlying() == EXPECTED_INITIAL_ASSET_SUPPLY,
-            "tracked underlying should remain conserved across actors, vault, and fee sink"
-        );
-    }
-
-    function invariantEstimatedManagedAssetsReflectIdlePlusReported() public view {
-        assertTrue(
-            integrationFacetInterface().estimatedTotalManagedAssets()
-                == integrationFacetInterface().idleAssets() + integrationFacetInterface().strategyReportedAssets(),
-            "estimated assets should equal idle plus reported strategy assets"
-        );
-        assertTrue(
-            integrationFacetInterface().estimatedTotalManagedAssets() >= coreFacetInterface().totalManagedAssets(),
-            "estimated managed assets should not be less than managed assets"
+            "tracked underlying should remain conserved across actors, vault, fee sink, strategy, and reserves"
         );
     }
 
@@ -266,5 +394,44 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
             assertTrue(coreFacetInterface().maxWithdraw(actor) == 0, "paused vault should expose zero maxWithdraw");
             assertTrue(coreFacetInterface().maxRedeem(actor) == 0, "paused vault should expose zero maxRedeem");
         }
+    }
+
+    function invariantMaxWithdrawBoundedByImmediateLiquidity() public view {
+        uint256 immediateLiquidity = _immediateLiquidity();
+
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            address actor = actors[i];
+            uint256 actorBalance = coreFacetInterface().balanceOf(actor);
+            uint256 grossEntitlement = actorBalance == 0 ? 0 : coreFacetInterface().previewRedeem(actorBalance);
+            uint256 maxWithdraw = coreFacetInterface().maxWithdraw(actor);
+
+            assertTrue(maxWithdraw <= immediateLiquidity, "maxWithdraw should stay within immediate liquidity");
+            assertTrue(maxWithdraw <= grossEntitlement, "maxWithdraw should stay within live-priced entitlement");
+        }
+    }
+
+    function invariantPreviewRedeemOfMaxRedeemBoundedByImmediateLiquidity() public view {
+        uint256 immediateLiquidity = _immediateLiquidity();
+
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            address actor = actors[i];
+            uint256 maxRedeem = coreFacetInterface().maxRedeem(actor);
+            assertTrue(
+                coreFacetInterface().previewRedeem(maxRedeem) <= immediateLiquidity,
+                "previewRedeem(maxRedeem) should stay within immediate liquidity"
+            );
+        }
+    }
+
+    function _immediateLiquidity() internal view returns (uint256) {
+        if (integrationFacetInterface().strategyDebt() == 0) {
+            return coreFacetInterface().totalAssets();
+        }
+
+        uint256 liquidity = integrationFacetInterface().idleAssets();
+        if (integrationFacetInterface().strategy() == address(strategyContract)) {
+            liquidity += strategyContract.maxWithdrawableAssets();
+        }
+        return liquidity;
     }
 }

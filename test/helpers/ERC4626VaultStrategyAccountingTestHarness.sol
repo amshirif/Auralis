@@ -5,74 +5,71 @@ import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
-import {ERC4626VaultIntegrationFacet} from "../../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
+import {IERC4626VaultIntegrationFacet} from "../../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC4626VaultStrategy} from "../../src/interfaces/IERC4626VaultStrategy.sol";
+import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
+import {LibERC4626VaultStorage} from "../../src/vault/storage/LibERC4626VaultStorage.sol";
 import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 import {ERC4626VaultControlsFacetHarness} from "./ERC4626VaultControlsFacetTestHarness.sol";
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
-import {ERC4626VaultFacetHarness} from "./ERC4626VaultFacetTestHarness.sol";
-import {MockOracleFeed, OracleAdapterHarness} from "./OracleAdapterTestHarness.sol";
-import {MockVaultAsset} from "./ERC4626CoreTestHarness.sol";
-import {
-    LossShortfallMockVaultStrategy,
-    ProfitMockVaultStrategy,
-    RevertingMockVaultStrategy
-} from "./ERC4626VaultStrategyTestHarness.sol";
+import {ERC4626VaultIntegrationFacetHarness} from "./ERC4626VaultIntegrationFacetTestHarness.sol";
+import {LossShortfallMockVaultStrategy, ProfitMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
-contract ERC4626VaultIntegrationFacetHarness is ERC4626VaultIntegrationFacet {}
+contract ERC4626VaultStrategyAccountingFacetHarness is ERC4626VaultFacet {
+    function setStrategyStateForTest(address strategy_, uint256 strategyDebt_) external {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        layout.strategy = strategy_;
+        layout.strategyDebt = strategyDebt_;
+    }
 
-contract InitializedERC4626VaultIntegrationFacetHarness is ERC4626VaultIntegrationFacet {
-    constructor(address vaultAsset, string memory vaultName, string memory vaultSymbol, address admin) {
-        _initializeVaultFacetControl(admin);
-        _initializeErc4626Vault(vaultAsset, vaultName, vaultSymbol);
+    function strategyDebtForTest() external view returns (uint256) {
+        return LibERC4626VaultStorage.layout().strategyDebt;
     }
 }
 
-abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
+contract ERC4626VaultStrategyAccountingInitMock {
+    function seedStrategyState(address strategy_, uint256 strategyDebt_) external {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        layout.strategy = strategy_;
+        layout.strategyDebt = strategyDebt_;
+    }
+}
+
+abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     uint256 internal constant INITIAL_ASSETS = 1_000_000;
+    uint256 internal constant DEPOSIT_ASSETS = 100;
+    uint256 internal constant STRATEGY_DEBT = 60;
 
     address internal admin = address(0xA11CE);
     address internal bob = address(0xB0B);
     address internal eve = address(0xE11E);
 
-    uint64 internal maxStaleness = 1 hours;
-    uint64 internal currentTime = 1_000_000;
-    uint64 internal quoteUpdatedAt = 999_900;
-
     ReentrantMockVaultAsset internal asset;
-    MockVaultAsset internal otherAsset;
-    ERC4626VaultFacetHarness internal coreFacet;
+    ERC4626VaultStrategyAccountingFacetHarness internal facet;
     ERC4626VaultControlsFacetHarness internal controlsFacet;
-    ERC4626VaultIntegrationFacet internal integrationFacet;
+    ERC4626VaultIntegrationFacetHarness internal integrationFacet;
     DiamondCutFacet internal cutFacet;
     DiamondLoupeFacet internal loupeFacet;
     DiamondProxyHarness internal diamond;
-    MockOracleFeed internal feed;
-    OracleAdapterHarness internal adapter;
+    ERC4626VaultStrategyAccountingInitMock internal accountingInit;
     ProfitMockVaultStrategy internal directProfitStrategy;
     LossShortfallMockVaultStrategy internal directLossStrategy;
-    RevertingMockVaultStrategy internal directRevertingStrategy;
     ProfitMockVaultStrategy internal diamondProfitStrategy;
-    ProfitMockVaultStrategy internal wrongVaultStrategy;
-    ProfitMockVaultStrategy internal directWrongAssetStrategy;
 
     function setUp() public virtual {
-        VM.warp(currentTime);
-
         asset = new ReentrantMockVaultAsset();
-        otherAsset = new MockVaultAsset("Other USD", "oUSD", 6);
-        coreFacet = new ERC4626VaultFacetHarness();
+        facet = new ERC4626VaultStrategyAccountingFacetHarness();
         controlsFacet = new ERC4626VaultControlsFacetHarness();
         integrationFacet = new ERC4626VaultIntegrationFacetHarness();
         cutFacet = new DiamondCutFacet();
         loupeFacet = new DiamondLoupeFacet();
         diamond = new DiamondProxyHarness(admin, address(cutFacet));
-        feed = new MockOracleFeed(8);
-        feed.setLatestRoundData(1, 100_000_000, quoteUpdatedAt, quoteUpdatedAt, 1);
-        adapter = new OracleAdapterHarness(admin, address(feed), maxStaleness);
+        accountingInit = new ERC4626VaultStrategyAccountingInitMock();
+        directProfitStrategy = new ProfitMockVaultStrategy(address(facet), address(asset));
+        directLossStrategy = new LossShortfallMockVaultStrategy(address(facet), address(asset));
         diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
-        wrongVaultStrategy = new ProfitMockVaultStrategy(address(0xBAD), address(asset));
 
         asset.mint(bob, INITIAL_ASSETS);
         asset.mint(eve, INITIAL_ASSETS);
@@ -80,13 +77,8 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
         _installLoupeFacet();
     }
 
-    function _initializeDirectIntegrationFacet() internal {
-        integrationFacet =
-            new InitializedERC4626VaultIntegrationFacetHarness(address(asset), "Vault Share", "vSHARE", admin);
-        directProfitStrategy = new ProfitMockVaultStrategy(address(integrationFacet), address(asset));
-        directLossStrategy = new LossShortfallMockVaultStrategy(address(integrationFacet), address(asset));
-        directRevertingStrategy = new RevertingMockVaultStrategy(address(integrationFacet), address(asset));
-        directWrongAssetStrategy = new ProfitMockVaultStrategy(address(integrationFacet), address(otherAsset));
+    function _initializeDirectVault() internal {
+        facet.initializeVault(address(asset), "Vault Share", "vSHARE", admin);
     }
 
     function _initializeDiamondVault() internal {
@@ -97,6 +89,28 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
     function _approveAsset(address owner, address spender, uint256 amount) internal {
         VM.prank(owner);
         asset.approve(spender, amount);
+    }
+
+    function _seedDiamondStrategyState(address strategy_, uint256 strategyDebt_) internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](0);
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond))
+            .diamondCut(
+                cut,
+                address(accountingInit),
+                abi.encodeCall(ERC4626VaultStrategyAccountingInitMock.seedStrategyState, (strategy_, strategyDebt_))
+            );
+    }
+
+    function _simulateStrategyDeployment(address vaultAccount, IERC4626VaultStrategy strategy_, uint256 assets_)
+        internal
+    {
+        VM.prank(vaultAccount);
+        asset.transfer(address(strategy_), assets_);
+
+        VM.prank(vaultAccount);
+        strategy_.deployFunds(assets_);
     }
 
     function _installLoupeFacet() internal {
@@ -114,7 +128,7 @@ abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {
     function _installVaultCoreFacetToDiamond() internal {
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
-            facetAddress: address(coreFacet),
+            facetAddress: address(facet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultCoreSelectors()
         });

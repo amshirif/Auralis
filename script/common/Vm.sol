@@ -18,6 +18,9 @@ interface Vm {
     function serializeUint(string calldata objectKey, string calldata valueKey, uint256 value)
         external
         returns (string memory);
+    function serializeBool(string calldata objectKey, string calldata valueKey, bool value)
+        external
+        returns (string memory);
     function startBroadcast(uint256 privateKey) external;
     function stopBroadcast() external;
     function writeJson(string calldata json, string calldata path) external;

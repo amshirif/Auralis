@@ -11,6 +11,7 @@ import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC4626VaultStrategy} from "../src/interfaces/IERC4626VaultStrategy.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {ERC4626VaultControlsFacet} from "../src/vault/facets/ERC4626VaultControlsFacet.sol";
 import {ERC4626VaultFacet} from "../src/vault/facets/ERC4626VaultFacet.sol";
@@ -18,6 +19,7 @@ import {ERC4626VaultIntegrationFacet} from "../src/vault/facets/ERC4626VaultInte
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultHostScriptBase} from "./common/DiamondVaultHostScriptBase.sol";
 import {
+    LocalHappyPathVaultStrategy,
     LocalMintableVaultAsset,
     LocalMockOracleFeed,
     LocalOracleAdapterHarness
@@ -36,6 +38,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         address vaultAssetAddress;
         address oracleFeedAddress;
         address oracleAdapterAddress;
+        address strategyAddress;
     }
 
     string internal constant VAULT_OBJECT = "diamondVaultHost";
@@ -68,6 +71,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         IERC4626VaultFacet(state.diamondAddress)
             .initializeVault(state.vaultAssetAddress, VAULT_NAME, VAULT_SYMBOL, owner);
         IERC4626VaultIntegrationFacet(state.diamondAddress).setOracleAdapter(state.oracleAdapterAddress);
+        IERC4626VaultIntegrationFacet(state.diamondAddress).setStrategy(state.strategyAddress);
 
         VM.stopBroadcast();
 
@@ -85,9 +89,12 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
                 vaultAsset: state.vaultAssetAddress,
                 oracleFeed: state.oracleFeedAddress,
                 oracleAdapter: state.oracleAdapterAddress,
-                strategy: address(0),
+                strategy: state.strategyAddress,
                 owner: owner,
                 chainId: block.chainid,
+                strategyDebt: 0,
+                liveStrategyAssets: 0,
+                strategyEmergencyExit: false,
                 vaultName: VAULT_NAME,
                 vaultSymbol: VAULT_SYMBOL
             })
@@ -110,6 +117,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         state.oracleFeedAddress = address(new LocalMockOracleFeed(ORACLE_DECIMALS, ORACLE_ANSWER, block.timestamp - 1));
         state.oracleAdapterAddress =
             address(new LocalOracleAdapterHarness(owner, state.oracleFeedAddress, MAX_STALENESS));
+        state.strategyAddress = address(new LocalHappyPathVaultStrategy(state.diamondAddress, state.vaultAssetAddress));
         return state;
     }
 
@@ -140,6 +148,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         IERC4626VaultFacet vaultCore = IERC4626VaultFacet(state.diamondAddress);
         IERC4626VaultControlsFacet vaultControls = IERC4626VaultControlsFacet(state.diamondAddress);
         IERC4626VaultIntegrationFacet vaultIntegration = IERC4626VaultIntegrationFacet(state.diamondAddress);
+        IERC4626VaultStrategy strategy = IERC4626VaultStrategy(state.strategyAddress);
         address[] memory facetAddresses = loupe.facetAddresses();
 
         require(facetAddresses.length == 5, "vault host facet count mismatch");
@@ -185,8 +194,12 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         require(feeRecipient == owner, "vault fee recipient mismatch");
 
         require(vaultIntegration.oracleAdapter() == state.oracleAdapterAddress, "vault oracle adapter mismatch");
-        require(vaultIntegration.strategy() == address(0), "vault strategy should be unset");
-        require(vaultIntegration.strategyReportedAssets() == 0, "vault reported assets should be zero");
+        require(vaultIntegration.strategy() == state.strategyAddress, "vault strategy mismatch");
+        require(vaultIntegration.strategyDebt() == 0, "vault strategy debt should be zero");
+        require(!vaultIntegration.strategyEmergencyExit(), "vault emergency exit should be inactive");
+        require(vaultIntegration.liveStrategyAssets() == 0, "vault live strategy assets should be zero");
+        require(strategy.vault() == state.diamondAddress, "strategy vault binding mismatch");
+        require(strategy.asset() == state.vaultAssetAddress, "strategy asset binding mismatch");
 
         IOracleAdapter.OracleQuote memory quotePayload = vaultIntegration.oracleQuote();
         require(quotePayload.value == ORACLE_ANSWER, "vault quote value mismatch");
@@ -222,6 +235,12 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
             IERC4626VaultIntegrationFacet.oracleAdapter.selector,
             state.vaultIntegrationFacetAddress,
             "vault oracle owner"
+        );
+        _requireSelectorOwner(
+            loupe,
+            IERC4626VaultIntegrationFacet.deployToStrategy.selector,
+            state.vaultIntegrationFacetAddress,
+            "vault deploy strategy owner"
         );
         _requireSelectorOwner(
             loupe, IERC165.supportsInterface.selector, state.vaultControlsFacetAddress, "vault erc165 owner"

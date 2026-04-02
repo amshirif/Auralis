@@ -2,11 +2,14 @@
 pragma solidity ^0.8.30;
 
 import {IERC4626} from "../../interfaces/IERC4626.sol";
+import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
-import {ERC4626VaultControlledCore} from "../ERC4626VaultControlLogic.sol";
+import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
+import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
 /// @notice Hosted ERC-4626 core facet with constructor-free initialization.
@@ -92,7 +95,41 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 shares)
     {
-        return _withdrawWithControls(assets, receiver, owner);
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        _requireNonZeroAddress(owner);
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        (uint256 grossAssets, uint256 feeAssets) = LibERC4626VaultControlLogic.withdrawGrossFromNet(assets);
+        _sourceStrategyLiquidity(grossAssets);
+
+        uint256 maxAssets = maxWithdraw(owner);
+        if (assets > maxAssets) {
+            revert IERC4626VaultControls.ERC4626VaultWithdrawLimitExceeded(assets, maxAssets);
+        }
+
+        uint256 availableIdleAssets = _idleAssetBalance();
+        if (grossAssets > availableIdleAssets) {
+            revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
+        }
+
+        shares = _convertToShares(grossAssets, Rounding.Up);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        if (msg.sender != owner) {
+            _spendAllowance(owner, msg.sender, shares);
+        }
+
+        _burnShares(owner, shares);
+        _decreaseManagedAssets(grossAssets);
+        _safeTransferAsset(receiver, assets);
+        _payoutFee(feeAssets);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
     /// @notice Redeems `shares` from `owner` to `receiver`.
@@ -108,10 +145,102 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 assets)
     {
-        return _redeemWithControls(shares, receiver, owner);
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        _requireNonZeroAddress(owner);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        uint256 maxShares = maxRedeem(owner);
+        if (shares > maxShares) {
+            revert IERC4626VaultControls.ERC4626VaultRedeemLimitExceeded(shares, maxShares);
+        }
+
+        uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
+        _sourceStrategyLiquidity(grossAssets);
+
+        grossAssets = _convertToAssets(shares, Rounding.Down);
+        _sourceStrategyLiquidity(grossAssets);
+
+        uint256 availableIdleAssets = _idleAssetBalance();
+        if (grossAssets > availableIdleAssets) {
+            revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
+        }
+
+        uint256 feeAssets;
+        (assets, feeAssets) = LibERC4626VaultControlLogic.withdrawNetFromGross(grossAssets);
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        if (msg.sender != owner) {
+            _spendAllowance(owner, msg.sender, shares);
+        }
+
+        _burnShares(owner, shares);
+        _decreaseManagedAssets(grossAssets);
+        _safeTransferAsset(receiver, assets);
+        _payoutFee(feeAssets);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    }
+
+    function _managedAssetsForPricing() internal view virtual override returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+            return layout.totalManagedAssets;
+        }
+
+        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
+        uint256 liveStrategyAssets = IERC4626VaultStrategy(layout.strategy).totalAssets();
+        return idleBookAssets + liveStrategyAssets;
+    }
+
+    function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+            return type(uint256).max;
+        }
+
+        return _idleAssetBalance() + _strategyWithdrawableAssets();
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {
         return paused();
+    }
+
+    function _sourceStrategyLiquidity(uint256 requiredGrossAssets) internal {
+        if (requiredGrossAssets == 0) {
+            return;
+        }
+
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+            return;
+        }
+
+        uint256 idleAssets = _idleAssetBalance();
+        while (idleAssets < requiredGrossAssets) {
+            uint256 strategyLiquidity = _strategyWithdrawableAssets();
+            if (strategyLiquidity == 0) {
+                break;
+            }
+
+            uint256 requestedAssets = requiredGrossAssets - idleAssets;
+            if (requestedAssets > strategyLiquidity) {
+                requestedAssets = strategyLiquidity;
+            }
+
+            (uint256 returnedAssets, uint256 postCallLiveAssets) = _withdrawStrategyAssets(requestedAssets);
+            _reconcileStrategyWithdrawalAccounting(returnedAssets, postCallLiveAssets);
+
+            uint256 nextIdleAssets = _idleAssetBalance();
+            if (nextIdleAssets <= idleAssets) {
+                break;
+            }
+
+            idleAssets = nextIdleAssets;
+        }
     }
 }

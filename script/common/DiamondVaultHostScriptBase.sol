@@ -26,6 +26,9 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         address strategy;
         address owner;
         uint256 chainId;
+        uint256 strategyDebt;
+        uint256 liveStrategyAssets;
+        bool strategyEmergencyExit;
         string vaultName;
         string vaultSymbol;
     }
@@ -89,6 +92,9 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         json = VM.serializeAddress(objectKey, "oracleFeed", artifact.oracleFeed);
         json = VM.serializeAddress(objectKey, "oracleAdapter", artifact.oracleAdapter);
         json = VM.serializeAddress(objectKey, "strategy", artifact.strategy);
+        json = VM.serializeUint(objectKey, "strategyDebt", artifact.strategyDebt);
+        json = VM.serializeUint(objectKey, "liveStrategyAssets", artifact.liveStrategyAssets);
+        json = VM.serializeBool(objectKey, "strategyEmergencyExit", artifact.strategyEmergencyExit);
         json = VM.serializeString(objectKey, "vaultName", artifact.vaultName);
         json = VM.serializeString(objectKey, "vaultSymbol", artifact.vaultSymbol);
         VM.writeJson(json, string.concat(VM.projectRoot(), outputRelativePath));

@@ -212,7 +212,7 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
     /// @return Share amount.
     function _convertToShares(uint256 assets, Rounding rounding) internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        return _convertToShares(assets, layout.totalSupply, layout.totalManagedAssets, rounding);
+        return _convertToShares(assets, layout.totalSupply, _managedAssetsForPricing(), rounding);
     }
 
     /// @dev Converts `shares` to assets using current vault totals.
@@ -221,7 +221,13 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
     /// @return Asset amount.
     function _convertToAssets(uint256 shares, Rounding rounding) internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        return _convertToAssets(shares, layout.totalSupply, layout.totalManagedAssets, rounding);
+        return _convertToAssets(shares, layout.totalSupply, _managedAssetsForPricing(), rounding);
+    }
+
+    /// @dev Returns the managed assets amount used for ERC-4626 pricing views.
+    /// @return managedAssets The pricing asset amount.
+    function _managedAssetsForPricing() internal view virtual returns (uint256 managedAssets) {
+        return LibERC4626VaultStorage.layout().totalManagedAssets;
     }
 
     /// @dev Converts `assets` to shares using explicit totals.

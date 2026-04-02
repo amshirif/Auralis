@@ -2,14 +2,12 @@
 pragma solidity ^0.8.30;
 
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
-import {IERC4626VaultControls} from "../../src/interfaces/IERC4626VaultControls.sol";
-import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
-import {IERC4626VaultIntegrationFacet} from "../../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
 import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {ERC4626VaultIntegrationFacet} from "../../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultDeploymentFixture} from "./DiamondVaultDeploymentTestHarness.sol";
+import {MutableMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
 interface IFacetVersionMarker {
     function facetVersion() external view returns (uint256);
@@ -41,23 +39,46 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         uint256 feeSinkBalance;
         uint256 actorUnderlyingBalanceSum;
         uint256 actorShareBalanceSum;
+        uint256 strategyUnderlyingBalance;
+        uint256 profitSourceBalance;
+        uint256 lossSinkBalance;
+        uint256 strategyDebt;
+        uint256 liveStrategyAssets;
+    }
+
+    struct StrategyStateSnapshot {
+        address strategy;
+        uint256 strategyDebt;
+        uint256 liveStrategyAssets;
+        uint256 idleAssets;
+        bool emergencyExit;
+        uint256 totalManagedAssets;
+        uint256 totalAssets;
+        uint256 bobMaxWithdraw;
+        uint256 bobMaxRedeem;
     }
 
     uint256 internal constant INITIAL_ASSETS = 1_000_000;
+    uint256 internal constant STRATEGY_PROFIT_RESERVE = 1_000_000_000_000;
     uint256 internal constant ACTOR_COUNT = 4;
     uint256 internal constant BOB_DEPOSIT = 200_000;
     uint256 internal constant CAROL_DEPOSIT = 150_000;
     uint256 internal constant SHARE_ALLOWANCE = 25_000;
-    uint256 internal constant STRATEGY_REPORTED_ASSETS = 75_000;
+    uint256 internal constant STRATEGY_DEPLOYED_ASSETS = 225_000;
+    uint256 internal constant STRATEGY_PROFIT_ASSETS = 25_000;
+    uint256 internal constant BOB_AUTO_PULL_WITHDRAW_ASSETS = 150_000;
+    uint256 internal constant CAROL_AUTO_PULL_REDEEM_SHARES = 50_000;
 
     address internal bob = address(0xB0B);
     address internal carol = address(0xCA11);
     address internal dave = address(0xD0D);
     address internal eve = address(0xE11E);
     address internal feeSink = address(0xFEE);
-    address internal strategyReporter = address(0x57A7);
+    address internal profitSource = address(0xBEEF1234);
 
     address[ACTOR_COUNT] internal actors;
+
+    MutableMockVaultStrategy internal strategyContract;
 
     ERC4626VaultFacetReplacement internal coreReplacement;
     ERC4626VaultControlsFacetReplacement internal controlsReplacement;
@@ -75,12 +96,18 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         actors[2] = dave;
         actors[3] = eve;
 
+        strategyContract = new MutableMockVaultStrategy(address(diamond), address(asset), profitSource);
+
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
             address actor = actors[i];
             asset.mint(actor, INITIAL_ASSETS);
             VM.prank(actor);
             asset.approve(address(diamond), type(uint256).max);
         }
+
+        asset.mint(profitSource, STRATEGY_PROFIT_RESERVE);
+        VM.prank(profitSource);
+        asset.approve(address(strategyContract), type(uint256).max);
     }
 
     function _installAndSeedVaultHost() internal {
@@ -122,10 +149,22 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _seedIntegrationState() internal {
         VM.prank(admin);
-        integrationFacetInterface().setStrategy(strategyReporter);
+        integrationFacetInterface().setStrategy(address(strategyContract));
 
-        VM.prank(strategyReporter);
-        integrationFacetInterface().reportStrategyAssets(STRATEGY_REPORTED_ASSETS);
+        VM.prank(admin);
+        integrationFacetInterface().deployToStrategy(STRATEGY_DEPLOYED_ASSETS);
+    }
+
+    function _injectStrategyProfit(uint256 assets) internal {
+        strategyContract.injectProfit(assets);
+    }
+
+    function _applyStrategyLoss(uint256 lossAssets, uint256 withdrawableAssets) internal {
+        strategyContract.applyLoss(lossAssets, withdrawableAssets);
+    }
+
+    function _setStrategyWithdrawAllReverts(bool shouldRevert) internal {
+        strategyContract.setWithdrawAllReverts(shouldRevert);
     }
 
     function _replaceCoreFacet(address facetAddress_) internal {
@@ -221,6 +260,9 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
         sum += asset.balanceOf(address(diamond));
         sum += asset.balanceOf(feeSink);
+        sum += asset.balanceOf(address(strategyContract));
+        sum += asset.balanceOf(profitSource);
+        sum += asset.balanceOf(strategyContract.lossSink());
     }
 
     function _snapshotAccounting() internal view returns (AccountingSnapshot memory snapshot) {
@@ -228,6 +270,11 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         snapshot.totalSupply = coreFacetInterface().totalSupply();
         snapshot.vaultUnderlyingBalance = asset.balanceOf(address(diamond));
         snapshot.feeSinkBalance = asset.balanceOf(feeSink);
+        snapshot.strategyUnderlyingBalance = asset.balanceOf(address(strategyContract));
+        snapshot.profitSourceBalance = asset.balanceOf(profitSource);
+        snapshot.lossSinkBalance = asset.balanceOf(strategyContract.lossSink());
+        snapshot.strategyDebt = integrationFacetInterface().strategyDebt();
+        snapshot.liveStrategyAssets = integrationFacetInterface().liveStrategyAssets();
 
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
             snapshot.actorUnderlyingBalanceSum += asset.balanceOf(actors[i]);
@@ -243,6 +290,42 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         assertTrue(afterSnapshot.feeSinkBalance == snapshot.feeSinkBalance, reason);
         assertTrue(afterSnapshot.actorUnderlyingBalanceSum == snapshot.actorUnderlyingBalanceSum, reason);
         assertTrue(afterSnapshot.actorShareBalanceSum == snapshot.actorShareBalanceSum, reason);
+        assertTrue(afterSnapshot.strategyUnderlyingBalance == snapshot.strategyUnderlyingBalance, reason);
+        assertTrue(afterSnapshot.profitSourceBalance == snapshot.profitSourceBalance, reason);
+        assertTrue(afterSnapshot.lossSinkBalance == snapshot.lossSinkBalance, reason);
+        assertTrue(afterSnapshot.strategyDebt == snapshot.strategyDebt, reason);
+        assertTrue(afterSnapshot.liveStrategyAssets == snapshot.liveStrategyAssets, reason);
+    }
+
+    function _snapshotStrategyState() internal view returns (StrategyStateSnapshot memory snapshot) {
+        snapshot.strategy = integrationFacetInterface().strategy();
+        snapshot.strategyDebt = integrationFacetInterface().strategyDebt();
+        snapshot.liveStrategyAssets = integrationFacetInterface().liveStrategyAssets();
+        snapshot.idleAssets = integrationFacetInterface().idleAssets();
+        snapshot.emergencyExit = integrationFacetInterface().strategyEmergencyExit();
+        snapshot.totalManagedAssets = coreFacetInterface().totalManagedAssets();
+        snapshot.totalAssets = coreFacetInterface().totalAssets();
+        snapshot.bobMaxWithdraw = coreFacetInterface().maxWithdraw(bob);
+        snapshot.bobMaxRedeem = coreFacetInterface().maxRedeem(bob);
+    }
+
+    function _assertStrategyState(StrategyStateSnapshot memory snapshot) internal view {
+        assertTrue(integrationFacetInterface().strategy() == snapshot.strategy, "strategy mismatch");
+        assertTrue(integrationFacetInterface().strategyDebt() == snapshot.strategyDebt, "strategy debt mismatch");
+        assertTrue(
+            integrationFacetInterface().liveStrategyAssets() == snapshot.liveStrategyAssets,
+            "live strategy assets mismatch"
+        );
+        assertTrue(integrationFacetInterface().idleAssets() == snapshot.idleAssets, "idle assets mismatch");
+        assertTrue(
+            integrationFacetInterface().strategyEmergencyExit() == snapshot.emergencyExit, "emergency exit mismatch"
+        );
+        assertTrue(
+            coreFacetInterface().totalManagedAssets() == snapshot.totalManagedAssets, "totalManagedAssets mismatch"
+        );
+        assertTrue(coreFacetInterface().totalAssets() == snapshot.totalAssets, "totalAssets mismatch");
+        assertTrue(coreFacetInterface().maxWithdraw(bob) == snapshot.bobMaxWithdraw, "bob maxWithdraw mismatch");
+        assertTrue(coreFacetInterface().maxRedeem(bob) == snapshot.bobMaxRedeem, "bob maxRedeem mismatch");
     }
 
     function _addFacet(address facetAddress_, bytes4[] memory selectors) internal {
