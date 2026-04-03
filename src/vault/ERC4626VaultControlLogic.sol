@@ -275,6 +275,67 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
+    function _depositNativeWithControls(address receiver) internal returns (uint256 shares) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+
+        uint256 assets = msg.value;
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            revert IERC4626VaultControls.ERC4626VaultDepositLimitExceeded(assets, maxAssets);
+        }
+
+        (uint256 netAssets, uint256 feeAssets) = LibERC4626VaultControlLogic.netAfterDepositFee(assets);
+        _enforceTotalAssetsCap(netAssets);
+
+        shares = _convertToShares(netAssets, Rounding.Down);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        _increaseManagedAssets(netAssets);
+        _mintShares(receiver, shares);
+        _payoutFee(feeAssets);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
+    function _mintNativeWithControls(uint256 shares, address receiver) internal returns (uint256 assets) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        uint256 maxShares = maxMint(receiver);
+        if (shares > maxShares) {
+            revert IERC4626VaultControls.ERC4626VaultMintLimitExceeded(shares, maxShares);
+        }
+
+        uint256 netAssets = _convertToAssets(shares, Rounding.Up);
+        if (netAssets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        assets = LibERC4626VaultControlLogic.grossUpForDepositFee(netAssets);
+        if (msg.value != assets) {
+            revert ERC4626VaultInvalidNativeAssetValue(msg.value, assets);
+        }
+
+        uint256 feeAssets = assets - netAssets;
+
+        _enforceTotalAssetsCap(netAssets);
+        _increaseManagedAssets(netAssets);
+        _mintShares(receiver, shares);
+        _payoutFee(feeAssets);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
     function _withdrawWithControls(uint256 assets, address receiver, address owner) internal returns (uint256 shares) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);

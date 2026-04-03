@@ -3,17 +3,19 @@ pragma solidity ^0.8.30;
 
 import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
+import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
 import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
+import {LibNativeAsset} from "../libraries/LibNativeAsset.sol";
 import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
 /// @notice Hosted ERC-4626 core facet with constructor-free initialization.
-contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC4626VaultFacet {
+contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC4626VaultFacet, IERC7535VaultFacet {
     /// @notice Returns true when vault storage is initialized.
     /// @return True if initialized.
     function isVaultInitialized() public view virtual override(IERC4626VaultFacet, ERC4626VaultBase) returns (bool) {
@@ -64,6 +66,10 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 shares)
     {
+        if (_isNativeVaultAsset()) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
         return _depositWithControls(assets, receiver);
     }
 
@@ -79,7 +85,42 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 assets)
     {
+        if (_isNativeVaultAsset()) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
         return _mintWithControls(shares, receiver);
+    }
+
+    /// @notice Deposits native asset and mints shares to `receiver`.
+    /// @param receiver Receiver of minted shares.
+    /// @return shares Minted shares.
+    function depositNative(address receiver)
+        external
+        payable
+        virtual
+        whenNotPaused
+        nonReentrant
+        returns (uint256 shares)
+    {
+        _requireNativeVaultAsset();
+        return _depositNativeWithControls(receiver);
+    }
+
+    /// @notice Mints `shares` to `receiver` using native asset funding.
+    /// @param shares Share amount.
+    /// @param receiver Receiver of minted shares.
+    /// @return assets Native assets consumed.
+    function mintNative(uint256 shares, address receiver)
+        external
+        payable
+        virtual
+        whenNotPaused
+        nonReentrant
+        returns (uint256 assets)
+    {
+        _requireNativeVaultAsset();
+        return _mintNativeWithControls(shares, receiver);
     }
 
     /// @notice Withdraws `assets` to `receiver` from `owner`.
@@ -241,6 +282,39 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
             }
 
             idleAssets = nextIdleAssets;
+        }
+    }
+
+    function _safeTransferAsset(address to, uint256 value) internal virtual override {
+        if (_isNativeVaultAsset()) {
+            (bool success,) = payable(to).call{value: value}("");
+            if (!success) {
+                revert ERC4626VaultAssetTransferFailed();
+            }
+            return;
+        }
+
+        super._safeTransferAsset(to, value);
+    }
+
+    function _safeTransferFromAsset(address from, address to, uint256 value) internal virtual override {
+        from;
+        to;
+        value;
+        if (_isNativeVaultAsset()) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
+        super._safeTransferFromAsset(from, to, value);
+    }
+
+    function _isNativeVaultAsset() internal view returns (bool) {
+        return LibNativeAsset.isNativeAsset(ERC4626Vault.asset());
+    }
+
+    function _requireNativeVaultAsset() internal view {
+        if (!_isNativeVaultAsset()) {
+            revert ERC4626VaultNativeAssetDisabled();
         }
     }
 }

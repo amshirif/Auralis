@@ -7,6 +7,7 @@ import {IERC20} from "../../interfaces/IERC20.sol";
 import {IERC20Metadata} from "../../interfaces/IERC20Metadata.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC4626} from "../../interfaces/IERC4626.sol";
+import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultBase} from "../../interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
@@ -19,7 +20,7 @@ import {IReentrancyGuard} from "../../interfaces/IReentrancyGuard.sol";
 library LibVaultFacetSelectors {
     /// @notice Returns the hosted vault core selector group.
     function vaultCoreSelectors() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](28);
+        selectors = new bytes4[](30);
         selectors[0] = IERC4626VaultFacet.initializeVault.selector;
         selectors[1] = IERC4626VaultBase.isVaultInitialized.selector;
         selectors[2] = IERC4626.asset.selector;
@@ -48,6 +49,8 @@ library LibVaultFacetSelectors {
         selectors[25] = IERC4626.maxRedeem.selector;
         selectors[26] = IERC4626.previewRedeem.selector;
         selectors[27] = IERC4626.redeem.selector;
+        selectors[28] = IERC7535VaultFacet.depositNative.selector;
+        selectors[29] = IERC7535VaultFacet.mintNative.selector;
     }
 
     /// @notice Returns the hosted vault controls selector group.

@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "../../interfaces/IAccessControl.sol";
 import {IAccessControlTime} from "../../interfaces/IAccessControlTime.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
+import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../../interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
@@ -31,6 +32,8 @@ contract ERC4626VaultControlsFacet is ERC4626VaultControlSurface {
             || interfaceId == type(IERC4626VaultControlsFacet).interfaceId
             || (interfaceId == type(IERC4626VaultFacet).interfaceId
                 && LibDiamond.selectorExists(IERC4626VaultFacet.initializeVault.selector))
+            || (interfaceId == type(IERC7535VaultFacet).interfaceId
+                && LibDiamond.selectorExists(IERC7535VaultFacet.depositNative.selector))
             || (interfaceId == type(IERC4626VaultIntegrationFacet).interfaceId
                 && LibDiamond.selectorExists(IERC4626VaultIntegrationFacet.oracleAdapter.selector))
             || interfaceId == type(IAccessControl).interfaceId || interfaceId == type(IAccessControlTime).interfaceId

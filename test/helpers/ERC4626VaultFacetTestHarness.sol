@@ -5,6 +5,7 @@ import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
+import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
 import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibERC4626VaultStorage} from "../../src/vault/storage/LibERC4626VaultStorage.sol";
@@ -30,6 +31,12 @@ contract ERC4626VaultFacetHarness is ERC4626VaultFacet {
     }
 }
 
+contract RejectingNativeReceiver {
+    receive() external payable {
+        revert("rejecting native asset");
+    }
+}
+
 abstract contract ERC4626VaultFacetFixture is TestBase {
     uint256 internal constant INITIAL_ASSETS = 1_000_000;
 
@@ -39,6 +46,7 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
 
     ReentrantMockVaultAsset internal asset;
     ERC4626VaultFacetHarness internal facet;
+    ERC4626VaultControlsFacet internal controlsFacet;
     DiamondCutFacet internal cutFacet;
     DiamondLoupeFacet internal loupeFacet;
     DiamondProxyHarness internal diamond;
@@ -46,6 +54,7 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
         facet = new ERC4626VaultFacetHarness();
+        controlsFacet = new ERC4626VaultControlsFacet();
         cutFacet = new DiamondCutFacet();
         loupeFacet = new DiamondLoupeFacet();
         diamond = new DiamondProxyHarness(admin, address(cutFacet));
@@ -57,7 +66,11 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
     }
 
     function _initializeHostedVault(address target) internal {
-        IERC4626VaultFacet(target).initializeVault(address(asset), "Vault Share", "vSHARE", admin);
+        _initializeHostedVaultWithAsset(target, address(asset));
+    }
+
+    function _initializeHostedVaultWithAsset(address target, address vaultAsset) internal {
+        IERC4626VaultFacet(target).initializeVault(vaultAsset, "Vault Share", "vSHARE", admin);
     }
 
     function _approveAsset(address owner, address spender, uint256 amount) internal {
@@ -87,6 +100,23 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
 
         VM.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installVaultControlsFacetToDiamond() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(controlsFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installHostedVaultFacetsToDiamond() internal {
+        _installVaultCoreFacetToDiamond();
+        _installVaultControlsFacetToDiamond();
     }
 
     function _loupeSelectors() internal pure returns (bytes4[] memory selectors) {
