@@ -9,6 +9,7 @@ import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
 import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
+import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
 import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
@@ -64,6 +65,10 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 shares)
     {
+        if (LibVaultAsset.isNativeAsset(ERC4626Vault.asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
         return _depositWithControls(assets, receiver);
     }
 
@@ -79,6 +84,10 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 assets)
     {
+        if (LibVaultAsset.isNativeAsset(ERC4626Vault.asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
         return _mintWithControls(shares, receiver);
     }
 

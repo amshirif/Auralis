@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC4626VaultStrategy} from "../interfaces/IERC4626VaultStrategy.sol";
+import {LibVaultAsset} from "./libraries/LibVaultAsset.sol";
 import {LibERC4626VaultStorage} from "./storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultBase} from "./ERC4626VaultBase.sol";
 
@@ -22,6 +23,12 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param requiredAssets The gross asset amount required.
     /// @param availableAssets The currently sourced idle asset amount.
     error ERC4626VaultInsufficientLiquidity(uint256 requiredAssets, uint256 availableAssets);
+    /// @notice Thrown when a native vault requires the hosted native entrypoint.
+    error ERC4626VaultNativeAssetUseNativeEntrypoint();
+    /// @notice Thrown when a native-only entrypoint is used on an ERC-20 vault.
+    error ERC4626VaultNativeAssetDisabled();
+    /// @notice Thrown when `msg.value` does not match the required native asset amount.
+    error ERC4626VaultInvalidNativeAssetValue(uint256 supplied, uint256 required);
 
     /// @notice Returns vault underlying asset token address.
     /// @return The underlying asset token.
@@ -247,9 +254,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Performs ERC-20 transfer and handles optional return values.
     /// @param to Asset receiver.
     /// @param value Asset amount.
-    function _safeTransferAsset(address to, uint256 value) internal {
-        (bool success, bytes memory data) = asset().call(abi.encodeCall(IERC20.transfer, (to, value)));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+    function _safeTransferAsset(address to, uint256 value) internal virtual {
+        if (!LibVaultAsset.transferOut(asset(), to, value)) {
             revert ERC4626VaultAssetTransferFailed();
         }
     }
@@ -258,16 +264,19 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param from Asset sender.
     /// @param to Asset receiver.
     /// @param value Asset amount.
-    function _safeTransferFromAsset(address from, address to, uint256 value) internal {
-        (bool success, bytes memory data) = asset().call(abi.encodeCall(IERC20.transferFrom, (from, to, value)));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+    function _safeTransferFromAsset(address from, address to, uint256 value) internal virtual {
+        if (LibVaultAsset.isNativeAsset(asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
+        if (!LibVaultAsset.transferIn(asset(), from, to, value)) {
             revert ERC4626VaultAssetTransferFromFailed();
         }
     }
 
     /// @dev Returns the vault's immediately idle asset balance.
     function _idleAssetBalance() internal view returns (uint256) {
-        return IERC20(asset()).balanceOf(address(this));
+        return LibVaultAsset.balanceOfSelf(asset());
     }
 
     /// @dev Returns the configured strategy's immediately withdrawable assets.

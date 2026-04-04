@@ -23,10 +23,6 @@ contract ERC4626VaultStrategyAccountingFacetHarness is ERC4626VaultFacet {
         layout.strategy = strategy_;
         layout.strategyDebt = strategyDebt_;
     }
-
-    function strategyDebtForTest() external view returns (uint256) {
-        return LibERC4626VaultStorage.layout().strategyDebt;
-    }
 }
 
 contract ERC4626VaultStrategyAccountingInitMock {
