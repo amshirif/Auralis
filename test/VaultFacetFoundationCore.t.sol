@@ -83,17 +83,20 @@ contract VaultFacetFoundationCoreTest is VaultFacetFoundationFixture {
 
     function testVaultSelectorGroupsCoverExpectedHostedSplit() public pure {
         bytes4[] memory coreSelectors = LibVaultFacetSelectors.vaultCoreSelectors();
+        bytes4[] memory nativeSelectors = LibVaultFacetSelectors.vaultNativeSelectors();
         bytes4[] memory controlSelectors = LibVaultFacetSelectors.vaultControlsSelectors();
 
-        assertTrue(coreSelectors.length == 30, "unexpected core selector count");
+        assertTrue(coreSelectors.length == 28, "unexpected core selector count");
+        assertTrue(nativeSelectors.length == 2, "unexpected native selector count");
         assertTrue(controlSelectors.length == 28, "unexpected controls selector count");
 
         _assertContains(coreSelectors, IERC4626VaultFacet.initializeVault.selector);
         _assertContains(coreSelectors, IERC4626.deposit.selector);
         _assertContains(coreSelectors, IERC4626.redeem.selector);
-        _assertContains(coreSelectors, IERC7535VaultFacet.depositNative.selector);
-        _assertContains(coreSelectors, IERC7535VaultFacet.mintNative.selector);
         _assertContains(coreSelectors, IERC4626VaultBase.totalManagedAssets.selector);
+
+        _assertContains(nativeSelectors, IERC7535VaultFacet.depositNative.selector);
+        _assertContains(nativeSelectors, IERC7535VaultFacet.mintNative.selector);
 
         _assertContains(controlSelectors, IERC4626VaultControls.setFeeConfig.selector);
         _assertContains(controlSelectors, IERC4626VaultControls.setLimitConfig.selector);
@@ -102,8 +105,11 @@ contract VaultFacetFoundationCoreTest is VaultFacetFoundationFixture {
         _assertContains(controlSelectors, IERC165.supportsInterface.selector);
 
         _assertUnique(coreSelectors);
+        _assertUnique(nativeSelectors);
         _assertUnique(controlSelectors);
+        _assertDisjoint(coreSelectors, nativeSelectors);
         _assertDisjoint(coreSelectors, controlSelectors);
+        _assertDisjoint(nativeSelectors, controlSelectors);
     }
 
     function _assertContains(bytes4[] memory selectors, bytes4 target) internal pure {

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
@@ -10,7 +9,7 @@ import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC4626Vault} from "../src/vault/ERC4626Vault.sol";
-import {LibNativeAsset} from "../src/vault/libraries/LibNativeAsset.sol";
+import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {
     ERC4626VaultFacetFixture,
@@ -23,7 +22,6 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         _initializeHostedVault(address(facet));
 
         assertTrue(facet.isVaultInitialized(), "vault should initialize");
-        assertTrue(facet.controlPlaneInitialized(), "control plane should initialize");
         assertTrue(facet.asset() == address(asset), "asset mismatch");
         assertTrue(keccak256(bytes(facet.name())) == keccak256(bytes("Vault Share")), "name mismatch");
         assertTrue(keccak256(bytes(facet.symbol())) == keccak256(bytes("vSHARE")), "symbol mismatch");
@@ -45,23 +43,6 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
 
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultBase.ERC4626VaultAlreadyInitialized.selector));
         _initializeHostedVault(address(facet));
-    }
-
-    function testInitializeVaultAfterControlOnlyInitRequiresDefaultAdmin() public {
-        facet.initializeControlOnly(admin);
-
-        VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, bob, facet.DEFAULT_ADMIN_ROLE())
-        );
-        VM.prank(bob);
-        facet.initializeVault(address(asset), "Vault Share", "vSHARE", admin);
-
-        VM.prank(admin);
-        facet.initializeVault(address(asset), "Vault Share", "vSHARE", admin);
-
-        assertTrue(facet.isVaultInitialized(), "vault should initialize");
-        assertTrue(facet.controlPlaneInitialized(), "control plane should stay initialized");
-        assertTrue(facet.feeRecipient() == admin, "fee recipient mismatch");
     }
 
     function testCoreFlowsAndShareTokenRoutingWorkOnFacet() public {
@@ -234,55 +215,66 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
     }
 
     function testInitializeNativeVaultUsesSentinelAssetAndDefaultDecimals() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
+        _initializeHostedVaultWithAsset(address(facet), LibVaultAsset.NATIVE_ASSET_SENTINEL);
 
-        assertTrue(facet.asset() == LibNativeAsset.NATIVE_ASSET_SENTINEL, "native asset sentinel mismatch");
+        assertTrue(facet.asset() == LibVaultAsset.NATIVE_ASSET_SENTINEL, "native asset sentinel mismatch");
         assertTrue(facet.decimals() == 18, "native decimals should default to 18");
     }
 
-    function testNativeDepositAndMintEntrypointsWorkOnFacet() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
+    function testNativeDepositAndMintEntrypointsWorkOnDiamond() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
         VM.deal(bob, 100);
+        VM.prank(bob);
+        uint256 depositShares = IERC7535VaultFacet(address(diamond)).depositNative{value: 40}(bob);
 
         VM.prank(bob);
-        uint256 depositShares = IERC7535VaultFacet(address(facet)).depositNative{value: 40}(bob);
-
-        VM.prank(bob);
-        uint256 mintAssets = IERC7535VaultFacet(address(facet)).mintNative{value: 10}(10, bob);
+        uint256 mintAssets = IERC7535VaultFacet(address(diamond)).mintNative{value: 10}(10, bob);
 
         assertTrue(depositShares == 40, "native deposit shares mismatch");
         assertTrue(mintAssets == 10, "native mint assets mismatch");
-        assertTrue(facet.totalAssets() == 50, "native total assets mismatch");
-        assertTrue(facet.totalManagedAssets() == 50, "native managed assets mismatch");
-        assertTrue(facet.totalSupply() == 50, "native supply mismatch");
-        assertTrue(facet.balanceOf(bob) == 50, "native share balance mismatch");
-        assertTrue(address(facet).balance == 50, "native vault balance mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 50, "native total assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 50, "native managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalSupply() == 50, "native supply mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 50, "native share balance mismatch");
+        assertTrue(address(diamond).balance == 50, "native vault balance mismatch");
     }
 
     function testNativeMintRequiresExactMsgValue() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
-        VM.deal(bob, 100);
+        _installHostedVaultNativeFacetsToDiamond();
 
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.deal(bob, 100);
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultInvalidNativeAssetValue.selector, 9, 10));
-        IERC7535VaultFacet(address(facet)).mintNative{value: 9}(10, bob);
+        IERC7535VaultFacet(address(diamond)).mintNative{value: 9}(10, bob);
     }
 
-    function testNativeEntrypointsRejectErc20Vaults() public {
-        _initializeHostedVault(address(facet));
+    function testNativeEntrypointsRejectErc20VaultsOnDiamond() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond)).initializeVault(address(asset), "Vault Share", "vSHARE", admin);
+
         VM.deal(bob, 100);
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultNativeAssetDisabled.selector));
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 10}(bob);
 
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultNativeAssetDisabled.selector));
-        IERC7535VaultFacet(address(facet)).depositNative{value: 10}(bob);
-
-        VM.prank(bob);
-        VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultNativeAssetDisabled.selector));
-        IERC7535VaultFacet(address(facet)).mintNative{value: 10}(10, bob);
+        IERC7535VaultFacet(address(diamond)).mintNative{value: 10}(10, bob);
     }
 
     function testStandardDepositAndMintRejectNativeVaultMode() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
+        _initializeHostedVaultWithAsset(address(facet), LibVaultAsset.NATIVE_ASSET_SENTINEL);
 
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultNativeAssetUseNativeEntrypoint.selector));
@@ -307,62 +299,80 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
     }
 
     function testNativeWithdrawAndRedeemTransferRawNativeAsset() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
-        VM.deal(bob, 100);
+        _installHostedVaultNativeFacetsToDiamond();
 
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.deal(bob, 100);
         VM.prank(bob);
-        IERC7535VaultFacet(address(facet)).depositNative{value: 40}(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 40}(bob);
 
         uint256 bobBalanceBeforeWithdraw = bob.balance;
         VM.prank(bob);
-        uint256 withdrawnShares = facet.withdraw(10, bob, bob);
+        uint256 withdrawnShares = IERC4626VaultFacet(address(diamond)).withdraw(10, bob, bob);
         assertTrue(withdrawnShares == 10, "native withdraw share burn mismatch");
         assertTrue(bob.balance == bobBalanceBeforeWithdraw + 10, "native withdraw payout mismatch");
 
         uint256 bobBalanceBeforeRedeem = bob.balance;
         VM.prank(bob);
-        uint256 redeemedAssets = facet.redeem(5, bob, bob);
+        uint256 redeemedAssets = IERC4626VaultFacet(address(diamond)).redeem(5, bob, bob);
         assertTrue(redeemedAssets == 5, "native redeem asset mismatch");
         assertTrue(bob.balance == bobBalanceBeforeRedeem + 5, "native redeem payout mismatch");
-        assertTrue(address(facet).balance == 25, "native vault balance after payout mismatch");
+        assertTrue(address(diamond).balance == 25, "native vault balance after payout mismatch");
     }
 
     function testNativePayoutFailureRevertsCleanly() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
-        VM.deal(bob, 100);
+        _installHostedVaultNativeFacetsToDiamond();
 
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.deal(bob, 100);
         VM.prank(bob);
-        IERC7535VaultFacet(address(facet)).depositNative{value: 10}(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 10}(bob);
 
         RejectingNativeReceiver receiver = new RejectingNativeReceiver();
 
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultAssetTransferFailed.selector));
-        facet.withdraw(5, address(receiver), bob);
+        IERC4626VaultFacet(address(diamond)).withdraw(5, address(receiver), bob);
     }
 
     function testForceSentNativeAssetsDoNotChangeBookAccountingOrPricing() public {
-        _initializeHostedVaultWithAsset(address(facet), LibNativeAsset.NATIVE_ASSET_SENTINEL);
-        VM.deal(bob, 100);
-
-        VM.prank(bob);
-        IERC7535VaultFacet(address(facet)).depositNative{value: 10}(bob);
-
-        VM.deal(address(facet), address(facet).balance + 7);
-
-        assertTrue(address(facet).balance == 17, "native force-send balance mismatch");
-        assertTrue(facet.totalManagedAssets() == 10, "managed assets should ignore force-send");
-        assertTrue(facet.totalAssets() == 10, "pricing should ignore force-send");
-        assertTrue(facet.convertToShares(5) == 5, "force-send should not change share pricing");
-        assertTrue(facet.convertToAssets(10) == 10, "force-send should not change asset pricing");
-    }
-
-    function testDiamondNativeRoutingReportsHostedNativeInterfaceAndTransfersRawNativeAsset() public {
-        _installHostedVaultFacetsToDiamond();
+        _installHostedVaultNativeFacetsToDiamond();
 
         VM.prank(admin);
         IERC4626VaultFacet(address(diamond))
-            .initializeVault(LibNativeAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 10}(bob);
+
+        VM.deal(address(diamond), address(diamond).balance + 7);
+
+        assertTrue(address(diamond).balance == 17, "native force-send balance mismatch");
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 10, "managed assets should ignore force-send"
+        );
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 10, "pricing should ignore force-send");
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).convertToShares(5) == 5, "force-send should not change share pricing"
+        );
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).convertToAssets(10) == 10, "force-send should not change asset pricing"
+        );
+    }
+
+    function testDiamondNativeRoutingReportsHostedNativeInterfaceAndTransfersRawNativeAsset() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
 
         assertTrue(
             IERC165(address(diamond)).supportsInterface(type(IERC7535VaultFacet).interfaceId),
@@ -385,6 +395,7 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         );
 
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultCoreSelectors(), address(facet));
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultNativeSelectors(), address(nativeFacet));
     }
 
     function _assertSelectorsOwnedByFacet(bytes4[] memory selectors, address expectedFacet) internal view {

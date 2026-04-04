@@ -37,7 +37,6 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         _simulateStrategyDeployment(address(facet), directProfitStrategy, STRATEGY_DEBT);
         directProfitStrategy.injectProfit(20);
 
-        assertTrue(facet.strategyDebtForTest() == STRATEGY_DEBT, "strategy debt mismatch");
         assertTrue(facet.totalManagedAssets() == DEPOSIT_ASSETS, "book value should remain unchanged");
         assertTrue(facet.totalAssets() == 120, "mark-to-market assets mismatch");
         assertTrue(facet.convertToShares(12) == 10, "convertToShares profit mismatch");

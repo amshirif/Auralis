@@ -16,11 +16,11 @@ import {IPausable} from "../../interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../../interfaces/IReentrancyGuard.sol";
 
 /// @title LibVaultFacetSelectors
-/// @notice Canonical selector groups for future hosted vault facet splits.
+/// @notice Canonical selector groups for hosted vault facet splits.
 library LibVaultFacetSelectors {
     /// @notice Returns the hosted vault core selector group.
     function vaultCoreSelectors() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](30);
+        selectors = new bytes4[](28);
         selectors[0] = IERC4626VaultFacet.initializeVault.selector;
         selectors[1] = IERC4626VaultBase.isVaultInitialized.selector;
         selectors[2] = IERC4626.asset.selector;
@@ -49,8 +49,13 @@ library LibVaultFacetSelectors {
         selectors[25] = IERC4626.maxRedeem.selector;
         selectors[26] = IERC4626.previewRedeem.selector;
         selectors[27] = IERC4626.redeem.selector;
-        selectors[28] = IERC7535VaultFacet.depositNative.selector;
-        selectors[29] = IERC7535VaultFacet.mintNative.selector;
+    }
+
+    /// @notice Returns the hosted vault native selector group.
+    function vaultNativeSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IERC7535VaultFacet.depositNative.selector;
+        selectors[1] = IERC7535VaultFacet.mintNative.selector;
     }
 
     /// @notice Returns the hosted vault controls selector group.

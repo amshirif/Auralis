@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC4626VaultStrategy} from "../interfaces/IERC4626VaultStrategy.sol";
-import {LibNativeAsset} from "./libraries/LibNativeAsset.sol";
+import {LibVaultAsset} from "./libraries/LibVaultAsset.sol";
 import {LibERC4626VaultStorage} from "./storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultBase} from "./ERC4626VaultBase.sol";
 
@@ -255,8 +255,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param to Asset receiver.
     /// @param value Asset amount.
     function _safeTransferAsset(address to, uint256 value) internal virtual {
-        (bool success, bytes memory data) = asset().call(abi.encodeCall(IERC20.transfer, (to, value)));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+        if (!LibVaultAsset.transferOut(asset(), to, value)) {
             revert ERC4626VaultAssetTransferFailed();
         }
     }
@@ -266,19 +265,18 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param to Asset receiver.
     /// @param value Asset amount.
     function _safeTransferFromAsset(address from, address to, uint256 value) internal virtual {
-        (bool success, bytes memory data) = asset().call(abi.encodeCall(IERC20.transferFrom, (from, to, value)));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+        if (LibVaultAsset.isNativeAsset(asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
+        if (!LibVaultAsset.transferIn(asset(), from, to, value)) {
             revert ERC4626VaultAssetTransferFromFailed();
         }
     }
 
     /// @dev Returns the vault's immediately idle asset balance.
     function _idleAssetBalance() internal view returns (uint256) {
-        if (LibNativeAsset.isNativeAsset(asset())) {
-            return address(this).balance;
-        }
-
-        return IERC20(asset()).balanceOf(address(this));
+        return LibVaultAsset.balanceOfSelf(asset());
     }
 
     /// @dev Returns the configured strategy's immediately withdrawable assets.
