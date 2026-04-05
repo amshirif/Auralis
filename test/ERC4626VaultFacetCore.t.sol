@@ -257,6 +257,19 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         IERC7535VaultFacet(address(diamond)).mintNative{value: 9}(10, bob);
     }
 
+    function testNativeMintRejectsOverpayment() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(ERC4626Vault.ERC4626VaultInvalidNativeAssetValue.selector, 11, 10));
+        IERC7535VaultFacet(address(diamond)).mintNative{value: 11}(10, bob);
+    }
+
     function testNativeEntrypointsRejectErc20VaultsOnDiamond() public {
         _installHostedVaultNativeFacetsToDiamond();
 

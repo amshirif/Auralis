@@ -118,6 +118,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
 
             uint256 remainingAssets = maxTotalAssets_ - currentAssets;
             uint256 capBasedMaxAssets = LibERC4626VaultControlLogic.grossUpForDepositFee(remainingAssets);
+            (uint256 creditedAssets,) = LibERC4626VaultControlLogic.netAfterDepositFee(capBasedMaxAssets);
+            if (creditedAssets > remainingAssets) {
+                capBasedMaxAssets -= 1;
+            }
             if (capBasedMaxAssets < maxAssets) {
                 maxAssets = capBasedMaxAssets;
             }
