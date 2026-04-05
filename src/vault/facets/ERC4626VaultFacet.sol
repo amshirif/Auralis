@@ -169,9 +169,6 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
 
-        grossAssets = _convertToAssets(shares, Rounding.Down);
-        _sourceStrategyLiquidity(grossAssets);
-
         uint256 availableIdleAssets = _idleAssetBalance();
         if (grossAssets > availableIdleAssets) {
             revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
