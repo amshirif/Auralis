@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IERC4626VaultStrategy} from "../src/interfaces/IERC4626VaultStrategy.sol";
+import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {
     ERC4626VaultStrategyFixture,
     MockVaultStrategyForcedRevert
@@ -108,9 +109,111 @@ contract VaultStrategyFoundationCoreTest is ERC4626VaultStrategyFixture {
         assertTrue(asset.balanceOf(vault) == 100, "vault should receive unwound assets");
     }
 
+    function testNativeMockStrategiesBindVaultAndAsset() public view {
+        _assertBinding(nativeProfitStrategy);
+        _assertBinding(nativeLossStrategy);
+        _assertBinding(nativeRevertingStrategy);
+        _assertBinding(nativeUnwindStrategy);
+    }
+
+    function testOnlyVaultCanOperateNativeStrategyLifecycle() public {
+        _assertOnlyVault(nativeProfitStrategy);
+        _assertOnlyVault(nativeLossStrategy);
+        _assertOnlyVault(nativeRevertingStrategy);
+        _assertOnlyVault(nativeUnwindStrategy);
+    }
+
+    function testNativeProfitMockReportsHigherAssetsAfterProfitInjection() public {
+        VM.deal(address(nativeProfitStrategy), 100);
+        VM.deal(address(this), 25);
+        VM.prank(vault);
+        nativeProfitStrategy.deployFunds(100);
+
+        nativeProfitStrategy.injectProfit{value: 25}();
+
+        assertTrue(nativeProfitStrategy.totalAssets() == 125, "profit should increase tracked assets");
+        assertTrue(nativeProfitStrategy.maxWithdrawableAssets() == 125, "profit should increase withdrawable assets");
+        assertTrue(address(nativeProfitStrategy).balance == 125, "strategy balance should reflect profit");
+    }
+
+    function testNativeLossShortfallMockReturnsLessThanRequestedAndShrinksAssets() public {
+        VM.deal(address(nativeLossStrategy), 100);
+        VM.prank(vault);
+        nativeLossStrategy.deployFunds(100);
+
+        nativeLossStrategy.applyLoss(40, 35);
+
+        assertTrue(nativeLossStrategy.totalAssets() == 60, "loss should reduce tracked assets");
+        assertTrue(nativeLossStrategy.maxWithdrawableAssets() == 35, "shortfall should cap withdrawable assets");
+        assertTrue(address(nativeLossStrategy).balance == 60, "strategy balance should reflect realized loss");
+
+        VM.prank(vault);
+        uint256 returnedAssets = nativeLossStrategy.withdrawToVault(50);
+
+        assertTrue(returnedAssets == 35, "withdraw should return available assets only");
+        assertTrue(nativeLossStrategy.totalAssets() == 25, "tracked assets should reduce by returned amount");
+        assertTrue(nativeLossStrategy.maxWithdrawableAssets() == 0, "withdrawable assets should be depleted");
+        assertTrue(vault.balance == 35, "vault should receive returned assets");
+    }
+
+    function testNativeRevertingMockRevertsOnConfiguredCalls() public {
+        nativeRevertingStrategy.setRevertModes(true, true, true, true);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, nativeRevertingStrategy.totalAssets.selector)
+        );
+        nativeRevertingStrategy.totalAssets();
+
+        VM.deal(address(nativeRevertingStrategy), 100);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, nativeRevertingStrategy.deployFunds.selector)
+        );
+        VM.prank(vault);
+        nativeRevertingStrategy.deployFunds(100);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, nativeRevertingStrategy.withdrawToVault.selector
+            )
+        );
+        VM.prank(vault);
+        nativeRevertingStrategy.withdrawToVault(100);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, nativeRevertingStrategy.withdrawAllToVault.selector
+            )
+        );
+        VM.prank(vault);
+        nativeRevertingStrategy.withdrawAllToVault();
+    }
+
+    function testNativeEmergencyUnwindMockReturnsAllAssetsAndClearsState() public {
+        VM.deal(address(nativeUnwindStrategy), 100);
+        VM.prank(vault);
+        nativeUnwindStrategy.deployFunds(100);
+
+        nativeUnwindStrategy.setWithdrawableAssets(40);
+
+        VM.prank(vault);
+        uint256 returnedAssets = nativeUnwindStrategy.withdrawAllToVault();
+
+        assertTrue(returnedAssets == 100, "emergency unwind should return all tracked assets");
+        assertTrue(nativeUnwindStrategy.totalAssets() == 0, "tracked assets should clear on unwind");
+        assertTrue(nativeUnwindStrategy.maxWithdrawableAssets() == 0, "withdrawable assets should clear on unwind");
+        assertTrue(vault.balance == 100, "vault should receive unwound assets");
+    }
+
     function _assertBinding(IERC4626VaultStrategy strategy_) internal view {
         assertTrue(strategy_.vault() == vault, "vault binding mismatch");
-        assertTrue(strategy_.asset() == address(asset), "asset binding mismatch");
+        address expectedAsset = address(strategy_) == address(nativeProfitStrategy)
+                || address(strategy_) == address(nativeLossStrategy)
+                || address(strategy_) == address(nativeRevertingStrategy)
+                || address(strategy_) == address(nativeUnwindStrategy)
+            ? LibVaultAsset.NATIVE_ASSET_SENTINEL
+            : address(asset);
+        assertTrue(strategy_.asset() == expectedAsset, "asset binding mismatch");
     }
 
     function _assertOnlyVault(IERC4626VaultStrategy strategy_) internal {
