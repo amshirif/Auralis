@@ -7,7 +7,9 @@ import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
+import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {ERC4626VaultIntegrationFacetFixture} from "./helpers/ERC4626VaultIntegrationFacetTestHarness.sol";
 
@@ -353,6 +355,137 @@ contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFix
                 "integration facet should not own initializer selector"
             );
         }
+    }
+
+    function testDiamondNativeIntegrationFacetRejectsAssetMismatchedStrategies() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyInvalidAsset.selector,
+                address(diamondProfitStrategy),
+                LibVaultAsset.NATIVE_ASSET_SENTINEL,
+                address(asset)
+            )
+        );
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondProfitStrategy));
+    }
+
+    function testDiamondErc20IntegrationFacetRejectsNativeStrategy() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondVault();
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyInvalidAsset.selector,
+                address(diamondNativeProfitStrategy),
+                address(asset),
+                LibVaultAsset.NATIVE_ASSET_SENTINEL
+            )
+        );
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+    }
+
+    function testDiamondNativeIntegrationFacetRunsStrategyLifecycle() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+
+        VM.deal(bob, 100);
+        VM.deal(address(this), 20);
+        VM.prank(bob);
+        uint256 mintedShares = IERC7535VaultFacet(address(diamond)).depositNative{value: 100}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeProfitStrategy.injectProfit{value: 20}();
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).syncStrategyAssets();
+        VM.prank(admin);
+        uint256 returnedAssets = IERC4626VaultIntegrationFacet(address(diamond)).withdrawFromStrategy(30);
+        VM.prank(admin);
+        uint256 emergencyAssets = IERC4626VaultIntegrationFacet(address(diamond)).emergencyExitStrategy();
+
+        assertTrue(mintedShares == 100, "deposit shares mismatch");
+        assertTrue(returnedAssets == 30, "partial withdraw return mismatch");
+        assertTrue(emergencyAssets == 50, "emergency exit return mismatch");
+        assertTrue(
+            IERC4626VaultIntegrationFacet(address(diamond)).strategy() == address(diamondNativeProfitStrategy),
+            "strategy mismatch"
+        );
+        assertTrue(
+            IERC4626VaultIntegrationFacet(address(diamond)).strategyEmergencyExit(),
+            "emergency exit should remain active"
+        );
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyDebt() == 0, "strategy debt mismatch");
+        assertTrue(
+            IERC4626VaultIntegrationFacet(address(diamond)).liveStrategyAssets() == 0, "live strategy assets mismatch"
+        );
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).idleAssets() == 120, "idle assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 120, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 120, "total assets mismatch");
+        assertTrue(address(diamond).balance == 120, "diamond native balance mismatch");
+        assertTrue(address(diamondNativeProfitStrategy).balance == 0, "strategy should be fully unwound");
+    }
+
+    function testDiamondNativeIntegrationFacetSyncRealizesLoss() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 100}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeLossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeLossStrategy.applyLoss(15, 35);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).syncStrategyAssets();
+
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyDebt() == 45, "strategy debt mismatch");
+        assertTrue(
+            IERC4626VaultIntegrationFacet(address(diamond)).liveStrategyAssets() == 45, "live strategy assets mismatch"
+        );
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 85, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 85, "total assets mismatch");
+        assertTrue(address(diamond).balance == 40, "idle balance mismatch");
+        assertTrue(address(diamondNativeLossStrategy).balance == 45, "strategy balance mismatch");
+    }
+
+    function testDiamondNativeIntegrationFacetEmergencyExitFailureDoesNotRevert() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 100}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeRevertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeRevertingStrategy.setRevertModes(false, false, false, true);
+
+        VM.prank(admin);
+        uint256 returnedAssets = IERC4626VaultIntegrationFacet(address(diamond)).emergencyExitStrategy();
+
+        assertTrue(returnedAssets == 0, "failing emergency exit should return zero assets");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyEmergencyExit(), "flag should stay active");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyDebt() == 60, "strategy debt mismatch");
+        assertTrue(
+            IERC4626VaultIntegrationFacet(address(diamond)).liveStrategyAssets() == 60, "live strategy assets mismatch"
+        );
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).idleAssets() == 40, "idle assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 100, "managed assets mismatch");
+        assertTrue(address(diamond).balance == 40, "diamond balance should remain unchanged after failed unwind");
     }
 
     function _assertSelectorsOwnedByFacet(bytes4[] memory selectors, address expectedFacet) internal view {
