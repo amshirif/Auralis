@@ -12,6 +12,9 @@ vault_diamond="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.diamond)"
 vault_asset="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.vaultAsset)"
 oracle_feed="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.oracleFeed)"
 strategy="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.strategy)"
+native_vault_diamond="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.diamond)"
+native_oracle_feed="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.oracleFeed)"
+native_strategy="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.strategy)"
 
 now_ts="$(date +%s)"
 
@@ -59,11 +62,38 @@ cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_
 cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
   "${vault_diamond}" "unpause()" >/dev/null
 
+auralis_note "Generating native vault and strategy activity"
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_ALICE_PRIVATE_KEY}" --value 1250000000000000000 \
+  "${native_vault_diamond}" "depositNative(address)(uint256)" "${AURALIS_ALICE_ADDRESS}" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "deployToStrategy(uint256)" 750000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" --value 125000000000000000 \
+  "${native_strategy}" "injectProfit(uint256)" 125000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "syncStrategyAssets()" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "withdrawFromStrategy(uint256)(uint256)" 200000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_ALICE_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "transfer(address,uint256)" "${AURALIS_OWNER_ADDRESS}" 250000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "redeem(uint256,address,address)(uint256)" 100000000000000000 "${AURALIS_OWNER_ADDRESS}" "${AURALIS_OWNER_ADDRESS}" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_oracle_feed}" "setRoundData(int256,uint256)" 102000000 "${now_ts}" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "pause()" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "unpause()" >/dev/null
+
 idle_assets="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${vault_diamond}" "idleAssets()(uint256)" | awk '{print $1}')"
 strategy_debt="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${vault_diamond}" "strategyDebt()(uint256)" | awk '{print $1}')"
 live_strategy_assets="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${vault_diamond}" "liveStrategyAssets()(uint256)" | awk '{print $1}')"
 total_assets="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${vault_diamond}" "totalAssets()(uint256)" | awk '{print $1}')"
 quote_tuple="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${vault_diamond}" "oracleQuote()((int256,uint64,uint8))")"
+native_idle_assets="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "idleAssets()(uint256)" | awk '{print $1}')"
+native_strategy_debt="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "strategyDebt()(uint256)" | awk '{print $1}')"
+native_live_strategy_assets="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "liveStrategyAssets()(uint256)" | awk '{print $1}')"
+native_total_assets="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "totalAssets()(uint256)" | awk '{print $1}')"
+native_quote_tuple="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "oracleQuote()((int256,uint64,uint8))")"
 
 cat <<MSG
 Auralis simulated activity complete.
@@ -74,5 +104,11 @@ Live strategy assets: ${live_strategy_assets}
 Total assets: ${total_assets}
 Oracle quote tuple: ${quote_tuple}
 
-The local chain now has representative token, NFT, vault, oracle, and live strategy lifecycle activity.
+Native idle assets: ${native_idle_assets}
+Native strategy debt: ${native_strategy_debt}
+Native live strategy assets: ${native_live_strategy_assets}
+Native total assets: ${native_total_assets}
+Native oracle quote tuple: ${native_quote_tuple}
+
+The local chain now has representative token, NFT, ERC20 vault, native vault, oracle, and live strategy lifecycle activity.
 MSG

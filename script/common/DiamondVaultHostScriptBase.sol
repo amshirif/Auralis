@@ -18,6 +18,7 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         address diamondCutFacet;
         address diamondLoupeFacet;
         address vaultCoreFacet;
+        address vaultNativeFacet;
         address vaultControlsFacet;
         address vaultIntegrationFacet;
         address vaultAsset;
@@ -29,6 +30,7 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         uint256 strategyDebt;
         uint256 liveStrategyAssets;
         bool strategyEmergencyExit;
+        string assetMode;
         string vaultName;
         string vaultSymbol;
     }
@@ -86,6 +88,7 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         json = VM.serializeAddress(objectKey, "diamondCutFacet", artifact.diamondCutFacet);
         json = VM.serializeAddress(objectKey, "diamondLoupeFacet", artifact.diamondLoupeFacet);
         json = VM.serializeAddress(objectKey, "vaultCoreFacet", artifact.vaultCoreFacet);
+        json = VM.serializeAddress(objectKey, "vaultNativeFacet", artifact.vaultNativeFacet);
         json = VM.serializeAddress(objectKey, "vaultControlsFacet", artifact.vaultControlsFacet);
         json = VM.serializeAddress(objectKey, "vaultIntegrationFacet", artifact.vaultIntegrationFacet);
         json = VM.serializeAddress(objectKey, "vaultAsset", artifact.vaultAsset);
@@ -95,6 +98,7 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         json = VM.serializeUint(objectKey, "strategyDebt", artifact.strategyDebt);
         json = VM.serializeUint(objectKey, "liveStrategyAssets", artifact.liveStrategyAssets);
         json = VM.serializeBool(objectKey, "strategyEmergencyExit", artifact.strategyEmergencyExit);
+        json = VM.serializeString(objectKey, "assetMode", artifact.assetMode);
         json = VM.serializeString(objectKey, "vaultName", artifact.vaultName);
         json = VM.serializeString(objectKey, "vaultSymbol", artifact.vaultSymbol);
         VM.writeJson(json, string.concat(VM.projectRoot(), outputRelativePath));
