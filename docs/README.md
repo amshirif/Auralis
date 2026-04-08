@@ -78,18 +78,10 @@ visual model materially improves comprehension.
 
 - `docs/ops/README.md`: operator-facing runbooks and validation flows.
 - `docs/ops/workflow-conventions.md`: issue, branch, PR, and milestone workflow expectations.
+- `docs/ops/release-checklist.md`: release readiness, validation gates, and publish steps.
+- `docs/ops/release-notes-template.md`: release note structure for tagged versions.
 
 ## Local Workflow
 
 - `docs/auralis-local.md`: local bootstrap, smoke, activity, reset flow, and
   artifact layout.
-
-## Legacy / Transient References
-
-These docs still exist because they can be operationally useful, but they are
-not part of the primary reviewer path and will be handled more aggressively in
-`#155`.
-
-- `docs/ops/milestone-close-checklist.md`
-- `docs/ops/release-checklist.md`
-- `docs/ops/release-notes-template.md`

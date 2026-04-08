@@ -21,8 +21,7 @@ validation, incident response, and release hygiene.
 - Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
 
-## Secondary Release / Milestone References
+## Release Docs
 
 - Release checklist: `docs/ops/release-checklist.md`
 - Release notes template: `docs/ops/release-notes-template.md`
-- Milestone close checklist: `docs/ops/milestone-close-checklist.md`
