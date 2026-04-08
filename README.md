@@ -10,11 +10,11 @@
 
 Security-first, diamond-ready Solidity systems.
 
-`Auralis` is a portfolio-focused Solidity repository built to show
-security-first protocol engineering, dependency-light design, and
-deployment-backed validation. The codebase is intentionally diamond-ready, so
-core modules can evolve into facetized systems without rewriting storage or
-control-plane assumptions.
+`Auralis` is a protocol-engineering portfolio repository focused on
+security-first, upgrade-aware Solidity systems. It combines modular contract
+design, deployment-backed validation, local operator flows, and hardening
+coverage so a reviewer can assess architecture and evidence together rather
+than as isolated snippets.
 
 ## Why This Repo Exists
 
@@ -23,36 +23,74 @@ shows how access control, guard rails, oracle safety, vault logic, diamond
 routing, deployment scripts, rehearsal flows, and CI checks fit together as a
 reviewable engineering system.
 
-## What It Currently Demonstrates
+## Review In 5 Minutes
 
-- A security-first control plane with RBAC, time-based permissions,
-  pausability, reentrancy protection, and upgrade guardrails.
-- Oracle safety patterns including validation bounds, stale-data handling,
-  circuit breakers, and controlled fallback behavior.
-- A diamond core with selector routing, cut/loupe support, ownership
-  introspection, and selector-integrity regression coverage.
-- Hosted ERC20 and ERC721 token facets deployed behind separate diamond hosts,
-  with init, selector ownership, Permit/metadata support, and host-level
-  hardening coverage.
-- A hosted ERC-4626 vault platform deployed behind a diamond host, split across
-  core, native, controls, and integration facets with ERC20 and native-asset
-  modes, active strategy lifecycle management, live strategy-aware accounting,
-  loss-aware withdrawals, emergency-exit safety, deployment-backed init, and
-  diamond-routed hardening plus invariant coverage.
-- Operational maturity through local bootstrap, smoke validation, upgrade
-  rehearsal, system-hardening flows, and matching CI gates.
-- A local Auralis workflow for full-stack bootstrap, smoke checks, simulated
-  activity, reset flows, and unified deployment artifacts.
+- Architecture decisions: `docs/adr/README.md`
+- Canonical docs map: `docs/README.md`
+- Hosted vault architecture: `docs/vault-facets.md`
+- Security assumptions: `docs/threat-model.md`
+- Validation and CI policy: `docs/security-checks.md`
+- Local workflow and deployment artifacts: `docs/auralis-local.md`
 
-## Validation
+## What This Repo Proves
 
-Run the highest-signal local checks with:
+- Core architecture: diamond routing, selector ownership discipline, and
+  separate hosted token and vault deployment models.
+- Safety posture: RBAC, timed permissions, pause semantics, reentrancy
+  protection, oracle validation, and upgrade guardrails.
+- Protocol surfaces: ERC20 and ERC721 token hosts plus a hosted ERC-4626 vault
+  platform with controls, strategy integration, and native-asset support.
+- Operational maturity: local bootstrap, smoke validation, activity flows,
+  upgrade rehearsal, and matching CI/hardening gates.
+
+## Evidence
+
+### Architecture And Design
+
+- `docs/adr/README.md`: accepted architecture decisions and why the repo is
+  shaped this way.
+- `docs/diamond-core.md`: diamond routing, cut flow, selector ownership, and
+  storage discipline.
+- `docs/vault-facets.md`: hosted vault facet split, lifecycle, and deployment
+  model.
+- `docs/threat-model.md`: trust boundaries, threat assumptions, and residual
+  risks.
+
+### Validation
+
+- `test/DiamondSelectorIntegrityCore.t.sol`: selector routing and loupe
+  integrity regressions.
+- `test/DiamondVaultDeploymentIntegration.t.sol`: hosted vault deployment,
+  init, selector ownership, and oracle wiring.
+- `test/DiamondVaultHostHardening.t.sol`: replace/remove/re-add hardening
+  across the hosted vault diamond path.
+- `test/DiamondTokenDeploymentIntegration.t.sol`: ERC20 and ERC721 host
+  deployment and selector ownership.
+- `test/SystemOracleFailureScenarios.t.sol`: stale-data, breaker, fallback, and
+  recovery behavior.
+- `test/SystemVaultStressInvariant.t.sol`: higher-signal system stress coverage
+  for vault behavior under adversarial sequences.
+
+### Deployment And Operator Evidence
+
+- `docs/security-checks.md`: current CI policy and local reproduction path.
+- `docs/ops/README.md`: operator runbooks and validation flows.
+- `docs/auralis-local.md`: local bootstrap, smoke, activity, reset, and
+  artifact layout.
+
+## Validation Path
+
+Run a bounded reviewer-facing path with:
 
 ```shell
-forge test --offline
-bash script/run-local-diamond-smoke.sh
-bash script/run-local-diamond-upgrade-rehearsal.sh
-bash script/run-local-system-hardening.sh
+forge fmt --check
+forge build --sizes --skip script
+forge test --offline --match-path test/DiamondSelectorIntegrityCore.t.sol
+forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
+forge test --offline --match-path test/DiamondTokenDeploymentIntegration.t.sol
+forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
+forge test --offline --match-path test/SystemVaultStressInvariant.t.sol
 ```
 
 For the local Auralis workflow:
@@ -60,7 +98,6 @@ For the local Auralis workflow:
 ```shell
 bash scripts/auralis-up.sh
 bash scripts/auralis-smoke.sh
-bash scripts/auralis-activity.sh
 bash scripts/auralis-reset.sh
 ```
 
