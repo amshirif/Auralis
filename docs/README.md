@@ -77,6 +77,7 @@ visual model materially improves comprehension.
 ## Operations
 
 - `docs/ops/README.md`: operator-facing runbooks and validation flows.
+- `docs/ops/workflow-conventions.md`: issue, branch, PR, and milestone workflow expectations.
 
 ## Local Workflow
 
