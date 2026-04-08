@@ -1,7 +1,7 @@
 # System Hardening
 
-This note defines the reproducible system-level hardening coverage added for
-issue `#69`.
+This note defines the reproducible system-level hardening coverage used in
+`Auralis`.
 
 For the operator-facing execution order and failure interpretation, see
 `docs/ops/runbook-system-hardening.md`.

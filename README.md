@@ -43,18 +43,6 @@ reviewable engineering system.
 - A local Auralis workflow for full-stack bootstrap, smoke checks, simulated
   activity, reset flows, and unified deployment artifacts.
 
-## Current Status
-
-Implemented milestones so far:
-
-- Access Control + Upgrade Safety Kit
-- Oracle Adapter + Circuit Breaker
-- Diamond Core (EIP-2535)
-- System-Level Testing & Hardening
-- Diamond Token Facets
-- Diamond-Hosted Vault Platform
-- Auralis Launch Readiness
-
 ## Validation
 
 Run the highest-signal local checks with:
@@ -77,27 +65,15 @@ bash scripts/auralis-reset.sh
 
 ## Documentation
 
-Architecture and module docs live in `docs/diamond-core.md`,
-`docs/oracle-adapter.md`, `docs/erc4626-vault.md`, `docs/vault-facets.md`,
-`docs/token-facets.md`, and `docs/threat-model.md`.
+Start with `docs/README.md` for the canonical docs map.
 
-Durable architecture decisions live in `docs/adr/README.md`.
+Recommended reviewer path:
 
-Operational guidance lives in `docs/ops/README.md`, with the end-to-end
-execution order collected in `docs/ops/runbook-system-hardening.md`.
-
-CI and local validation parity are documented in `docs/security-checks.md`.
-
-Token-host architecture and safety assumptions live in `docs/token-facets.md`,
-including the init model, selector ownership rules, separate-host deployment
-constraint, and token-host upgrade assumptions.
-
-Hosted-vault architecture and safety assumptions live in
-`docs/vault-facets.md`, including the init model, selector ownership split,
-pause behavior, deployment references, and hosted-vault upgrade assumptions.
-
-Local Auralis bootstrap, smoke, simulated activity, reset flow, and artifact
-layout are documented in `docs/auralis-local.md`.
+- Architecture decisions: `docs/adr/README.md`
+- Core architecture: `docs/diamond-core.md`, `docs/token-facets.md`,
+  `docs/vault-facets.md`, `docs/oracle-adapter.md`
+- Security and validation: `docs/threat-model.md`, `docs/security-checks.md`
+- Operations and local workflow: `docs/ops/README.md`, `docs/auralis-local.md`
 
 ## Tooling
 

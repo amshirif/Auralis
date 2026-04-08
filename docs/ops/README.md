@@ -1,7 +1,7 @@
 # Operations Docs
 
 This folder is the operator-facing guide set for deployment rehearsal,
-validation, incident response, and milestone hygiene.
+validation, incident response, and release hygiene.
 
 ## Start Here
 
@@ -20,7 +20,7 @@ validation, incident response, and milestone hygiene.
 - Pause/unpause runbook: `docs/ops/runbook-pause-unpause.md`
 - Upgrade execution runbook: `docs/ops/runbook-upgrade-execution.md`
 
-## Release And Milestone Hygiene
+## Secondary Release / Milestone References
 
 - Release checklist: `docs/ops/release-checklist.md`
 - Release notes template: `docs/ops/release-notes-template.md`

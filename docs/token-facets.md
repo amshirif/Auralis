@@ -1,12 +1,12 @@
 # Diamond Token Facets
 
-This document is the canonical guide for the hosted token model implemented in
-the `Diamond Token Facets` milestone.
+This document is the canonical guide for the hosted token architecture in
+`Auralis`.
 
 For the decision to deploy separate hosts instead of a single shared token host,
 see `docs/adr/0002-separate-diamond-hosts.md`.
 
-The current supported deployment model is:
+The supported deployment model is:
 
 - one ERC20-hosted diamond
 - one ERC721-hosted diamond
@@ -217,7 +217,7 @@ The ERC721 host exposes:
 
 ## Safety Notes For Reviewers
 
-- Separate-host deployment is the supported model for this milestone.
+- Separate-host deployment is the supported model in this repository.
 - No selector namespacing is used.
 - Re-initialization is not part of replace/remove/re-add flows.
 - Facet upgrades must preserve storage layout and hosted selector intent.
