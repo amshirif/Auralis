@@ -117,6 +117,8 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
             }
 
             uint256 remainingAssets = maxTotalAssets_ - currentAssets;
+            // The cap is expressed in net managed assets, so the gross deposit ceiling must be fee-aware;
+            // otherwise a post-fee credit could exceed the configured cap.
             uint256 capBasedMaxAssets = LibERC4626VaultControlLogic.grossUpForDepositFee(remainingAssets);
             (uint256 creditedAssets,) = LibERC4626VaultControlLogic.netAfterDepositFee(capBasedMaxAssets);
             if (creditedAssets > remainingAssets) {
@@ -168,7 +170,8 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         if (grossAssets > liquidityCapAssets) {
             grossAssets = liquidityCapAssets;
         }
-
+        // Withdraw limits are expressed in what the receiver can actually take out, so maxWithdraw uses
+        // the net-after-fee view after immediate-liquidity capping rather than gross accounting assets.
         (uint256 netAssets,) = LibERC4626VaultControlLogic.withdrawNetFromGross(grossAssets);
 
         (,,, uint128 maxWithdraw_,) = LibERC4626VaultControlLogic.limitConfig();
@@ -218,6 +221,8 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
 
     function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
+        // Redeem previews follow the same boundary: shares map to gross accounting assets first, then
+        // withdraw fees determine the receiver's net assets.
         (uint256 netAssets,) = LibERC4626VaultControlLogic.withdrawNetFromGross(grossAssets);
         return netAssets;
     }

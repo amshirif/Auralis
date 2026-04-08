@@ -29,6 +29,8 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
     /// @notice Returns currently managed asset accounting amount.
     /// @return The tracked managed asset amount.
     function totalManagedAssets() public view virtual returns (uint256) {
+        // Managed assets are the pricing source of truth; raw balances can diverge due to donations,
+        // force-sent value, or strategy timing and must not silently reprice shares.
         return LibERC4626VaultStorage.layout().totalManagedAssets;
     }
 
@@ -197,6 +199,8 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
 
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         uint256 managedAssets = layout.totalManagedAssets;
+        // Guard against tracked-accounting underflow directly so unexpected surplus cannot mask an
+        // accounting bug or let the vault spend assets it never managed.
         if (managedAssets < assets) {
             revert ERC4626VaultManagedAssetsUnderflow(managedAssets, assets);
         }
@@ -245,6 +249,8 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
             return 0;
         }
         if (supply == 0 || managedAssets == 0) {
+            // Bootstrap 1:1 so the first liquidity provider establishes the initial price instead of
+            // inheriting an arbitrary ratio from uninitialized accounting.
             return assets;
         }
 
@@ -266,6 +272,8 @@ abstract contract ERC4626VaultBase is IERC4626VaultBase {
             return 0;
         }
         if (supply == 0 || managedAssets == 0) {
+            // Keep previews symmetric with the same 1:1 bootstrap rule before the vault has a meaningful
+            // supply-to-assets ratio.
             return shares;
         }
 

@@ -96,6 +96,8 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
 
         address previousStrategy = layout.strategy;
         layout.strategy = newStrategy;
+        // Reported assets belong to the previous strategy lifecycle and must be cleared so stale operator
+        // state does not survive a replacement.
         layout.strategyReportedAssets = 0;
         layout.strategyEmergencyExit = false;
 

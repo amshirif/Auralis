@@ -40,6 +40,17 @@ Reset local artifacts and stop the managed Anvil process:
 bash scripts/auralis-reset.sh
 ```
 
+## Workflow Overview
+
+```mermaid
+flowchart LR
+    Up["auralis-up"] --> Artifact["deployments/auralis.local.json"]
+    Artifact --> Smoke["auralis-smoke"]
+    Smoke --> Activity["auralis-activity"]
+    Activity --> Reset["auralis-reset"]
+    Reset --> Clean["artifacts removed and managed Anvil stopped"]
+```
+
 ## What The Scripts Do
 
 `auralis-up.sh`

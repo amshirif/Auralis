@@ -1,7 +1,13 @@
 # Diamond Vault Facets
 
-This document is the canonical guide for the hosted vault model implemented in
-Auralis.
+This document is the canonical guide for the hosted vault architecture in
+`Auralis`.
+
+For the durable architecture decisions behind the hosted vault shape, see
+`docs/adr/0002-separate-diamond-hosts.md`,
+`docs/adr/0003-tracked-managed-assets.md`,
+`docs/adr/0004-native-sentinel-and-facet.md`, and
+`docs/adr/0005-exclude-force-sent-eth.md`.
 
 It covers the supported diamond-hosted vault deployment:
 
@@ -19,6 +25,24 @@ For the standalone ERC-4626 module behavior and math reference, see
 
 The hosted vault diamond preserves a split between user-facing vault flows,
 control-plane selectors, and integration/config selectors.
+
+### Host Structure
+
+```mermaid
+flowchart TD
+    Diamond["Vault Diamond"]
+    Cut["DiamondCutFacet<br/>diamondCut"]
+    Loupe["DiamondLoupeFacet<br/>loupe and owner reads"]
+    Core["ERC4626VaultFacet<br/>user flows and max/preview helpers"]
+    Controls["ERC4626VaultControlsFacet<br/>fees, limits, roles, pause"]
+    Integration["ERC4626VaultIntegrationFacet<br/>oracle and strategy config"]
+
+    Diamond --> Cut
+    Diamond --> Loupe
+    Diamond --> Core
+    Diamond --> Controls
+    Diamond --> Integration
+```
 
 ### Core Facet
 
@@ -164,6 +188,21 @@ vault does not currently use per-scope pause behavior for ERC-4626 entrypoints.
 ## Strategy Model
 
 The hosted vault strategy model is intentionally narrow:
+
+### Runtime Flow
+
+```mermaid
+flowchart LR
+    Init["initializeVault"] --> Roles["grant admin, manager, pauser roles"]
+    Roles --> Oracle["optional setOracleAdapter"]
+    Oracle --> Strategy["optional setStrategy"]
+    Strategy --> Users["deposit / mint / withdraw / redeem"]
+    Strategy --> Manager["deploy / withdraw / sync / emergencyExit"]
+    Manager --> Book["strategyDebt and totalManagedAssets"]
+    Users --> Pricing["ERC-4626 pricing and liquidity"]
+    Strategy --> Live["liveStrategyAssets"]
+    Live --> Pricing
+```
 
 - one active strategy per vault
 - single-asset only

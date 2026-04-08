@@ -1,6 +1,6 @@
 # Local Diamond Bootstrap
 
-This repo now includes a reference Foundry script for bootstrapping the diamond
+This runbook covers the reference Foundry script used to bootstrap the diamond
 core on a local Anvil chain.
 
 ## What It Deploys
@@ -57,7 +57,8 @@ Current fields:
 - `diamondCutFacet`
 - `diamondLoupeFacet`
 
-These outputs are intended to feed later E2E and upgrade rehearsal work.
+These outputs feed the downstream smoke, upgrade rehearsal, and hardening
+flows.
 
 Downstream flows that consume this artifact:
 

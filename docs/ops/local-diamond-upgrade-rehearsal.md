@@ -1,8 +1,7 @@
 # Local Diamond Upgrade Rehearsal
 
 This flow exercises the deployment-backed diamond upgrade path used to validate
-cut behavior before milestone merges and before production-style operator
-changes.
+cut behavior before production-style operator changes.
 
 ## What It Covers
 

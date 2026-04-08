@@ -1,7 +1,6 @@
 # Oracle Adapter
 
-This module defines the oracle adapter and breaker controls for the oracle
-milestone:
+This module defines the oracle adapter and breaker controls used in `Auralis`:
 - provider-facing feed interface
 - normalized quote read interface
 - validation guardrails for live reads

@@ -6,8 +6,33 @@ repository:
 - `ERC4626Vault`
 - `ERC4626VaultControls`
 
+For the accounting and native-asset decisions behind this module family, see
+`docs/adr/0003-tracked-managed-assets.md`,
+`docs/adr/0004-native-sentinel-and-facet.md`, and
+`docs/adr/0005-exclude-force-sent-eth.md`.
+
 It covers the standalone vault modules and their math/control behavior. For the
 diamond-hosted vault platform, see `docs/vault-facets.md`.
+
+## Accounting Model
+
+```mermaid
+flowchart TD
+    Idle["Idle underlying balance"]
+    Managed["Tracked managed assets"]
+    Strategy["Strategy-reported / estimated assets"]
+    Surplus["Raw surplus<br/>direct transfers or force-sent native balance"]
+    Pricing["convert / preview / share pricing"]
+    Liquidity["Immediate exit liquidity checks"]
+
+    Idle --> Managed
+    Managed --> Pricing
+    Idle --> Liquidity
+    Strategy --> Liquidity
+    Strategy -. estimate only .-> Managed
+    Surplus -. not auto-accounted .-> Managed
+    Surplus --> Liquidity
+```
 
 Native-asset mode is only supported through the diamond-hosted vault platform.
 The standalone `ERC4626Vault` module remains an ERC-20 asset vault surface.
