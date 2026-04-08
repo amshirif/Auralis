@@ -2,43 +2,27 @@
 pragma solidity ^0.8.30;
 
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
-import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
-import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
-import {ERC4626VaultIntegrationFacet} from "../../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
-import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
+import {IERC7535VaultFacet} from "../../src/interfaces/IERC7535VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultDeploymentFixture} from "./DiamondVaultDeploymentTestHarness.sol";
-import {MutableMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
+import {
+    ERC4626VaultControlsFacetReplacement,
+    ERC4626VaultFacetReplacement,
+    ERC4626VaultIntegrationFacetReplacement,
+    ERC7535VaultFacetReplacement,
+    IFacetVersionMarker
+} from "./DiamondVaultHostHardeningTestHarness.sol";
+import {MutableNativeMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
-interface IFacetVersionMarker {
-    function facetVersion() external view returns (uint256);
-}
+contract ForceSendNative {
+    constructor() payable {}
 
-contract ERC4626VaultFacetReplacement is ERC4626VaultFacet {
-    function facetVersion() external pure returns (uint256) {
-        return 2;
+    function forceSend(address payable receiver) external {
+        selfdestruct(receiver);
     }
 }
 
-contract ERC4626VaultControlsFacetReplacement is ERC4626VaultControlsFacet {
-    function facetVersion() external pure returns (uint256) {
-        return 2;
-    }
-}
-
-contract ERC4626VaultIntegrationFacetReplacement is ERC4626VaultIntegrationFacet {
-    function facetVersion() external pure returns (uint256) {
-        return 2;
-    }
-}
-
-contract ERC7535VaultFacetReplacement is ERC7535VaultFacet {
-    function facetVersion() external pure returns (uint256) {
-        return 2;
-    }
-}
-
-abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixture {
+abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeploymentFixture {
     struct AccountingSnapshot {
         uint256 totalAssets;
         uint256 totalSupply;
@@ -49,6 +33,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         uint256 strategyUnderlyingBalance;
         uint256 profitSourceBalance;
         uint256 lossSinkBalance;
+        uint256 forceSenderBalance;
         uint256 strategyDebt;
         uint256 liveStrategyAssets;
     }
@@ -65,16 +50,17 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         uint256 bobMaxRedeem;
     }
 
-    uint256 internal constant INITIAL_ASSETS = 1_000_000;
-    uint256 internal constant STRATEGY_PROFIT_RESERVE = 1_000_000_000_000;
+    uint256 internal constant INITIAL_ASSETS = 100 ether;
+    uint256 internal constant STRATEGY_PROFIT_RESERVE = 100 ether;
+    uint256 internal constant FORCE_SEND_RESERVE = 25 ether;
     uint256 internal constant ACTOR_COUNT = 4;
-    uint256 internal constant BOB_DEPOSIT = 200_000;
-    uint256 internal constant CAROL_DEPOSIT = 150_000;
-    uint256 internal constant SHARE_ALLOWANCE = 25_000;
-    uint256 internal constant STRATEGY_DEPLOYED_ASSETS = 225_000;
-    uint256 internal constant STRATEGY_PROFIT_ASSETS = 25_000;
-    uint256 internal constant BOB_AUTO_PULL_WITHDRAW_ASSETS = 150_000;
-    uint256 internal constant CAROL_AUTO_PULL_REDEEM_SHARES = 50_000;
+    uint256 internal constant BOB_DEPOSIT = 20 ether;
+    uint256 internal constant CAROL_DEPOSIT = 15 ether;
+    uint256 internal constant SHARE_ALLOWANCE = 2.5 ether;
+    uint256 internal constant STRATEGY_DEPLOYED_ASSETS = 22.5 ether;
+    uint256 internal constant STRATEGY_PROFIT_ASSETS = 2.5 ether;
+    uint256 internal constant BOB_AUTO_PULL_WITHDRAW_ASSETS = 15 ether;
+    uint256 internal constant CAROL_AUTO_PULL_REDEEM_SHARES = 5 ether;
 
     address internal bob = address(0xB0B);
     address internal carol = address(0xCA11);
@@ -82,12 +68,15 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     address internal eve = address(0xE11E);
     address internal feeSink = address(0xFEE);
     address internal profitSource = address(0xBEEF1234);
+    address internal forceSender = address(0xF0CE);
 
     address[ACTOR_COUNT] internal actors;
 
-    MutableMockVaultStrategy internal strategyContract;
+    MutableNativeMockVaultStrategy internal strategyContract;
+    MutableNativeMockVaultStrategy internal replacementStrategyContract;
 
     ERC4626VaultFacetReplacement internal coreReplacement;
+    ERC7535VaultFacetReplacement internal nativeReplacement;
     ERC4626VaultControlsFacetReplacement internal controlsReplacement;
     ERC4626VaultIntegrationFacetReplacement internal integrationReplacement;
 
@@ -95,6 +84,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         super.setUp();
 
         coreReplacement = new ERC4626VaultFacetReplacement();
+        nativeReplacement = new ERC7535VaultFacetReplacement();
         controlsReplacement = new ERC4626VaultControlsFacetReplacement();
         integrationReplacement = new ERC4626VaultIntegrationFacetReplacement();
 
@@ -103,23 +93,20 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         actors[2] = dave;
         actors[3] = eve;
 
-        strategyContract = new MutableMockVaultStrategy(address(diamond), address(asset), profitSource);
+        strategyContract = new MutableNativeMockVaultStrategy(address(diamond), profitSource);
+        replacementStrategyContract = new MutableNativeMockVaultStrategy(address(diamond), profitSource);
 
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
-            address actor = actors[i];
-            asset.mint(actor, INITIAL_ASSETS);
-            VM.prank(actor);
-            asset.approve(address(diamond), type(uint256).max);
+            VM.deal(actors[i], INITIAL_ASSETS);
         }
 
-        asset.mint(profitSource, STRATEGY_PROFIT_RESERVE);
-        VM.prank(profitSource);
-        asset.approve(address(strategyContract), type(uint256).max);
+        VM.deal(profitSource, STRATEGY_PROFIT_RESERVE);
+        VM.deal(forceSender, FORCE_SEND_RESERVE);
     }
 
-    function _installAndSeedVaultHost() internal {
-        _installVaultHostFacets();
-        _initializeVaultHost();
+    function _installAndSeedNativeVaultHost() internal {
+        _installNativeVaultHostFacets();
+        _initializeNativeVaultHost();
         _wireOracleAdapter();
         _seedCoreState();
         _seedControlsState();
@@ -128,10 +115,10 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _seedCoreState() internal {
         VM.prank(bob);
-        coreFacetInterface().deposit(BOB_DEPOSIT, bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: BOB_DEPOSIT}(bob);
 
         VM.prank(carol);
-        coreFacetInterface().deposit(CAROL_DEPOSIT, carol);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: CAROL_DEPOSIT}(carol);
 
         VM.prank(bob);
         coreFacetInterface().approve(eve, SHARE_ALLOWANCE);
@@ -144,7 +131,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         controlsFacetInterface().setFeeConfig(100, 50, feeSink);
 
         VM.prank(admin);
-        controlsFacetInterface().setLimitConfig(900_000, 300_000, 300_000, 250_000, 250_000);
+        controlsFacetInterface().setLimitConfig(90 ether, 30 ether, 30 ether, 25 ether, 25 ether);
 
         VM.prank(admin);
         controlsFacetInterface().grantRole(managerRole, eve);
@@ -163,7 +150,8 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _injectStrategyProfit(uint256 assets) internal {
-        strategyContract.injectProfit(assets);
+        VM.prank(profitSource);
+        strategyContract.injectProfit{value: assets}(assets);
     }
 
     function _applyStrategyLoss(uint256 lossAssets, uint256 withdrawableAssets) internal {
@@ -178,6 +166,10 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultCoreSelectors());
     }
 
+    function _replaceNativeFacet(address facetAddress_) internal {
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultNativeSelectors());
+    }
+
     function _replaceControlsFacet(address facetAddress_) internal {
         _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultControlsSelectors());
     }
@@ -187,6 +179,10 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _addCoreReplacementMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _markerSelectors());
+    }
+
+    function _addNativeReplacementMarker(address facetAddress_) internal {
         _addFacet(facetAddress_, _markerSelectors());
     }
 
@@ -202,6 +198,10 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         _removeSelectors(_concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
     }
 
+    function _removeNativeFacetWithMarker() internal {
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultNativeSelectors(), _markerSelectors()));
+    }
+
     function _removeControlsFacetWithMarker() internal {
         _removeSelectors(_concat(LibVaultFacetSelectors.vaultControlsSelectors(), _markerSelectors()));
     }
@@ -212,6 +212,10 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
         _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+    }
+
+    function _reAddNativeFacetWithMarker(address facetAddress_) internal {
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultNativeSelectors(), _markerSelectors()));
     }
 
     function _reAddControlsFacetWithMarker(address facetAddress_) internal {
@@ -262,29 +266,36 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _sumTrackedUnderlying() internal view returns (uint256 sum) {
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
-            sum += asset.balanceOf(actors[i]);
+            sum += actors[i].balance;
         }
 
-        sum += asset.balanceOf(address(diamond));
-        sum += asset.balanceOf(feeSink);
-        sum += asset.balanceOf(address(strategyContract));
-        sum += asset.balanceOf(profitSource);
-        sum += asset.balanceOf(strategyContract.lossSink());
+        sum += address(diamond).balance;
+        sum += feeSink.balance;
+        sum += address(strategyContract).balance;
+        sum += address(replacementStrategyContract).balance;
+        sum += profitSource.balance;
+        sum += forceSender.balance;
+        sum += strategyContract.lossSink().balance;
+    }
+
+    function _expectedTrackedUnderlying() internal pure returns (uint256) {
+        return INITIAL_ASSETS * ACTOR_COUNT + STRATEGY_PROFIT_RESERVE + FORCE_SEND_RESERVE;
     }
 
     function _snapshotAccounting() internal view returns (AccountingSnapshot memory snapshot) {
         snapshot.totalAssets = coreFacetInterface().totalAssets();
         snapshot.totalSupply = coreFacetInterface().totalSupply();
-        snapshot.vaultUnderlyingBalance = asset.balanceOf(address(diamond));
-        snapshot.feeSinkBalance = asset.balanceOf(feeSink);
-        snapshot.strategyUnderlyingBalance = asset.balanceOf(address(strategyContract));
-        snapshot.profitSourceBalance = asset.balanceOf(profitSource);
-        snapshot.lossSinkBalance = asset.balanceOf(strategyContract.lossSink());
+        snapshot.vaultUnderlyingBalance = address(diamond).balance;
+        snapshot.feeSinkBalance = feeSink.balance;
+        snapshot.strategyUnderlyingBalance = address(strategyContract).balance;
+        snapshot.profitSourceBalance = profitSource.balance;
+        snapshot.lossSinkBalance = strategyContract.lossSink().balance;
+        snapshot.forceSenderBalance = forceSender.balance;
         snapshot.strategyDebt = integrationFacetInterface().strategyDebt();
         snapshot.liveStrategyAssets = integrationFacetInterface().liveStrategyAssets();
 
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
-            snapshot.actorUnderlyingBalanceSum += asset.balanceOf(actors[i]);
+            snapshot.actorUnderlyingBalanceSum += actors[i].balance;
             snapshot.actorShareBalanceSum += coreFacetInterface().balanceOf(actors[i]);
         }
     }
@@ -300,6 +311,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         assertTrue(afterSnapshot.strategyUnderlyingBalance == snapshot.strategyUnderlyingBalance, reason);
         assertTrue(afterSnapshot.profitSourceBalance == snapshot.profitSourceBalance, reason);
         assertTrue(afterSnapshot.lossSinkBalance == snapshot.lossSinkBalance, reason);
+        assertTrue(afterSnapshot.forceSenderBalance == snapshot.forceSenderBalance, reason);
         assertTrue(afterSnapshot.strategyDebt == snapshot.strategyDebt, reason);
         assertTrue(afterSnapshot.liveStrategyAssets == snapshot.liveStrategyAssets, reason);
     }
@@ -333,6 +345,28 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         assertTrue(coreFacetInterface().totalAssets() == snapshot.totalAssets, "totalAssets mismatch");
         assertTrue(coreFacetInterface().maxWithdraw(bob) == snapshot.bobMaxWithdraw, "bob maxWithdraw mismatch");
         assertTrue(coreFacetInterface().maxRedeem(bob) == snapshot.bobMaxRedeem, "bob maxRedeem mismatch");
+    }
+
+    function _forceSendToVault(uint256 assets) internal {
+        if (assets == 0) {
+            return;
+        }
+
+        VM.startPrank(forceSender);
+        ForceSendNative sender = new ForceSendNative{value: assets}();
+        sender.forceSend(payable(address(diamond)));
+        VM.stopPrank();
+    }
+
+    function _forceSendToStrategy(uint256 assets) internal {
+        if (assets == 0) {
+            return;
+        }
+
+        VM.startPrank(forceSender);
+        ForceSendNative sender = new ForceSendNative{value: assets}();
+        sender.forceSend(payable(address(strategyContract)));
+        VM.stopPrank();
     }
 
     function _addFacet(address facetAddress_, bytes4[] memory selectors) internal {

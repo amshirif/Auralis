@@ -6,19 +6,18 @@ import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC20Metadata} from "../src/interfaces/IERC20Metadata.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
-import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
+import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
-import {
-    DiamondVaultHostHardeningFixture,
-    IFacetVersionMarker
-} from "./helpers/DiamondVaultHostHardeningTestHarness.sol";
+import {DiamondNativeVaultHostHardeningFixture} from "./helpers/DiamondNativeVaultHostHardeningTestHarness.sol";
+import {IFacetVersionMarker} from "./helpers/DiamondVaultHostHardeningTestHarness.sol";
 
-contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
-    function testCoreFacetReplaceRemoveReAddPreservesState() public {
-        _installAndSeedVaultHost();
+contract DiamondNativeVaultHostHardeningTest is DiamondNativeVaultHostHardeningFixture {
+    function testNativeCoreFacetReplaceRemoveReAddPreservesState() public {
+        _installAndSeedNativeVaultHost();
         _injectStrategyProfit(STRATEGY_PROFIT_ASSETS);
 
         StrategyStateSnapshot memory initialState = _snapshotStrategyState();
@@ -33,13 +32,13 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
             "core marker owner mismatch"
         );
         assertTrue(IFacetVersionMarker(address(diamond)).facetVersion() == 2, "core replacement marker mismatch");
-        assertTrue(coreFacetInterface().asset() == address(asset), "core asset mismatch after replace");
+        assertTrue(coreFacetInterface().asset() == LibVaultAsset.NATIVE_ASSET_SENTINEL, "core asset mismatch");
         assertTrue(
-            keccak256(bytes(IERC20Metadata(address(diamond)).name())) == keccak256(bytes("Vault Share")),
+            keccak256(bytes(IERC20Metadata(address(diamond)).name())) == keccak256(bytes("Native Vault Share")),
             "core name mismatch after replace"
         );
         assertTrue(
-            keccak256(bytes(IERC20Metadata(address(diamond)).symbol())) == keccak256(bytes("vSHARE")),
+            keccak256(bytes(IERC20Metadata(address(diamond)).symbol())) == keccak256(bytes("nvSHARE")),
             "core symbol mismatch after replace"
         );
         assertTrue(coreFacetInterface().balanceOf(bob) == BOB_DEPOSIT, "bob balance mismatch");
@@ -76,15 +75,59 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
             IERC165(address(diamond)).supportsInterface(type(IERC4626VaultFacet).interfaceId),
             "core interface missing after re-add"
         );
-        assertTrue(coreFacetInterface().asset() == address(asset), "core asset mismatch after re-add");
+        assertTrue(coreFacetInterface().asset() == LibVaultAsset.NATIVE_ASSET_SENTINEL, "core asset mismatch");
         assertTrue(coreFacetInterface().balanceOf(bob) == BOB_DEPOSIT, "bob balance mismatch after re-add");
         assertTrue(coreFacetInterface().balanceOf(carol) == CAROL_DEPOSIT, "carol balance mismatch after re-add");
         assertTrue(coreFacetInterface().allowance(bob, eve) == SHARE_ALLOWANCE, "allowance mismatch after re-add");
         _assertStrategyState(initialState);
     }
 
-    function testControlsFacetReplaceRemoveReAddPreservesControlState() public {
-        _installAndSeedVaultHost();
+    function testNativeFacetReplaceRemoveReAddPreservesState() public {
+        _installAndSeedNativeVaultHost();
+
+        StrategyStateSnapshot memory initialState = _snapshotStrategyState();
+
+        _replaceNativeFacet(address(nativeReplacement));
+        _addNativeReplacementMarker(address(nativeReplacement));
+
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultNativeSelectors(), address(nativeReplacement));
+        assertTrue(
+            IDiamondLoupe(address(diamond)).facetAddress(IFacetVersionMarker.facetVersion.selector)
+                == address(nativeReplacement),
+            "native marker owner mismatch"
+        );
+        assertTrue(IFacetVersionMarker(address(diamond)).facetVersion() == 2, "native replacement marker mismatch");
+        _assertStrategyState(initialState);
+        assertTrue(
+            IERC165(address(diamond)).supportsInterface(type(IERC7535VaultFacet).interfaceId),
+            "native interface missing after replace"
+        );
+
+        _removeNativeFacetWithMarker();
+
+        _assertMissingSelector(
+            abi.encodeWithSelector(IERC7535VaultFacet.depositNative.selector, bob),
+            "native deposit selector should be missing"
+        );
+        assertTrue(coreFacetInterface().asset() == LibVaultAsset.NATIVE_ASSET_SENTINEL, "core should still route");
+        assertTrue(
+            !IERC165(address(diamond)).supportsInterface(type(IERC7535VaultFacet).interfaceId),
+            "native interface should be absent when selectors removed"
+        );
+
+        _reAddNativeFacetWithMarker(address(nativeReplacement));
+
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultNativeSelectors(), address(nativeReplacement));
+        assertTrue(IFacetVersionMarker(address(diamond)).facetVersion() == 2, "native marker mismatch after re-add");
+        assertTrue(
+            IERC165(address(diamond)).supportsInterface(type(IERC7535VaultFacet).interfaceId),
+            "native interface missing after re-add"
+        );
+        _assertStrategyState(initialState);
+    }
+
+    function testNativeControlsFacetReplaceRemoveReAddPreservesControlState() public {
+        _installAndSeedNativeVaultHost();
         _pauseVault();
 
         StrategyStateSnapshot memory initialState = _snapshotStrategyState();
@@ -114,7 +157,10 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
             abi.encodeWithSelector(IERC165.supportsInterface.selector, type(IERC4626VaultFacet).interfaceId),
             "supportsInterface selector should be missing"
         );
-        assertTrue(coreFacetInterface().asset() == address(asset), "core should still route after controls removal");
+        assertTrue(
+            coreFacetInterface().asset() == LibVaultAsset.NATIVE_ASSET_SENTINEL,
+            "core should still route after controls removal"
+        );
         assertTrue(
             integrationFacetInterface().strategyDebt() == initialState.strategyDebt,
             "integration should still route after controls removal"
@@ -122,7 +168,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
 
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(IPausable.PausableEnforcedPause.selector));
-        coreFacetInterface().deposit(1, bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 1 ether}(bob);
 
         _reAddControlsFacetWithMarker(address(controlsReplacement));
 
@@ -132,18 +178,19 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         _assertStrategyState(initialState);
         assertTrue(controlsFacetInterface().paused(), "paused state should persist after re-add");
         assertTrue(
-            IERC165(address(diamond)).supportsInterface(type(IERC4626VaultFacet).interfaceId),
-            "core interface should be reported after controls re-add"
+            IERC165(address(diamond)).supportsInterface(type(IERC7535VaultFacet).interfaceId),
+            "native interface should be reported after controls re-add"
         );
         _unpauseVault();
 
+        uint256 expectedShares = coreFacetInterface().previewDeposit(1 ether);
         VM.prank(dave);
-        coreFacetInterface().deposit(1, dave);
-        assertTrue(coreFacetInterface().balanceOf(dave) == 1, "dave should receive shares after unpause");
+        uint256 mintedShares = IERC7535VaultFacet(address(diamond)).depositNative{value: 1 ether}(dave);
+        assertTrue(mintedShares == expectedShares, "dave should receive previewed shares after unpause");
     }
 
-    function testIntegrationFacetReplaceRemoveReAddPreservesIntegrationState() public {
-        _installAndSeedVaultHost();
+    function testNativeIntegrationFacetReplaceRemoveReAddPreservesIntegrationState() public {
+        _installAndSeedNativeVaultHost();
 
         StrategyStateSnapshot memory initialState = _snapshotStrategyState();
 
@@ -171,7 +218,10 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
             abi.encodeWithSelector(IERC4626VaultIntegrationFacet.oracleAdapter.selector),
             "integration oracle selector should be missing"
         );
-        assertTrue(coreFacetInterface().asset() == address(asset), "core should still route after integration removal");
+        assertTrue(
+            coreFacetInterface().asset() == LibVaultAsset.NATIVE_ASSET_SENTINEL,
+            "core should still route after integration removal"
+        );
         assertTrue(
             controlsFacetInterface().hasRole(controlsFacetInterface().VAULT_MANAGER_ROLE(), eve),
             "controls should still route after integration removal"
@@ -182,20 +232,24 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         );
 
         uint256 expectedBobSharesBurned = coreFacetInterface().previewWithdraw(BOB_AUTO_PULL_WITHDRAW_ASSETS);
+        uint256 bobBalanceBefore = bob.balance;
         VM.prank(bob);
         uint256 burnedShares = coreFacetInterface().withdraw(BOB_AUTO_PULL_WITHDRAW_ASSETS, bob, bob);
         assertTrue(
             burnedShares == expectedBobSharesBurned, "withdraw should use previewWithdraw semantics while removed"
         );
+        assertTrue(bob.balance == bobBalanceBefore + BOB_AUTO_PULL_WITHDRAW_ASSETS, "bob native payout mismatch");
 
         uint256 expectedCarolAssetsReturned = coreFacetInterface().previewRedeem(CAROL_AUTO_PULL_REDEEM_SHARES);
+        uint256 carolBalanceBefore = carol.balance;
         VM.prank(carol);
         uint256 returnedAssets = coreFacetInterface().redeem(CAROL_AUTO_PULL_REDEEM_SHARES, carol, carol);
         assertTrue(
             returnedAssets == expectedCarolAssetsReturned, "redeem should use previewRedeem semantics while removed"
         );
+        assertTrue(carol.balance == carolBalanceBefore + expectedCarolAssetsReturned, "carol native payout mismatch");
 
-        uint256 expectedIdleAssets = asset.balanceOf(address(diamond));
+        uint256 expectedIdleAssets = address(diamond).balance;
         uint256 expectedLiveStrategyAssets = strategyContract.totalAssets();
         uint256 expectedTotalManagedAssets = coreFacetInterface().totalManagedAssets();
         uint256 expectedTotalAssets = coreFacetInterface().totalAssets();
@@ -235,8 +289,8 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         assertTrue(coreFacetInterface().balanceOf(carol) == expectedCarolBalance, "carol balance mismatch after re-add");
     }
 
-    function testIntegrationEmergencyExitStatePersistsAcrossFacetChurn() public {
-        _installAndSeedVaultHost();
+    function testNativeIntegrationEmergencyExitStatePersistsAcrossFacetChurnAndRebind() public {
+        _installAndSeedNativeVaultHost();
 
         VM.prank(admin);
         uint256 emergencyAssets = integrationFacetInterface().emergencyExitStrategy();
@@ -244,12 +298,15 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
 
         _replaceIntegrationFacet(address(integrationReplacement));
         _addIntegrationReplacementMarker(address(integrationReplacement));
+        _replaceNativeFacet(address(nativeReplacement));
         _removeIntegrationFacetWithMarker();
+        _removeSelectors(LibVaultFacetSelectors.vaultNativeSelectors());
         _reAddIntegrationFacetWithMarker(address(integrationReplacement));
+        _addFacet(address(nativeReplacement), LibVaultFacetSelectors.vaultNativeSelectors());
 
         assertTrue(
             IFacetVersionMarker(address(diamond)).facetVersion() == 2,
-            "integration marker mismatch after emergency re-add"
+            "replacement marker mismatch after emergency re-add"
         );
         assertTrue(integrationFacetInterface().strategy() == address(strategyContract), "strategy mismatch after churn");
         assertTrue(integrationFacetInterface().strategyEmergencyExit(), "emergency exit should persist after churn");
@@ -264,13 +321,39 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         VM.prank(admin);
         integrationFacetInterface().setStrategy(address(0));
         VM.prank(admin);
-        integrationFacetInterface().setStrategy(address(strategyContract));
+        integrationFacetInterface().setStrategy(address(replacementStrategyContract));
 
         assertFalse(integrationFacetInterface().strategyEmergencyExit(), "emergency exit should clear on rebind");
 
         VM.prank(admin);
-        integrationFacetInterface().deployToStrategy(1);
-        assertTrue(integrationFacetInterface().strategyDebt() == 1, "deploy should work after strategy rebind");
+        integrationFacetInterface().deployToStrategy(1 ether);
+        assertTrue(integrationFacetInterface().strategyDebt() == 1 ether, "deploy should work after strategy rebind");
+        assertTrue(
+            integrationFacetInterface().strategy() == address(replacementStrategyContract),
+            "replacement strategy should bind"
+        );
+    }
+
+    function testForceSentNativeAssetsDoNotChangeAccountingOrMaxFunctions() public {
+        _installAndSeedNativeVaultHost();
+        _injectStrategyProfit(STRATEGY_PROFIT_ASSETS);
+
+        StrategyStateSnapshot memory beforeState = _snapshotStrategyState();
+        uint256 expectedVaultBalance = address(diamond).balance + 3 ether;
+        uint256 expectedStrategyBalance = address(strategyContract).balance + 2 ether;
+
+        _forceSendToVault(3 ether);
+        _forceSendToStrategy(2 ether);
+
+        assertTrue(address(diamond).balance == expectedVaultBalance, "vault force-send balance mismatch");
+        assertTrue(address(strategyContract).balance == expectedStrategyBalance, "strategy force-send balance mismatch");
+        assertTrue(coreFacetInterface().totalManagedAssets() == beforeState.totalManagedAssets, "book assets changed");
+        assertTrue(coreFacetInterface().totalAssets() == beforeState.totalAssets, "pricing assets changed");
+        assertTrue(coreFacetInterface().maxWithdraw(bob) == beforeState.bobMaxWithdraw, "maxWithdraw changed");
+        assertTrue(coreFacetInterface().maxRedeem(bob) == beforeState.bobMaxRedeem, "maxRedeem changed");
+        assertTrue(
+            integrationFacetInterface().liveStrategyAssets() == beforeState.liveStrategyAssets, "live assets changed"
+        );
     }
 
     function _assertSelectorsOwnedByFacet(bytes4[] memory selectors, address expectedFacet) internal view {
@@ -291,11 +374,11 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         assertTrue(depositFeeBps == 100, "deposit fee mismatch");
         assertTrue(withdrawFeeBps == 50, "withdraw fee mismatch");
         assertTrue(feeRecipient == feeSink, "fee recipient mismatch");
-        assertTrue(maxTotalAssets == 900_000, "max total assets mismatch");
-        assertTrue(maxDeposit == 300_000, "max deposit mismatch");
-        assertTrue(maxMint == 300_000, "max mint mismatch");
-        assertTrue(maxWithdraw == 250_000, "max withdraw mismatch");
-        assertTrue(maxRedeem == 250_000, "max redeem mismatch");
+        assertTrue(maxTotalAssets == 90 ether, "max total assets mismatch");
+        assertTrue(maxDeposit == 30 ether, "max deposit mismatch");
+        assertTrue(maxMint == 30 ether, "max mint mismatch");
+        assertTrue(maxWithdraw == 25 ether, "max withdraw mismatch");
+        assertTrue(maxRedeem == 25 ether, "max redeem mismatch");
         assertTrue(controlsFacetInterface().hasRole(managerRole, eve), "eve manager role mismatch");
         assertTrue(start == uint64(currentTime - 100), "role window start mismatch");
         assertTrue(end == uint64(currentTime + 1_000), "role window end mismatch");

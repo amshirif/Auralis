@@ -35,9 +35,10 @@ reviewable engineering system.
   with init, selector ownership, Permit/metadata support, and host-level
   hardening coverage.
 - A hosted ERC-4626 vault platform deployed behind a diamond host, split across
-  core, controls, and integration facets with deployment-backed init, oracle
-  wiring, replace/remove/re-add hardening, and diamond-routed invariant
-  coverage.
+  core, native, controls, and integration facets with ERC20 and native-asset
+  modes, active strategy lifecycle management, live strategy-aware accounting,
+  loss-aware withdrawals, emergency-exit safety, deployment-backed init, and
+  diamond-routed hardening plus invariant coverage.
 - Operational maturity through local bootstrap, smoke validation, upgrade
   rehearsal, system-hardening flows, and matching CI gates.
 - A local Auralis workflow for full-stack bootstrap, smoke checks, simulated

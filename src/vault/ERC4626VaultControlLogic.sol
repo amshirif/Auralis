@@ -120,6 +120,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
             // The cap is expressed in net managed assets, so the gross deposit ceiling must be fee-aware;
             // otherwise a post-fee credit could exceed the configured cap.
             uint256 capBasedMaxAssets = LibERC4626VaultControlLogic.grossUpForDepositFee(remainingAssets);
+            (uint256 creditedAssets,) = LibERC4626VaultControlLogic.netAfterDepositFee(capBasedMaxAssets);
+            if (creditedAssets > remainingAssets) {
+                capBasedMaxAssets -= 1;
+            }
             if (capBasedMaxAssets < maxAssets) {
                 maxAssets = capBasedMaxAssets;
             }
@@ -157,13 +161,17 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
     }
 
     function maxWithdraw(address owner) public view virtual override returns (uint256) {
-        if (owner == address(0) || _vaultOperationsPaused()) {
+        if (owner == address(0) || _vaultOperationsPaused() || totalAssets() == 0) {
             return 0;
         }
 
         uint256 grossAssets = _convertToAssets(balanceOf(owner), Rounding.Down);
+        uint256 liquidityCapAssets = _withdrawLiquidityCapAssets();
+        if (grossAssets > liquidityCapAssets) {
+            grossAssets = liquidityCapAssets;
+        }
         // Withdraw limits are expressed in what the receiver can actually take out, so maxWithdraw uses
-        // the net-after-fee view rather than the gross accounting assets burned.
+        // the net-after-fee view after immediate-liquidity capping rather than gross accounting assets.
         (uint256 netAssets,) = LibERC4626VaultControlLogic.withdrawNetFromGross(grossAssets);
 
         (,,, uint128 maxWithdraw_,) = LibERC4626VaultControlLogic.limitConfig();
@@ -175,11 +183,19 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
     }
 
     function maxRedeem(address owner) public view virtual override returns (uint256) {
-        if (owner == address(0) || _vaultOperationsPaused()) {
+        if (owner == address(0) || _vaultOperationsPaused() || totalAssets() == 0) {
             return 0;
         }
 
         uint256 redeemableShares = balanceOf(owner);
+        uint256 liquidityCapAssets = _withdrawLiquidityCapAssets();
+        if (liquidityCapAssets != type(uint256).max) {
+            uint256 liquidityCappedShares = _convertToShares(liquidityCapAssets, Rounding.Down);
+            if (liquidityCappedShares < redeemableShares) {
+                redeemableShares = liquidityCappedShares;
+            }
+        }
+
         (,,,, uint128 maxRedeem_) = LibERC4626VaultControlLogic.limitConfig();
         if (maxRedeem_ != 0 && redeemableShares > maxRedeem_) {
             return maxRedeem_;
@@ -268,6 +284,67 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
+    function _depositNativeWithControls(address receiver) internal returns (uint256 shares) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+
+        uint256 assets = msg.value;
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            revert IERC4626VaultControls.ERC4626VaultDepositLimitExceeded(assets, maxAssets);
+        }
+
+        (uint256 netAssets, uint256 feeAssets) = LibERC4626VaultControlLogic.netAfterDepositFee(assets);
+        _enforceTotalAssetsCap(netAssets);
+
+        shares = _convertToShares(netAssets, Rounding.Down);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        _increaseManagedAssets(netAssets);
+        _mintShares(receiver, shares);
+        _payoutFee(feeAssets);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
+    function _mintNativeWithControls(uint256 shares, address receiver) internal returns (uint256 assets) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        uint256 maxShares = maxMint(receiver);
+        if (shares > maxShares) {
+            revert IERC4626VaultControls.ERC4626VaultMintLimitExceeded(shares, maxShares);
+        }
+
+        uint256 netAssets = _convertToAssets(shares, Rounding.Up);
+        if (netAssets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        assets = LibERC4626VaultControlLogic.grossUpForDepositFee(netAssets);
+        if (msg.value != assets) {
+            revert ERC4626VaultInvalidNativeAssetValue(msg.value, assets);
+        }
+
+        uint256 feeAssets = assets - netAssets;
+
+        _enforceTotalAssetsCap(netAssets);
+        _increaseManagedAssets(netAssets);
+        _mintShares(receiver, shares);
+        _payoutFee(feeAssets);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
     function _withdrawWithControls(uint256 assets, address receiver, address owner) internal returns (uint256 shares) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -292,7 +369,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -324,7 +401,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -352,6 +429,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         _safeTransferAsset(LibERC4626VaultControlLogic.feeRecipient(), feeAssets);
+    }
+
+    function _withdrawLiquidityCapAssets() internal view virtual returns (uint256) {
+        return type(uint256).max;
     }
 
     function _vaultOperationsPaused() internal view virtual returns (bool);

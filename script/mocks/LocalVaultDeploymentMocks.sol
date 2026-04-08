@@ -3,7 +3,9 @@ pragma solidity ^0.8.30;
 
 import {IERC20Metadata} from "../../src/interfaces/IERC20Metadata.sol";
 import {IOracleFeed} from "../../src/interfaces/IOracleFeed.sol";
+import {IERC4626VaultStrategy} from "../../src/interfaces/IERC4626VaultStrategy.sol";
 import {OracleAdapter} from "../../src/oracle/OracleAdapter.sol";
+import {LibVaultAsset} from "../../src/vault/libraries/LibVaultAsset.sol";
 
 /// @title LocalMintableVaultAsset
 /// @notice Minimal mintable ERC20 used for local hosted-vault deployment rehearsal.
@@ -126,6 +128,141 @@ contract LocalMockOracleFeed is IOracleFeed {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         return (_roundId, _answer, _updatedAt, _updatedAt, _answeredInRound);
+    }
+}
+
+/// @title LocalHappyPathVaultStrategy
+/// @notice Simple vault-bound, asset-bound strategy used for local hosted-vault deployment and smoke flows.
+contract LocalHappyPathVaultStrategy is IERC4626VaultStrategy {
+    address internal immutable VAULT;
+    address internal immutable ASSET;
+    uint256 internal _trackedAssets;
+
+    constructor(address vault_, address asset_) {
+        VAULT = vault_;
+        ASSET = asset_;
+    }
+
+    modifier onlyVault() {
+        if (msg.sender != VAULT) {
+            revert ERC4626VaultStrategyOnlyVault(msg.sender, VAULT);
+        }
+        _;
+    }
+
+    function vault() external view returns (address) {
+        return VAULT;
+    }
+
+    function asset() external view returns (address) {
+        return ASSET;
+    }
+
+    function totalAssets() external view returns (uint256) {
+        return _trackedAssets;
+    }
+
+    function maxWithdrawableAssets() external view returns (uint256) {
+        return _trackedAssets;
+    }
+
+    function deployFunds(uint256 assets) external onlyVault {
+        _trackedAssets += assets;
+        require(LocalMintableVaultAsset(ASSET).balanceOf(address(this)) >= _trackedAssets, "STRATEGY_UNDERFUNDED");
+    }
+
+    function withdrawToVault(uint256 assets) external onlyVault returns (uint256 assetsReturned) {
+        assetsReturned = assets > _trackedAssets ? _trackedAssets : assets;
+        _trackedAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            require(LocalMintableVaultAsset(ASSET).transfer(VAULT, assetsReturned), "STRATEGY_TRANSFER_FAILED");
+        }
+    }
+
+    function withdrawAllToVault() external onlyVault returns (uint256 assetsReturned) {
+        assetsReturned = _trackedAssets;
+        _trackedAssets = 0;
+        if (assetsReturned != 0) {
+            require(LocalMintableVaultAsset(ASSET).transfer(VAULT, assetsReturned), "STRATEGY_TRANSFER_FAILED");
+        }
+    }
+
+    function injectProfit(uint256 assets) external {
+        if (assets == 0) {
+            return;
+        }
+
+        LocalMintableVaultAsset(ASSET).mint(address(this), assets);
+        _trackedAssets += assets;
+    }
+}
+
+/// @title LocalNativeHappyPathVaultStrategy
+/// @notice Simple native vault-bound strategy used for local hosted-vault deployment and smoke flows.
+contract LocalNativeHappyPathVaultStrategy is IERC4626VaultStrategy {
+    address internal immutable VAULT;
+    uint256 internal _trackedAssets;
+
+    constructor(address vault_) {
+        VAULT = vault_;
+    }
+
+    receive() external payable {}
+
+    modifier onlyVault() {
+        if (msg.sender != VAULT) {
+            revert ERC4626VaultStrategyOnlyVault(msg.sender, VAULT);
+        }
+        _;
+    }
+
+    function vault() external view returns (address) {
+        return VAULT;
+    }
+
+    function asset() external pure returns (address) {
+        return LibVaultAsset.NATIVE_ASSET_SENTINEL;
+    }
+
+    function totalAssets() external view returns (uint256) {
+        return _trackedAssets;
+    }
+
+    function maxWithdrawableAssets() external view returns (uint256) {
+        return _trackedAssets;
+    }
+
+    function deployFunds(uint256 assets) external onlyVault {
+        _trackedAssets += assets;
+        require(address(this).balance >= _trackedAssets, "STRATEGY_UNDERFUNDED");
+    }
+
+    function withdrawToVault(uint256 assets) external onlyVault returns (uint256 assetsReturned) {
+        assetsReturned = assets > _trackedAssets ? _trackedAssets : assets;
+        _trackedAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            (bool success,) = payable(VAULT).call{value: assetsReturned}("");
+            require(success, "STRATEGY_TRANSFER_FAILED");
+        }
+    }
+
+    function withdrawAllToVault() external onlyVault returns (uint256 assetsReturned) {
+        assetsReturned = _trackedAssets;
+        _trackedAssets = 0;
+        if (assetsReturned != 0) {
+            (bool success,) = payable(VAULT).call{value: assetsReturned}("");
+            require(success, "STRATEGY_TRANSFER_FAILED");
+        }
+    }
+
+    function injectProfit(uint256 assets) external payable {
+        if (assets == 0) {
+            require(msg.value == 0, "STRATEGY_PROFIT_VALUE_MISMATCH");
+            return;
+        }
+
+        require(msg.value == assets, "STRATEGY_PROFIT_VALUE_MISMATCH");
+        _trackedAssets += assets;
     }
 }
 
