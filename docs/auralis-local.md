@@ -45,13 +45,15 @@ bash scripts/auralis-reset.sh
 `auralis-up.sh`
 - starts Anvil if one is not already available
 - deploys the ERC20 host, ERC721 host, ERC20 vault host, and native vault host
-- writes `deployments/auralis.local.json`
+- writes the host-specific vault artifacts and `deployments/auralis.local.json`
 
 `auralis-smoke.sh`
 - checks deployed code is present
 - runs token and NFT happy-path transactions
 - runs ERC20 vault deposit, strategy deploy, profit sync, manager pull, user auto-pull, and emergency-exit flows
-- runs native vault deposit, strategy deploy, profit sync, manager pull, user auto-pull, and emergency-exit flows
+- runs native vault exact-value deposit and mint, strategy deploy, payable
+  profit sync, manager pull, user auto-pull, emergency-exit, and strategy
+  rebind flows
 - restores both local vaults to a ready state by re-binding the configured strategy after the emergency-exit smoke
 - verifies both vault oracle quote paths are live
 
@@ -79,8 +81,33 @@ and records:
 - native vault host addresses
 - configured vault strategy addresses and zeroed initial strategy state
 
+The host-specific vault artifacts are:
+
+- `deployments/diamond-vault.local.json`
+- `deployments/diamond-native-vault.local.json`
+
+Each vault artifact records:
+
+- `assetMode` as `erc20` or `native`
+- the installed facet addresses, including `vaultNativeFacet`
+- the configured strategy and zeroed initial strategy state
+
+For backward compatibility:
+
+- `vaultHost` in `deployments/auralis.local.json` remains the ERC20 hosted
+  vault
+- `nativeVaultHost` is the parallel native hosted vault entry
+
 ## Simulated Activity
 
 The activity script is explicitly demo traffic for local development and review.
 It is meant to create realistic event history and state transitions, not to
 model production usage or strategy execution.
+
+For the native hosted vault specifically, the local workflow assumes:
+
+- asset-in flows use `depositNative` and `mintNative`
+- `mintNative` must be funded with exact `msg.value`
+- exits use standard `withdraw` and `redeem` and pay raw native asset
+- strategy profit injection is payable and uses raw ETH
+- force-sent ETH is not treated as managed assets by the vault accounting model

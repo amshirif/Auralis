@@ -7,6 +7,7 @@ It covers the supported diamond-hosted vault deployment:
 
 - one diamond
 - one `ERC4626VaultFacet`
+- one `ERC7535VaultFacet` for native mode
 - one `ERC4626VaultControlsFacet`
 - one `ERC4626VaultIntegrationFacet`
 - one active strategy per vault
@@ -33,6 +34,24 @@ The core facet also owns runtime liquidity sourcing for user withdrawals and
 redemptions. When idle vault liquidity is insufficient, it will pull
 immediately withdrawable assets from the configured strategy before finishing
 `withdraw` or `redeem`.
+
+### Native Facet
+
+`ERC7535VaultFacet` owns the native-only selector group:
+
+- `depositNative(address receiver)`
+- `mintNative(uint256 shares, address receiver)`
+
+It exists only for hosted vaults initialized with the native asset sentinel:
+
+- `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`
+
+Native mode keeps the standard ERC-4626 surface unchanged:
+
+- `deposit` and `mint` remain installed on the core facet but revert for native
+  vaults
+- `withdraw` and `redeem` stay on the core facet and pay raw native asset in
+  native mode
 
 ### Controls Facet
 
@@ -67,11 +86,12 @@ Initialization sequence:
 
 1. Install loupe selectors.
 2. Install the core, controls, and integration selector groups.
-3. Call
+3. For native mode, also install the native selector group.
+4. Call
    `initializeVault(address vaultAsset, string vaultName, string vaultSymbol, address admin)`
    through the diamond.
-4. Call `setOracleAdapter(address newAdapter)` through the integration facet.
-5. Call `setStrategy(address newStrategy)` through the integration facet.
+5. Call `setOracleAdapter(address newAdapter)` through the integration facet.
+6. Call `setStrategy(address newStrategy)` through the integration facet.
 
 Initialization behavior:
 
@@ -93,6 +113,10 @@ state with:
 - `strategyEmergencyExit() == false`
 
 No funds are deployed to strategy during deployment.
+
+The native local reference deployment in `script/DeployDiamondNativeVaultHost.s.sol`
+uses the same init model, but passes the native asset sentinel as
+`vaultAsset` and installs the native selector group.
 
 ## Role Model And Pause Behavior
 
@@ -123,6 +147,8 @@ Global pause blocks:
 
 - `deposit`
 - `mint`
+- `depositNative`
+- `mintNative`
 - `withdraw`
 - `redeem`
 
@@ -153,6 +179,9 @@ A strategy must satisfy `IERC4626VaultStrategy` and report:
 
 `setStrategy(...)` validates those bindings and requires `strategyDebt() == 0`
 before a strategy can be cleared or replaced.
+
+For native hosted vaults, `asset()` on both the vault and the strategy must be
+the native sentinel. No separate native-only strategy interface exists.
 
 ### Lifecycle Surface
 
@@ -214,6 +243,52 @@ while still keeping explicit book accounting for deployed debt.
 
 ## User-Facing Withdraw And Redeem Semantics
 
+### Native-Asset User Flows
+
+Native hosted vaults use the ERC-7535-style entry surface for asset-in flows.
+
+#### `depositNative(receiver)`
+
+- caller sends raw native asset as `msg.value`
+- shares are minted from the same fee/limit/pause logic used by hosted
+  `deposit`
+- the vault asset remains the sentinel address, not wrapped native token state
+
+#### `mintNative(shares, receiver)`
+
+- caller requests exact `shares`
+- the vault computes the gross native assets required under current fee logic
+- `msg.value` must equal that required gross amount exactly
+- underpayment reverts
+- overpayment also reverts
+- no refund path, excess credit, or donation semantics are supported
+
+#### `withdraw(assets)` and `redeem(shares)` in native mode
+
+- user exits remain on the standard ERC-4626 core facet
+- payouts are sent as raw native asset
+- if idle liquidity is short, the vault may auto-pull immediately withdrawable
+  native liquidity from strategy before paying the receiver
+
+## Native-Asset Accounting And Safety Assumptions
+
+Hosted native vaults still use tracked managed assets rather than raw
+`address(this).balance`.
+
+Implications:
+- force-sent ETH does not increase `totalManagedAssets()`
+- force-sent ETH does not increase share price through `totalAssets()` pricing
+- force-sent ETH does not increase hosted `maxWithdraw()` or `maxRedeem()`
+- if a native exit is satisfied partly or fully from untracked force-sent ETH,
+  book accounting only burns the tracked portion of assets
+
+This is an explicit safety choice:
+- untracked native surplus is treated as non-canonical balance
+- native integrators should not rely on arbitrary ETH transfers into the vault
+  to represent managed assets
+- the vault does not attempt to reconcile unsolicited ETH into strategy debt or
+  book value automatically
+
 `withdraw(assets)` and `redeem(shares)` remain core-facet entrypoints, but they
 are strategy-aware.
 
@@ -239,6 +314,8 @@ are strategy-aware.
   pricing and limit shaping
 - `maxWithdraw()` and `maxRedeem()` are bounded by immediate liquidity, not by
   total mark-to-market assets alone
+- in native mode, immediate liquidity excludes untracked force-sent ETH above
+  tracked idle assets
 - `maxWithdraw()` and `maxRedeem()` are zero when `totalAssets() == 0`, even if
   residual dust shares still exist after a full loss event
 
@@ -249,6 +326,8 @@ For the supported hosted vault deployment:
 - `diamondCut` is owned by `DiamondCutFacet`
 - loupe and ownership-introspection selectors are owned by `DiamondLoupeFacet`
 - core selectors are owned by `ERC4626VaultFacet`
+- native selectors are owned by `ERC7535VaultFacet` when native mode is
+  installed
 - controls selectors and `supportsInterface(bytes4)` are owned by
   `ERC4626VaultControlsFacet`
 - integration selectors are owned by `ERC4626VaultIntegrationFacet`
@@ -257,6 +336,8 @@ One important implication:
 
 - support for `IERC4626VaultFacet` and `IERC4626VaultIntegrationFacet` is
   reported through the controls facet
+- support for `IERC7535VaultFacet` is only reported when native selectors are
+  installed
 - those interface IDs are only reported when the corresponding core or
   integration selectors are installed
 
@@ -282,6 +363,7 @@ Current hardening coverage explicitly validates persistence for:
 Reference local deployment flow:
 
 - `script/DeployDiamondVaultHost.s.sol`
+- `script/DeployDiamondNativeVaultHost.s.sol`
 
 Reference deployment-backed validation:
 
@@ -291,6 +373,8 @@ Reference deployment-backed validation:
 - `test/VaultStrategyFoundationCore.t.sol`
 - `test/DiamondVaultHostHardening.t.sol`
 - `test/DiamondVaultHostInvariant.t.sol`
+- `test/DiamondNativeVaultHostHardening.t.sol`
+- `test/DiamondNativeVaultHostInvariant.t.sol`
 
 ## Out Of Scope
 
@@ -299,4 +383,6 @@ The current hosted strategy model does not include:
 - multi-strategy allocation
 - async or queued withdrawals
 - automatic harvest or keeper-driven execution
+- wrapping native balances into WETH or another canonical ERC-20 asset inside
+  the hosted vault
 - extension-standard work deferred to `#24 Advanced Extensions`

@@ -9,6 +9,9 @@ repository:
 It covers the standalone vault modules and their math/control behavior. For the
 diamond-hosted vault platform, see `docs/vault-facets.md`.
 
+Native-asset mode is only supported through the diamond-hosted vault platform.
+The standalone `ERC4626Vault` module remains an ERC-20 asset vault surface.
+
 ## Contract Roles
 
 - `ERC4626VaultBase`: initializer + share/asset accounting primitives.
@@ -132,6 +135,19 @@ vault entrypoints. This is the primary emergency stop for vault write paths.
 - No native slippage parameters are present on ERC-4626 functions; integrators
   should pre-check previews and enforce client-side constraints.
 - The controls layer applies global limits, not per-user risk limits.
+
+## Hosted Native-Mode Boundary
+
+The hosted platform extends this ERC-20 vault model with an ERC-7535-style
+native entry surface, but the native behavior is not part of the standalone
+module contract described here.
+
+Implications:
+- `deposit` and `mint` remain ERC-20 entrypoints only.
+- native funding, exact `msg.value` validation, and raw native payouts are
+  documented in `docs/vault-facets.md`.
+- forced native transfers are a hosted-vault accounting concern, not a
+  standalone ERC-20 vault concern.
 
 ## Test References
 
