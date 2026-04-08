@@ -24,6 +24,24 @@ For the standalone ERC-4626 module behavior and math reference, see
 The hosted vault diamond preserves a split between user-facing vault flows,
 control-plane selectors, and integration/config selectors.
 
+### Host Structure
+
+```mermaid
+flowchart TD
+    Diamond["Vault Diamond"]
+    Cut["DiamondCutFacet<br/>diamondCut"]
+    Loupe["DiamondLoupeFacet<br/>loupe and owner reads"]
+    Core["ERC4626VaultFacet<br/>user flows and max/preview helpers"]
+    Controls["ERC4626VaultControlsFacet<br/>fees, limits, roles, pause"]
+    Integration["ERC4626VaultIntegrationFacet<br/>oracle and strategy config"]
+
+    Diamond --> Cut
+    Diamond --> Loupe
+    Diamond --> Core
+    Diamond --> Controls
+    Diamond --> Integration
+```
+
 ### Core Facet
 
 `ERC4626VaultFacet` owns the ERC-4626/share-token selector group:
@@ -124,6 +142,21 @@ vault does not currently use per-scope pause behavior for ERC-4626 entrypoints.
 
 The integration facet is config/report infrastructure, not an active strategy
 engine.
+
+### Runtime Flow
+
+```mermaid
+flowchart LR
+    Init["initializeVault"] --> Roles["grant admin, manager, pauser roles"]
+    Roles --> Oracle["optional setOracleAdapter"]
+    Oracle --> Strategy["optional setStrategy"]
+    Strategy --> Users["deposit / mint / withdraw / redeem"]
+    Strategy --> Reports["reportStrategyAssets"]
+    Reports --> Estimate["estimatedTotalManagedAssets"]
+    Users --> Managed["totalManagedAssets and ERC-4626 math"]
+
+    Reports -. advisory only .-> Managed
+```
 
 Oracle behavior:
 
