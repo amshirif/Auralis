@@ -5,6 +5,7 @@ import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {ERC4626VaultStrategyAccountingFixture} from "./helpers/ERC4626VaultStrategyAccountingTestHarness.sol";
 
 contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountingFixture {
@@ -37,7 +38,6 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         _simulateStrategyDeployment(address(facet), directProfitStrategy, STRATEGY_DEBT);
         directProfitStrategy.injectProfit(20);
 
-        assertTrue(facet.strategyDebtForTest() == STRATEGY_DEBT, "strategy debt mismatch");
         assertTrue(facet.totalManagedAssets() == DEPOSIT_ASSETS, "book value should remain unchanged");
         assertTrue(facet.totalAssets() == 120, "mark-to-market assets mismatch");
         assertTrue(facet.convertToShares(12) == 10, "convertToShares profit mismatch");
@@ -182,5 +182,104 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         );
         assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "post-withdraw totalAssets mismatch");
+    }
+
+    function testDiamondNativeHostedVaultStrategyAccountingUsesRealLifecycleAndAutoPull() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(address(this), 20);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeProfitStrategy.injectProfit{value: 20}();
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setLimitConfig(125, 0, 0, 0, 0);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == DEPOSIT_ASSETS, "book value mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 120, "diamond totalAssets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewDeposit(12) == 10, "diamond previewDeposit mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewMint(10) == 12, "diamond previewMint mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(12) == 10, "diamond previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(10) == 12, "diamond previewRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxDeposit(bob) == 5, "maxDeposit should use live totalAssets");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxMint(bob) == 4, "maxMint should use live totalAssets");
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 120,
+            "maxWithdraw should include strategy liquidity"
+        );
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100, "maxRedeem should include strategy liquidity"
+        );
+
+        uint256 bobBalanceBeforeWithdraw = bob.balance;
+        VM.prank(bob);
+        uint256 burnedShares = IERC4626VaultFacet(address(diamond)).withdraw(80, bob, bob);
+
+        assertTrue(burnedShares == 67, "diamond withdraw should burn shares at updated price");
+        assertTrue(bob.balance == bobBalanceBeforeWithdraw + 80, "withdraw should pay raw native asset");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).idleAssets() == 0, "idle assets should be zero");
+        assertTrue(IERC4626VaultIntegrationFacet(address(diamond)).strategyDebt() == 40, "strategy debt mismatch");
+        assertTrue(
+            IERC4626VaultIntegrationFacet(address(diamond)).liveStrategyAssets() == 40, "live strategy assets mismatch"
+        );
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "post-withdraw totalAssets mismatch");
+        assertTrue(address(diamond).balance == 0, "vault idle balance should be exhausted");
+    }
+
+    function testDiamondNativeRedeemAutoPullsAndReturnsCurrentShareValue() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(address(this), 20);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeProfitStrategy.injectProfit{value: 20}();
+
+        uint256 bobBalanceBeforeRedeem = bob.balance;
+        VM.prank(bob);
+        uint256 returnedAssets = IERC4626VaultFacet(address(diamond)).redeem(50, bob, bob);
+
+        assertTrue(returnedAssets == 60, "redeem should return current share value");
+        assertTrue(bob.balance == bobBalanceBeforeRedeem + 60, "redeem should pay raw native asset");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 50, "remaining shares mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 60, "book value mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 60, "total assets mismatch");
+        assertTrue(address(diamond).balance == 0, "vault idle balance should be exhausted after redeem");
+        assertTrue(diamondNativeProfitStrategy.totalAssets() == 60, "remaining strategy assets mismatch");
+    }
+
+    function testDiamondNativeWithdrawRevertsWhenStrategyLiquidityCannotCoverExactAssets() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeLossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeLossStrategy.applyLoss(20, 10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultWithdrawLimitExceeded.selector, 70, 50)
+        );
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).withdraw(70, bob, bob);
     }
 }

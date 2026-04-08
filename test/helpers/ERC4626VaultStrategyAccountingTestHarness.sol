@@ -7,6 +7,8 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC4626VaultStrategy} from "../../src/interfaces/IERC4626VaultStrategy.sol";
+import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
+import {LibVaultAsset} from "../../src/vault/libraries/LibVaultAsset.sol";
 import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibERC4626VaultStorage} from "../../src/vault/storage/LibERC4626VaultStorage.sol";
@@ -15,17 +17,18 @@ import {TestBase} from "./AccessControlTestHarness.sol";
 import {ERC4626VaultControlsFacetHarness} from "./ERC4626VaultControlsFacetTestHarness.sol";
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 import {ERC4626VaultIntegrationFacetHarness} from "./ERC4626VaultIntegrationFacetTestHarness.sol";
-import {LossShortfallMockVaultStrategy, ProfitMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
+import {
+    LossShortfallMockVaultStrategy,
+    NativeLossShortfallMockVaultStrategy,
+    NativeProfitMockVaultStrategy,
+    ProfitMockVaultStrategy
+} from "./ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC4626VaultStrategyAccountingFacetHarness is ERC4626VaultFacet {
     function setStrategyStateForTest(address strategy_, uint256 strategyDebt_) external {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         layout.strategy = strategy_;
         layout.strategyDebt = strategyDebt_;
-    }
-
-    function strategyDebtForTest() external view returns (uint256) {
-        return LibERC4626VaultStorage.layout().strategyDebt;
     }
 }
 
@@ -48,6 +51,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
 
     ReentrantMockVaultAsset internal asset;
     ERC4626VaultStrategyAccountingFacetHarness internal facet;
+    ERC7535VaultFacet internal nativeFacet;
     ERC4626VaultControlsFacetHarness internal controlsFacet;
     ERC4626VaultIntegrationFacetHarness internal integrationFacet;
     DiamondCutFacet internal cutFacet;
@@ -57,10 +61,13 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     ProfitMockVaultStrategy internal directProfitStrategy;
     LossShortfallMockVaultStrategy internal directLossStrategy;
     ProfitMockVaultStrategy internal diamondProfitStrategy;
+    NativeProfitMockVaultStrategy internal diamondNativeProfitStrategy;
+    NativeLossShortfallMockVaultStrategy internal diamondNativeLossStrategy;
 
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
         facet = new ERC4626VaultStrategyAccountingFacetHarness();
+        nativeFacet = new ERC7535VaultFacet();
         controlsFacet = new ERC4626VaultControlsFacetHarness();
         integrationFacet = new ERC4626VaultIntegrationFacetHarness();
         cutFacet = new DiamondCutFacet();
@@ -70,6 +77,8 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         directProfitStrategy = new ProfitMockVaultStrategy(address(facet), address(asset));
         directLossStrategy = new LossShortfallMockVaultStrategy(address(facet), address(asset));
         diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
+        diamondNativeProfitStrategy = new NativeProfitMockVaultStrategy(address(diamond));
+        diamondNativeLossStrategy = new NativeLossShortfallMockVaultStrategy(address(diamond));
 
         asset.mint(bob, INITIAL_ASSETS);
         asset.mint(eve, INITIAL_ASSETS);
@@ -84,6 +93,12 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     function _initializeDiamondVault() internal {
         VM.prank(admin);
         IERC4626VaultFacet(address(diamond)).initializeVault(address(asset), "Vault Share", "vSHARE", admin);
+    }
+
+    function _initializeDiamondNativeVault() internal {
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
     }
 
     function _approveAsset(address owner, address spender, uint256 amount) internal {
@@ -149,6 +164,18 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
+    function _installVaultNativeFacetToDiamond() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(nativeFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultNativeSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
     function _installVaultIntegrationFacetToDiamond() internal {
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
@@ -165,6 +192,11 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         _installVaultCoreFacetToDiamond();
         _installVaultControlsFacetToDiamond();
         _installVaultIntegrationFacetToDiamond();
+    }
+
+    function _installHostedVaultNativeFacetsToDiamond() internal {
+        _installHostedVaultFacetsToDiamond();
+        _installVaultNativeFacetToDiamond();
     }
 
     function _loupeSelectors() internal pure returns (bytes4[] memory selectors) {

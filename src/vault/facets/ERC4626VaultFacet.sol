@@ -9,6 +9,7 @@ import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
 import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
+import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
 import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
@@ -64,6 +65,10 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 shares)
     {
+        if (LibVaultAsset.isNativeAsset(ERC4626Vault.asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
         return _depositWithControls(assets, receiver);
     }
 
@@ -79,6 +84,10 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         nonReentrant
         returns (uint256 assets)
     {
+        if (LibVaultAsset.isNativeAsset(ERC4626Vault.asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
         return _mintWithControls(shares, receiver);
     }
 
@@ -125,7 +134,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -160,9 +169,6 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
 
-        grossAssets = _convertToAssets(shares, Rounding.Down);
-        _sourceStrategyLiquidity(grossAssets);
-
         uint256 availableIdleAssets = _idleAssetBalance();
         if (grossAssets > availableIdleAssets) {
             revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
@@ -179,7 +185,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -188,7 +194,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
 
     function _managedAssetsForPricing() internal view virtual override returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return layout.totalManagedAssets;
         }
 
@@ -199,11 +205,14 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
 
     function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return type(uint256).max;
         }
 
-        return _idleAssetBalance() + _strategyWithdrawableAssets();
+        uint256 actualIdleAssets = _idleAssetBalance();
+        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
+        uint256 trackedIdleAssets = actualIdleAssets < idleBookAssets ? actualIdleAssets : idleBookAssets;
+        return trackedIdleAssets + _strategyWithdrawableAssets();
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {
@@ -216,7 +225,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         }
 
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return;
         }
 

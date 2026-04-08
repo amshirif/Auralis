@@ -9,11 +9,35 @@ auralis_require_artifact
 erc20_diamond="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" erc20Host.diamond)"
 erc721_diamond="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" erc721Host.diamond)"
 vault_diamond="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.diamond)"
+vault_asset_mode="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.assetMode)"
 vault_asset="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.vaultAsset)"
 oracle_adapter="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.oracleAdapter)"
 strategy="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" vaultHost.strategy)"
+native_vault_diamond="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.diamond)"
+native_vault_asset_mode="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.assetMode)"
+native_vault_native_facet="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.vaultNativeFacet)"
+native_oracle_adapter="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.oracleAdapter)"
+native_strategy="$(auralis_json_get "${AURALIS_ARTIFACT_PATH}" nativeVaultHost.strategy)"
+
+if [[ "${vault_asset_mode}" != "erc20" ]]; then
+  echo "Expected vaultHost.assetMode to be erc20, got ${vault_asset_mode}." >&2
+  exit 1
+fi
+
+if [[ "${native_vault_asset_mode}" != "native" ]]; then
+  echo "Expected nativeVaultHost.assetMode to be native, got ${native_vault_asset_mode}." >&2
+  exit 1
+fi
 
 for address in "${erc20_diamond}" "${erc721_diamond}" "${vault_diamond}" "${vault_asset}" "${oracle_adapter}" "${strategy}"; do
+  code="$(cast code --rpc-url "${AURALIS_RPC_URL}" "${address}")"
+  if [[ "${code}" == "0x" ]]; then
+    echo "Expected deployed code at ${address}, found empty code." >&2
+    exit 1
+  fi
+done
+
+for address in "${native_vault_diamond}" "${native_vault_native_facet}" "${native_oracle_adapter}" "${native_strategy}"; do
   code="$(cast code --rpc-url "${AURALIS_RPC_URL}" "${address}")"
   if [[ "${code}" == "0x" ]]; then
     echo "Expected deployed code at ${address}, found empty code." >&2
@@ -85,6 +109,47 @@ fi
 quote_tuple="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${vault_diamond}" "oracleQuote()((int256,uint64,uint8))")"
 if [[ -z "${quote_tuple}" ]]; then
   echo "oracleQuote() returned empty output." >&2
+  exit 1
+fi
+
+auralis_note "Native vault host smoke: strategy-enabled lifecycle"
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_ALICE_PRIVATE_KEY}" --value 1000000000000000000 \
+  "${native_vault_diamond}" "depositNative(address)(uint256)" "${AURALIS_ALICE_ADDRESS}" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "deployToStrategy(uint256)" 600000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" --value 100000000000000000 \
+  "${native_strategy}" "injectProfit(uint256)" 100000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "syncStrategyAssets()" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "withdrawFromStrategy(uint256)(uint256)" 150000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_ALICE_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "withdraw(uint256,address,address)(uint256)" 700000000000000000 "${AURALIS_ALICE_ADDRESS}" "${AURALIS_ALICE_ADDRESS}" >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "emergencyExitStrategy()(uint256)" >/dev/null
+
+native_strategy_debt="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "strategyDebt()(uint256)" | awk '{print $1}')"
+native_strategy_exit="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "strategyEmergencyExit()(bool)")"
+if [[ "${native_strategy_debt}" != "0" || "${native_strategy_exit}" != "true" ]]; then
+  echo "Unexpected native strategy state after emergency exit: debt=${native_strategy_debt}, emergency=${native_strategy_exit}" >&2
+  exit 1
+fi
+
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "setStrategy(address)" 0x0000000000000000000000000000000000000000 >/dev/null
+cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" \
+  "${native_vault_diamond}" "setStrategy(address)" "${native_strategy}" >/dev/null
+
+native_strategy_rebound="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "strategy()(address)")"
+native_strategy_exit="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "strategyEmergencyExit()(bool)")"
+if [[ "${native_strategy_rebound,,}" != "${native_strategy,,}" || "${native_strategy_exit}" != "false" ]]; then
+  echo "Native strategy was not rebound cleanly after smoke flow." >&2
+  exit 1
+fi
+
+native_quote_tuple="$(cast call --rpc-url "${AURALIS_RPC_URL}" "${native_vault_diamond}" "oracleQuote()((int256,uint64,uint8))")"
+if [[ -z "${native_quote_tuple}" ]]; then
+  echo "native oracleQuote() returned empty output." >&2
   exit 1
 fi
 

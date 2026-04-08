@@ -8,6 +8,7 @@ import {IERC4626VaultControlsFacet} from "../../src/interfaces/IERC4626VaultCont
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
 import {ERC4626Vault} from "../../src/vault/ERC4626Vault.sol";
 import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
+import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
 import {ERC4626VaultFacetHarness} from "./ERC4626VaultFacetTestHarness.sol";
@@ -35,6 +36,7 @@ abstract contract ERC4626VaultControlsFacetFixture is TestBase {
 
     ReentrantMockVaultAsset internal asset;
     ERC4626VaultFacetHarness internal coreFacet;
+    ERC7535VaultFacet internal nativeFacet;
     ERC4626VaultControlsFacetHarness internal controlsFacet;
     DiamondCutFacet internal cutFacet;
     DiamondLoupeFacet internal loupeFacet;
@@ -43,6 +45,7 @@ abstract contract ERC4626VaultControlsFacetFixture is TestBase {
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
         coreFacet = new ERC4626VaultFacetHarness();
+        nativeFacet = new ERC7535VaultFacet();
         controlsFacet = new ERC4626VaultControlsFacetHarness();
         cutFacet = new DiamondCutFacet();
         loupeFacet = new DiamondLoupeFacet();
@@ -104,9 +107,26 @@ abstract contract ERC4626VaultControlsFacetFixture is TestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
+    function _installVaultNativeFacetToDiamond() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(nativeFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultNativeSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
     function _installHostedVaultFacetsToDiamond() internal {
         _installVaultCoreFacetToDiamond();
         _installVaultControlsFacetToDiamond();
+    }
+
+    function _installHostedVaultNativeFacetsToDiamond() internal {
+        _installHostedVaultFacetsToDiamond();
+        _installVaultNativeFacetToDiamond();
     }
 
     function _loupeSelectors() internal pure returns (bytes4[] memory selectors) {
