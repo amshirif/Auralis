@@ -1,7 +1,7 @@
 # Diamond Vault Facets
 
-This document is the canonical guide for the hosted vault model implemented in
-the `Diamond-Hosted Vault Platform` milestone.
+This document is the canonical guide for the hosted vault architecture in
+`Auralis`.
 
 For the durable architecture decisions behind the hosted vault shape, see
 `docs/adr/0002-separate-diamond-hosts.md`,
@@ -147,7 +147,7 @@ Asset helpers:
 
 That means strategy reports are visible to operators and reviewers, but they do
 not automatically change `withdraw`, `redeem`, preview math, or live liquidity
-semantics in this milestone.
+semantics in the current implementation.
 
 ## Selector Ownership Model
 

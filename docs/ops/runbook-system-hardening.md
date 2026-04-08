@@ -1,6 +1,6 @@
 # Runbook: System Hardening Validation
 
-Use this runbook when validating a milestone branch, reproducing CI failures, or
+Use this runbook when validating a branch, reproducing CI failures, or
 reviewing the repository's deployment-backed safety checks end to end.
 
 ## Recommended Local Execution Order
@@ -65,8 +65,8 @@ bash script/run-local-system-hardening.sh
 
 ## CI Equivalents
 
-- `Foundry CI / Foundry Checks`
-  - baseline formatting, build, and full offline test suite
+- `Foundry CI / Foundry Fast PR Gate`
+  - baseline formatting, build, and curated high-signal PR-facing suites
 - `System Hardening / Targeted System Suites`
   - targeted vault/oracle system suites
 - `System Hardening / Full Local Hardening Flow`
@@ -79,7 +79,7 @@ or after a failing run.
 
 - The flows assume deterministic local Anvil defaults unless environment
   variables override them.
-- The operator sequence here is for the current diamond/system-hardening
-  milestone, not a future multi-module production deployment.
+- The operator sequence here is for the current repository architecture, not a
+  future multi-module production deployment.
 - Remaining out-of-scope and trust assumptions are tracked in
   `docs/system-hardening.md`.
