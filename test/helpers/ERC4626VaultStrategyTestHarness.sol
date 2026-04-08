@@ -418,6 +418,59 @@ contract NativeEmergencyUnwindMockVaultStrategy is MockNativeVaultStrategyBase {
     }
 }
 
+contract MutableNativeMockVaultStrategy is MockNativeVaultStrategyBase {
+    address internal immutable _profitSource;
+    bool internal _revertWithdrawAllToVault;
+
+    constructor(address vault_, address profitSource_) MockNativeVaultStrategyBase(vault_) {
+        _profitSource = profitSource_;
+    }
+
+    function profitSource() external view returns (address) {
+        return _profitSource;
+    }
+
+    function lossSink() external pure returns (address) {
+        return LOSS_SINK;
+    }
+
+    function injectProfit(uint256 assets) external payable {
+        if (assets == 0) {
+            return;
+        }
+
+        require(msg.value == assets, "NATIVE_PROFIT_VALUE_MISMATCH");
+        _trackedAssets += assets;
+        _withdrawableAssets += assets;
+    }
+
+    function applyLoss(uint256 lossAssets, uint256 withdrawableAssets_) external {
+        uint256 realizedLoss = _min(lossAssets, _trackedAssets);
+        if (realizedLoss != 0) {
+            _transferNative(LOSS_SINK, realizedLoss);
+            _trackedAssets -= realizedLoss;
+        }
+        _withdrawableAssets = _min(withdrawableAssets_, _trackedAssets);
+    }
+
+    function setWithdrawAllReverts(bool shouldRevert) external {
+        _revertWithdrawAllToVault = shouldRevert;
+    }
+
+    function withdrawAllToVault() external override onlyVault returns (uint256 assetsReturned) {
+        if (_revertWithdrawAllToVault) {
+            revert MockVaultStrategyForcedRevert(this.withdrawAllToVault.selector);
+        }
+
+        assetsReturned = maxWithdrawableAssets();
+        _trackedAssets -= assetsReturned;
+        _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            _transferNative(_vault, assetsReturned);
+        }
+    }
+}
+
 abstract contract ERC4626VaultStrategyFixture is TestBase {
     address internal admin = address(0xA11CE);
     address internal vault = address(0xA417);
@@ -433,6 +486,7 @@ abstract contract ERC4626VaultStrategyFixture is TestBase {
     NativeLossShortfallMockVaultStrategy internal nativeLossStrategy;
     NativeRevertingMockVaultStrategy internal nativeRevertingStrategy;
     NativeEmergencyUnwindMockVaultStrategy internal nativeUnwindStrategy;
+    MutableNativeMockVaultStrategy internal mutableNativeStrategy;
 
     function setUp() public virtual {
         asset = new MockVaultAsset("Mock USD", "mUSD", 6);
@@ -446,5 +500,6 @@ abstract contract ERC4626VaultStrategyFixture is TestBase {
         nativeLossStrategy = new NativeLossShortfallMockVaultStrategy(vault);
         nativeRevertingStrategy = new NativeRevertingMockVaultStrategy(vault);
         nativeUnwindStrategy = new NativeEmergencyUnwindMockVaultStrategy(vault);
+        mutableNativeStrategy = new MutableNativeMockVaultStrategy(vault, address(0xBEEF1234));
     }
 }

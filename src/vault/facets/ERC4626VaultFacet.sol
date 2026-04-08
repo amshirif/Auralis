@@ -134,7 +134,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -185,7 +185,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -194,7 +194,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
 
     function _managedAssetsForPricing() internal view virtual override returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return layout.totalManagedAssets;
         }
 
@@ -205,11 +205,14 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
 
     function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return type(uint256).max;
         }
 
-        return _idleAssetBalance() + _strategyWithdrawableAssets();
+        uint256 actualIdleAssets = _idleAssetBalance();
+        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
+        uint256 trackedIdleAssets = actualIdleAssets < idleBookAssets ? actualIdleAssets : idleBookAssets;
+        return trackedIdleAssets + _strategyWithdrawableAssets();
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {
@@ -222,7 +225,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         }
 
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return;
         }
 

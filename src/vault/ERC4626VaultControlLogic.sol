@@ -364,7 +364,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
@@ -396,7 +396,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(grossAssets);
+        _decreaseManagedAssetsForAssetExit(grossAssets);
         _safeTransferAsset(receiver, assets);
         _payoutFee(feeAssets);
 
