@@ -7,6 +7,7 @@ AURALIS_ARTIFACT_PATH="${AURALIS_DEPLOYMENTS_DIR}/auralis.local.json"
 AURALIS_ERC20_ARTIFACT_PATH="${AURALIS_DEPLOYMENTS_DIR}/diamond-erc20.local.json"
 AURALIS_ERC721_ARTIFACT_PATH="${AURALIS_DEPLOYMENTS_DIR}/diamond-erc721.local.json"
 AURALIS_VAULT_ARTIFACT_PATH="${AURALIS_DEPLOYMENTS_DIR}/diamond-vault.local.json"
+AURALIS_NATIVE_VAULT_ARTIFACT_PATH="${AURALIS_DEPLOYMENTS_DIR}/diamond-native-vault.local.json"
 AURALIS_ANVIL_PID_PATH="${AURALIS_STATE_DIR}/anvil.pid"
 AURALIS_ANVIL_LOG_PATH="${ANVIL_LOG_PATH:-${AURALIS_STATE_DIR}/anvil.log}"
 AURALIS_OWNER_PRIVATE_KEY="${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
@@ -122,11 +123,12 @@ auralis_remove_artifacts() {
     "${AURALIS_ARTIFACT_PATH}" \
     "${AURALIS_ERC20_ARTIFACT_PATH}" \
     "${AURALIS_ERC721_ARTIFACT_PATH}" \
-    "${AURALIS_VAULT_ARTIFACT_PATH}"
+    "${AURALIS_VAULT_ARTIFACT_PATH}" \
+    "${AURALIS_NATIVE_VAULT_ARTIFACT_PATH}"
 }
 
 auralis_write_unified_artifact() {
-  python3 - "${AURALIS_ERC20_ARTIFACT_PATH}" "${AURALIS_ERC721_ARTIFACT_PATH}" "${AURALIS_VAULT_ARTIFACT_PATH}" "${AURALIS_ARTIFACT_PATH}" "${AURALIS_RPC_URL}" "${AURALIS_OWNER_ADDRESS}" "${AURALIS_ALICE_ADDRESS}" <<'PY'
+  python3 - "${AURALIS_ERC20_ARTIFACT_PATH}" "${AURALIS_ERC721_ARTIFACT_PATH}" "${AURALIS_VAULT_ARTIFACT_PATH}" "${AURALIS_NATIVE_VAULT_ARTIFACT_PATH}" "${AURALIS_ARTIFACT_PATH}" "${AURALIS_RPC_URL}" "${AURALIS_OWNER_ADDRESS}" "${AURALIS_ALICE_ADDRESS}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -134,10 +136,11 @@ from pathlib import Path
 erc20 = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 erc721 = json.load(open(sys.argv[2], 'r', encoding='utf-8'))
 vault = json.load(open(sys.argv[3], 'r', encoding='utf-8'))
-out_path = Path(sys.argv[4])
-rpc_url = sys.argv[5]
-owner = sys.argv[6]
-alice = sys.argv[7]
+native_vault = json.load(open(sys.argv[4], 'r', encoding='utf-8'))
+out_path = Path(sys.argv[5])
+rpc_url = sys.argv[6]
+owner = sys.argv[7]
+alice = sys.argv[8]
 
 artifact = {
     'project': 'Auralis',
@@ -158,7 +161,11 @@ artifact = {
     },
     'vaultHost': {
         **vault,
-        'label': 'Vault host',
+        'label': 'ERC20 vault host',
+    },
+    'nativeVaultHost': {
+        **native_vault,
+        'label': 'Native vault host',
     },
 }
 
@@ -171,4 +178,3 @@ auralis_fund_actor() {
   local value_wei="${2:-1000000000000000000}"
   cast send --rpc-url "${AURALIS_RPC_URL}" --private-key "${AURALIS_OWNER_PRIVATE_KEY}" --value "${value_wei}" "${recipient}" >/dev/null
 }
-

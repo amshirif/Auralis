@@ -12,7 +12,8 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
   - `Targeted System Suites` runs on every workflow trigger and executes:
     - `forge test --offline --match-path test/SystemVaultStressInvariant.t.sol`
     - `forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol`
-  - `Full Local Hardening Flow` runs on pushes to `main`/`milestone/**`, on manual dispatch, and on pull requests targeting `main` or `milestone/**`.
+  - `Full Local Hardening Flow` runs on pushes to `main`/`milestone/**` and on
+    manual dispatch.
 - Scope: deployment bootstrap, smoke flow, upgrade rehearsal, vault stress invariants, and oracle failure scenarios.
 - Operational execution order and local reproduction context:
   `docs/ops/runbook-system-hardening.md`
@@ -50,8 +51,8 @@ Use the targeted suites for faster iteration and the full hardening runner for t
 
 ### Token Hosts
 
-The diamond token milestone also has reviewer-facing validation suites for the
-separate ERC20-host and ERC721-host deployment model:
+The token hosts have reviewer-facing validation suites for the separate
+ERC20-host and ERC721-host deployment model:
 
 ```bash
 forge test --offline --match-path test/DiamondTokenDeploymentIntegration.t.sol
@@ -65,17 +66,23 @@ reinstall persistence, and diamond-routed invariant coverage locally.
 
 ### Hosted Vault
 
-The hosted vault milestone has matching deployment, hardening, and invariant
-coverage for the supported three-facet vault host:
+The hosted vault now has matching deployment, strategy lifecycle, hardening,
+and invariant coverage for the supported three-facet vault host with one active
+strategy per vault:
 
 ```bash
 forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+forge test --offline --match-path test/ERC4626VaultIntegrationFacetCore.t.sol
+forge test --offline --match-path test/ERC4626VaultStrategyAccountingCore.t.sol
+forge test --offline --match-path test/VaultStrategyFoundationCore.t.sol
 forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
 forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
 ```
 
-Use these to reproduce hosted-vault deployment, selector ownership, facet
-replacement/reinstall persistence, and diamond-routed vault invariants locally.
+Use these to reproduce hosted-vault deployment, strategy binding, live
+strategy-aware accounting, loss and emergency-exit behavior, selector
+ownership, facet replacement persistence, and diamond-routed vault invariants
+locally.
 
 ### Slither
 

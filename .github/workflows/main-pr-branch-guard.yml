@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  enforce-milestone-head:
-    name: Enforce milestone/* head for main
+  enforce-milestone-pr-metadata:
+    name: Enforce milestone PR metadata for main
     runs-on: ubuntu-latest
 
     steps:
@@ -31,3 +31,24 @@ jobs:
           fi
 
           echo "Branch naming rule satisfied."
+
+      - name: Validate milestone label
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          if ! jq -e '.pull_request.labels | any(.name == "milestone")' "${GITHUB_EVENT_PATH}" >/dev/null; then
+            echo "Pull requests into main must include the 'milestone' label."
+            exit 1
+          fi
+
+          echo "Milestone label present."
+
+      - name: Validate assignee
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          assignee_count="$(jq '.pull_request.assignees | length' "${GITHUB_EVENT_PATH}")"
+          if [[ "${assignee_count}" -lt 1 ]]; then
+            echo "Pull requests into main must have an assignee set."
+            exit 1
+          fi
+
+          echo "Assignee requirement satisfied."

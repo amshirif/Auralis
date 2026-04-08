@@ -4,6 +4,9 @@ This document describes the diamond core behavior implemented in this repository
 including bootstrap expectations, `diamondCut` init flow, selector ownership
 rules, and upgrade review guidance.
 
+For the decision to use diamonds as the repository's upgrade and composition
+foundation, see `docs/adr/0001-diamond-foundation.md`.
+
 ## Contracts
 
 - `src/diamond/Diamond.sol`: base proxy with owner bootstrap and selector routing fallback.

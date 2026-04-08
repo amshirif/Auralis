@@ -7,6 +7,7 @@ import {IERC20} from "../../interfaces/IERC20.sol";
 import {IERC20Metadata} from "../../interfaces/IERC20Metadata.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC4626} from "../../interfaces/IERC4626.sol";
+import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultBase} from "../../interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
@@ -15,7 +16,7 @@ import {IPausable} from "../../interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../../interfaces/IReentrancyGuard.sol";
 
 /// @title LibVaultFacetSelectors
-/// @notice Canonical selector groups for future hosted vault facet splits.
+/// @notice Canonical selector groups for hosted vault facet splits.
 library LibVaultFacetSelectors {
     /// @notice Returns the hosted vault core selector group.
     function vaultCoreSelectors() internal pure returns (bytes4[] memory selectors) {
@@ -48,6 +49,13 @@ library LibVaultFacetSelectors {
         selectors[25] = IERC4626.maxRedeem.selector;
         selectors[26] = IERC4626.previewRedeem.selector;
         selectors[27] = IERC4626.redeem.selector;
+    }
+
+    /// @notice Returns the hosted vault native selector group.
+    function vaultNativeSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IERC7535VaultFacet.depositNative.selector;
+        selectors[1] = IERC7535VaultFacet.mintNative.selector;
     }
 
     /// @notice Returns the hosted vault controls selector group.
@@ -85,15 +93,19 @@ library LibVaultFacetSelectors {
 
     /// @notice Returns the hosted vault integration selector group.
     function vaultIntegrationSelectors() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](13);
         selectors[0] = IERC4626VaultIntegrationFacet.oracleAdapter.selector;
         selectors[1] = IERC4626VaultIntegrationFacet.strategy.selector;
-        selectors[2] = IERC4626VaultIntegrationFacet.strategyReportedAssets.selector;
-        selectors[3] = IERC4626VaultIntegrationFacet.idleAssets.selector;
-        selectors[4] = IERC4626VaultIntegrationFacet.estimatedTotalManagedAssets.selector;
-        selectors[5] = IERC4626VaultIntegrationFacet.oracleQuote.selector;
-        selectors[6] = IERC4626VaultIntegrationFacet.setOracleAdapter.selector;
-        selectors[7] = IERC4626VaultIntegrationFacet.setStrategy.selector;
-        selectors[8] = IERC4626VaultIntegrationFacet.reportStrategyAssets.selector;
+        selectors[2] = IERC4626VaultIntegrationFacet.strategyEmergencyExit.selector;
+        selectors[3] = IERC4626VaultIntegrationFacet.strategyDebt.selector;
+        selectors[4] = IERC4626VaultIntegrationFacet.idleAssets.selector;
+        selectors[5] = IERC4626VaultIntegrationFacet.liveStrategyAssets.selector;
+        selectors[6] = IERC4626VaultIntegrationFacet.oracleQuote.selector;
+        selectors[7] = IERC4626VaultIntegrationFacet.setOracleAdapter.selector;
+        selectors[8] = IERC4626VaultIntegrationFacet.setStrategy.selector;
+        selectors[9] = IERC4626VaultIntegrationFacet.deployToStrategy.selector;
+        selectors[10] = IERC4626VaultIntegrationFacet.withdrawFromStrategy.selector;
+        selectors[11] = IERC4626VaultIntegrationFacet.syncStrategyAssets.selector;
+        selectors[12] = IERC4626VaultIntegrationFacet.emergencyExitStrategy.selector;
     }
 }

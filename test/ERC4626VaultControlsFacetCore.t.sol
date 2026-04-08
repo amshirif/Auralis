@@ -10,9 +10,11 @@ import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
+import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../src/interfaces/IReentrancyGuard.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
+import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {ERC4626VaultControlsFacetFixture} from "./helpers/ERC4626VaultControlsFacetTestHarness.sol";
 
 contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
@@ -175,7 +177,7 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         assertTrue(shares == 45, "deposit shares mismatch");
         assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 5, "fee recipient balance mismatch");
 
-        assertTrue(IERC4626VaultFacet(address(diamond)).maxDeposit(bob) == 17, "maxDeposit mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxDeposit(bob) == 16, "maxDeposit mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).maxMint(bob) == 15, "maxMint mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 25, "maxWithdraw mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 20, "maxRedeem mismatch");
@@ -183,8 +185,8 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(20) == 18, "previewRedeem mismatch");
 
         VM.prank(bob);
-        VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultDepositLimitExceeded.selector, 18, 17));
-        IERC4626VaultFacet(address(diamond)).deposit(18, bob);
+        VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultDepositLimitExceeded.selector, 17, 16));
+        IERC4626VaultFacet(address(diamond)).deposit(17, bob);
 
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultMintLimitExceeded.selector, 16, 15));
@@ -243,6 +245,141 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         assertTrue(IERC4626VaultFacet(address(diamond)).allowance(bob, eve) == 5, "allowance mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 25, "bob balance mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(admin) == 15, "admin balance mismatch");
+    }
+
+    function testDiamondNativeDepositAppliesConfiguredFee() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(1_000, 0, eve);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        uint256 shares = IERC7535VaultFacet(address(diamond)).depositNative{value: 100}(bob);
+
+        assertTrue(shares == 90, "native deposit shares mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 90, "native total assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 90, "native share balance mismatch");
+        assertTrue(eve.balance == 10, "native fee recipient balance mismatch");
+        assertTrue(address(diamond).balance == 90, "native vault balance mismatch");
+    }
+
+    function testDiamondNativeMintAppliesConfiguredFee() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(1_000, 0, eve);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        uint256 assetsIn = IERC7535VaultFacet(address(diamond)).mintNative{value: 56}(50, bob);
+
+        assertTrue(assetsIn == 56, "native mint assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 50, "native total assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 50, "native share balance mismatch");
+        assertTrue(eve.balance == 6, "native fee recipient balance mismatch");
+        assertTrue(address(diamond).balance == 50, "native vault balance mismatch");
+    }
+
+    function testDiamondNativeControlsConfigReshapesNativeRouting() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(1_000, 1_000, eve);
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setLimitConfig(60, 0, 15, 25, 20);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        uint256 shares = IERC7535VaultFacet(address(diamond)).depositNative{value: 50}(bob);
+        assertTrue(shares == 45, "native deposit shares mismatch");
+        assertTrue(eve.balance == 5, "native fee recipient balance mismatch");
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewDeposit(100) == 90, "native previewDeposit mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewMint(50) == 56, "native previewMint mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxDeposit(bob) == 16, "native maxDeposit mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxMint(bob) == 15, "native maxMint mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 25, "native maxWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 20, "native maxRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(20) == 22, "native previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(20) == 18, "native previewRedeem mismatch");
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultDepositLimitExceeded.selector, 17, 16));
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 17}(bob);
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultMintLimitExceeded.selector, 16, 15));
+        IERC7535VaultFacet(address(diamond)).mintNative{value: 0}(16, bob);
+
+        VM.prank(bob);
+        VM.expectRevert(
+            abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultWithdrawLimitExceeded.selector, 26, 25)
+        );
+        IERC4626VaultFacet(address(diamond)).withdraw(26, bob, bob);
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultRedeemLimitExceeded.selector, 21, 20));
+        IERC4626VaultFacet(address(diamond)).redeem(21, bob, bob);
+    }
+
+    function testDiamondNativeGlobalPauseBlocksVaultEntrypointsButNotShareTokenFlows() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 40}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).pause();
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxDeposit(bob) == 0, "native maxDeposit should pause");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxMint(bob) == 0, "native maxMint should pause");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 0, "native maxWithdraw should pause");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 0, "native maxRedeem should pause");
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IPausable.PausableEnforcedPause.selector));
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 1}(bob);
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IPausable.PausableEnforcedPause.selector));
+        IERC7535VaultFacet(address(diamond)).mintNative{value: 1}(1, bob);
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IPausable.PausableEnforcedPause.selector));
+        IERC4626VaultFacet(address(diamond)).withdraw(1, bob, bob);
+
+        VM.prank(bob);
+        VM.expectRevert(abi.encodeWithSelector(IPausable.PausableEnforcedPause.selector));
+        IERC4626VaultFacet(address(diamond)).redeem(1, bob, bob);
+
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).approve(eve, 15);
+        VM.prank(eve);
+        IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10);
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).transfer(admin, 5);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).allowance(bob, eve) == 5, "native allowance mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 25, "native bob balance mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(admin) == 15, "native admin balance mismatch");
     }
 
     function testDiamondScopePauseRoutesButDoesNotBlockVaultEntrypoints() public {

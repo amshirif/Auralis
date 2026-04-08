@@ -11,10 +11,15 @@ Use this checklist before merging a milestone branch into `main`.
 ## 2. Branch and PR Hygiene
 
 - Milestone branch is up to date with child PR merges.
+- Milestone PR was opened with `scripts/open-milestone-pr.sh` or carries the
+  same metadata manually.
 - Final milestone PR to `main` has:
   - clear summary
   - test/security evidence
   - linked issues
+  - assignee set
+  - `milestone` label applied
+  - `@codex review` comment posted
 
 ## 3. Validation Evidence
 

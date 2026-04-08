@@ -6,8 +6,36 @@ repository:
 - `ERC4626Vault`
 - `ERC4626VaultControls`
 
+For the accounting and native-asset decisions behind this module family, see
+`docs/adr/0003-tracked-managed-assets.md`,
+`docs/adr/0004-native-sentinel-and-facet.md`, and
+`docs/adr/0005-exclude-force-sent-eth.md`.
+
 It covers the standalone vault modules and their math/control behavior. For the
 diamond-hosted vault platform, see `docs/vault-facets.md`.
+
+## Accounting Model
+
+```mermaid
+flowchart TD
+    Idle["Idle underlying balance"]
+    Managed["Tracked managed assets"]
+    Strategy["Strategy-reported / estimated assets"]
+    Surplus["Raw surplus<br/>direct transfers or force-sent native balance"]
+    Pricing["convert / preview / share pricing"]
+    Liquidity["Immediate exit liquidity checks"]
+
+    Idle --> Managed
+    Managed --> Pricing
+    Idle --> Liquidity
+    Strategy --> Liquidity
+    Strategy -. estimate only .-> Managed
+    Surplus -. not auto-accounted .-> Managed
+    Surplus --> Liquidity
+```
+
+Native-asset mode is only supported through the diamond-hosted vault platform.
+The standalone `ERC4626Vault` module remains an ERC-20 asset vault surface.
 
 ## Contract Roles
 
@@ -132,6 +160,19 @@ vault entrypoints. This is the primary emergency stop for vault write paths.
 - No native slippage parameters are present on ERC-4626 functions; integrators
   should pre-check previews and enforce client-side constraints.
 - The controls layer applies global limits, not per-user risk limits.
+
+## Hosted Native-Mode Boundary
+
+The hosted platform extends this ERC-20 vault model with an ERC-7535-style
+native entry surface, but the native behavior is not part of the standalone
+module contract described here.
+
+Implications:
+- `deposit` and `mint` remain ERC-20 entrypoints only.
+- native funding, exact `msg.value` validation, and raw native payouts are
+  documented in `docs/vault-facets.md`.
+- forced native transfers are a hosted-vault accounting concern, not a
+  standalone ERC-20 vault concern.
 
 ## Test References
 

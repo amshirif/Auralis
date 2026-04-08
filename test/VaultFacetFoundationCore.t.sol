@@ -5,6 +5,7 @@ import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
+import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
@@ -82,15 +83,20 @@ contract VaultFacetFoundationCoreTest is VaultFacetFoundationFixture {
 
     function testVaultSelectorGroupsCoverExpectedHostedSplit() public pure {
         bytes4[] memory coreSelectors = LibVaultFacetSelectors.vaultCoreSelectors();
+        bytes4[] memory nativeSelectors = LibVaultFacetSelectors.vaultNativeSelectors();
         bytes4[] memory controlSelectors = LibVaultFacetSelectors.vaultControlsSelectors();
 
         assertTrue(coreSelectors.length == 28, "unexpected core selector count");
+        assertTrue(nativeSelectors.length == 2, "unexpected native selector count");
         assertTrue(controlSelectors.length == 28, "unexpected controls selector count");
 
         _assertContains(coreSelectors, IERC4626VaultFacet.initializeVault.selector);
         _assertContains(coreSelectors, IERC4626.deposit.selector);
         _assertContains(coreSelectors, IERC4626.redeem.selector);
         _assertContains(coreSelectors, IERC4626VaultBase.totalManagedAssets.selector);
+
+        _assertContains(nativeSelectors, IERC7535VaultFacet.depositNative.selector);
+        _assertContains(nativeSelectors, IERC7535VaultFacet.mintNative.selector);
 
         _assertContains(controlSelectors, IERC4626VaultControls.setFeeConfig.selector);
         _assertContains(controlSelectors, IERC4626VaultControls.setLimitConfig.selector);
@@ -99,8 +105,11 @@ contract VaultFacetFoundationCoreTest is VaultFacetFoundationFixture {
         _assertContains(controlSelectors, IERC165.supportsInterface.selector);
 
         _assertUnique(coreSelectors);
+        _assertUnique(nativeSelectors);
         _assertUnique(controlSelectors);
+        _assertDisjoint(coreSelectors, nativeSelectors);
         _assertDisjoint(coreSelectors, controlSelectors);
+        _assertDisjoint(nativeSelectors, controlSelectors);
     }
 
     function _assertContains(bytes4[] memory selectors, bytes4 target) internal pure {

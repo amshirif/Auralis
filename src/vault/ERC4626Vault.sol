@@ -3,6 +3,9 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
+import {IERC4626VaultStrategy} from "../interfaces/IERC4626VaultStrategy.sol";
+import {LibVaultAsset} from "./libraries/LibVaultAsset.sol";
+import {LibERC4626VaultStorage} from "./storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultBase} from "./ERC4626VaultBase.sol";
 
 /// @title ERC4626Vault
@@ -16,6 +19,16 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     error ERC4626VaultAssetTransferFailed();
     /// @notice Thrown when asset transferFrom fails.
     error ERC4626VaultAssetTransferFromFailed();
+    /// @notice Thrown when the vault cannot source enough immediate liquidity for a withdrawal flow.
+    /// @param requiredAssets The gross asset amount required.
+    /// @param availableAssets The currently sourced idle asset amount.
+    error ERC4626VaultInsufficientLiquidity(uint256 requiredAssets, uint256 availableAssets);
+    /// @notice Thrown when a native vault requires the hosted native entrypoint.
+    error ERC4626VaultNativeAssetUseNativeEntrypoint();
+    /// @notice Thrown when a native-only entrypoint is used on an ERC-20 vault.
+    error ERC4626VaultNativeAssetDisabled();
+    /// @notice Thrown when `msg.value` does not match the required native asset amount.
+    error ERC4626VaultInvalidNativeAssetValue(uint256 supplied, uint256 required);
 
     /// @notice Returns vault underlying asset token address.
     /// @return The underlying asset token.
@@ -26,7 +39,9 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @notice Returns total assets managed by the vault.
     /// @return The total managed asset amount.
     function totalAssets() public view virtual returns (uint256) {
-        return totalManagedAssets();
+        // ERC-4626 math intentionally follows managed pricing state instead of raw balance so direct
+        // transfers and native surplus cannot change pricing implicitly.
+        return _managedAssetsForPricing();
     }
 
     /// @notice Converts `assets` to shares, rounding down.
@@ -121,7 +136,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param owner Share owner.
     /// @return Max withdrawable assets.
     function maxWithdraw(address owner) public view virtual returns (uint256) {
-        if (owner == address(0)) {
+        if (owner == address(0) || totalAssets() == 0) {
             return 0;
         }
         return _convertToAssets(balanceOf(owner), Rounding.Down);
@@ -157,7 +172,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(assets);
+        _decreaseManagedAssetsForAssetExit(assets);
         _safeTransferAsset(receiver, assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -167,7 +182,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param owner Share owner.
     /// @return Max redeemable shares.
     function maxRedeem(address owner) public view virtual returns (uint256) {
-        if (owner == address(0)) {
+        if (owner == address(0) || totalAssets() == 0) {
             return 0;
         }
         return balanceOf(owner);
@@ -203,7 +218,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(assets);
+        _decreaseManagedAssetsForAssetExit(assets);
         _safeTransferAsset(receiver, assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -241,9 +256,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Performs ERC-20 transfer and handles optional return values.
     /// @param to Asset receiver.
     /// @param value Asset amount.
-    function _safeTransferAsset(address to, uint256 value) internal {
-        (bool success, bytes memory data) = asset().call(abi.encodeCall(IERC20.transfer, (to, value)));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+    function _safeTransferAsset(address to, uint256 value) internal virtual {
+        if (!LibVaultAsset.transferOut(asset(), to, value)) {
             revert ERC4626VaultAssetTransferFailed();
         }
     }
@@ -252,10 +266,104 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param from Asset sender.
     /// @param to Asset receiver.
     /// @param value Asset amount.
-    function _safeTransferFromAsset(address from, address to, uint256 value) internal {
-        (bool success, bytes memory data) = asset().call(abi.encodeCall(IERC20.transferFrom, (from, to, value)));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+    function _safeTransferFromAsset(address from, address to, uint256 value) internal virtual {
+        if (LibVaultAsset.isNativeAsset(asset())) {
+            revert ERC4626VaultNativeAssetUseNativeEntrypoint();
+        }
+
+        if (!LibVaultAsset.transferIn(asset(), from, to, value)) {
             revert ERC4626VaultAssetTransferFromFailed();
         }
+    }
+
+    /// @dev Decreases managed assets for a user exit while ignoring untracked native surplus.
+    /// @dev Forced ETH can increase `address(this).balance` without increasing managed assets. When a native
+    ///      withdrawal is satisfied from that surplus, book accounting must only burn the tracked portion.
+    function _decreaseManagedAssetsForAssetExit(uint256 assets) internal {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (LibVaultAsset.isNativeAsset(layout.asset) && layout.strategyDebt != 0) {
+            uint256 nativeSurplus =
+                LibVaultAsset.balanceOfSelf(layout.asset) - (layout.totalManagedAssets - layout.strategyDebt);
+            if (nativeSurplus >= assets) {
+                return;
+            }
+
+            unchecked {
+                assets -= nativeSurplus;
+            }
+        }
+
+        _decreaseManagedAssets(assets);
+    }
+
+    /// @dev Returns the vault's immediately idle asset balance.
+    function _idleAssetBalance() internal view returns (uint256) {
+        return LibVaultAsset.balanceOfSelf(asset());
+    }
+
+    /// @dev Returns the configured strategy's immediately withdrawable assets.
+    function _strategyWithdrawableAssets() internal view returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (layout.strategyDebt == 0) {
+            return 0;
+        }
+
+        IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
+        uint256 liveAssets = configuredStrategy.totalAssets();
+        uint256 withdrawableAssets = configuredStrategy.maxWithdrawableAssets();
+        return liveAssets < withdrawableAssets ? liveAssets : withdrawableAssets;
+    }
+
+    /// @dev Pulls assets from the configured strategy back to the vault.
+    function _withdrawStrategyAssets(uint256 assets)
+        internal
+        returns (uint256 returnedAssets, uint256 postCallLiveAssets)
+    {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
+        returnedAssets = configuredStrategy.withdrawToVault(assets);
+        postCallLiveAssets = configuredStrategy.totalAssets();
+    }
+
+    /// @dev Fully unwinds assets from the configured strategy back to the vault.
+    function _withdrawAllStrategyAssets() internal returns (uint256 returnedAssets, uint256 postCallLiveAssets) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
+        returnedAssets = configuredStrategy.withdrawAllToVault();
+        postCallLiveAssets = configuredStrategy.totalAssets();
+    }
+
+    /// @dev Realizes strategy mark-to-market changes into book accounting without moving idle vault assets.
+    function _syncStrategyDebtToLiveAssets(uint256 liveAssets) internal returns (uint256 previousDebt) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        previousDebt = layout.strategyDebt;
+
+        if (liveAssets > previousDebt) {
+            _increaseManagedAssets(liveAssets - previousDebt);
+        } else if (previousDebt > liveAssets) {
+            _decreaseManagedAssets(previousDebt - liveAssets);
+        }
+
+        layout.strategyDebt = liveAssets;
+        layout.strategyReportedAssets = 0;
+    }
+
+    /// @dev Reconciles book accounting after a strategy withdrawal-like call that returned assets to the vault.
+    function _reconcileStrategyWithdrawalAccounting(uint256 returnedAssets, uint256 postCallLiveAssets)
+        internal
+        returns (uint256 previousDebt)
+    {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        previousDebt = layout.strategyDebt;
+        uint256 combinedAssets = returnedAssets + postCallLiveAssets;
+
+        if (combinedAssets > previousDebt) {
+            _increaseManagedAssets(combinedAssets - previousDebt);
+        } else if (previousDebt > combinedAssets) {
+            _decreaseManagedAssets(previousDebt - combinedAssets);
+        }
+
+        layout.strategyDebt = postCallLiveAssets;
+        layout.strategyReportedAssets = 0;
     }
 }
