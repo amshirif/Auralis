@@ -35,10 +35,10 @@ reviewable engineering system.
   with init, selector ownership, Permit/metadata support, and host-level
   hardening coverage.
 - A hosted ERC-4626 vault platform deployed behind a diamond host, split across
-  core, controls, and integration facets with active strategy lifecycle
-  management, live strategy-aware accounting, loss-aware withdrawals,
-  emergency-exit safety, deployment-backed init, and diamond-routed hardening
-  plus invariant coverage.
+  core, native, controls, and integration facets with ERC20 and native-asset
+  modes, active strategy lifecycle management, live strategy-aware accounting,
+  loss-aware withdrawals, emergency-exit safety, deployment-backed init, and
+  diamond-routed hardening plus invariant coverage.
 - Operational maturity through local bootstrap, smoke validation, upgrade
   rehearsal, system-hardening flows, and matching CI gates.
 - A local Auralis workflow for full-stack bootstrap, smoke checks, simulated
@@ -94,8 +94,9 @@ constraint, and token-host upgrade assumptions.
 
 Hosted-vault architecture and safety assumptions live in
 `docs/vault-facets.md`, including the init model, selector ownership split,
-live strategy lifecycle, accounting model, emergency-exit behavior, deployment
-references, and hosted-vault upgrade assumptions.
+live strategy lifecycle, native-asset behavior, accounting model,
+emergency-exit behavior, deployment references, and hosted-vault upgrade
+assumptions.
 
 Local Auralis bootstrap, smoke, simulated activity, reset flow, and artifact
 layout are documented in `docs/auralis-local.md`.
