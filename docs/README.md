@@ -6,6 +6,31 @@ Use this surface to understand the current architecture, the major design
 decisions behind it, how safety is validated, and where operator-facing
 runbooks live.
 
+## Architecture Overview
+
+```mermaid
+flowchart TD
+    ADR["ADRs<br/>accepted design choices"]
+    Core["Diamond Core<br/>routing and upgrade base"]
+    Token["Token Hosts<br/>ERC20 and ERC721 diamonds"]
+    Vault["Vault Hosts<br/>hosted ERC-4626 platform"]
+    Oracle["Oracle Adapter<br/>validation and breaker policy"]
+    Security["Threat Model and Security Checks"]
+    Ops["Ops and Local Workflow"]
+
+    ADR --> Core
+    ADR --> Token
+    ADR --> Vault
+    ADR --> Oracle
+    Core --> Token
+    Core --> Vault
+    Oracle --> Vault
+    Vault --> Security
+    Token --> Security
+    Core --> Security
+    Security --> Ops
+```
+
 ## Start Here
 
 - Architecture decisions: `docs/adr/README.md`
@@ -16,6 +41,9 @@ runbooks live.
 - Validation and CI policy: `docs/security-checks.md`
 
 ## Architecture
+
+The linked architecture docs include structure and lifecycle diagrams where the
+visual model materially improves comprehension.
 
 - `docs/diamond-core.md`: diamond routing, cut flow, selector ownership, and
   storage discipline.
