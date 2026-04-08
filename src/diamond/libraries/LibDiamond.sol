@@ -189,6 +189,8 @@ library LibDiamond {
         uint256 lastSelectorPosition = selectors.length - 1;
 
         if (selectorPosition != lastSelectorPosition) {
+            // Selector arrays are swap-and-pop so loupe reads stay compact; the moved selector's stored
+            // position must be rewritten to keep future replace/remove operations sound.
             bytes4 lastSelector = selectors[lastSelectorPosition];
             selectors[selectorPosition] = lastSelector;
             diamondStorage.selectorData[lastSelector].selectorPosition = uint96(selectorPosition);
@@ -198,6 +200,8 @@ library LibDiamond {
         delete diamondStorage.selectorData[selector];
 
         if (selectors.length == 0) {
+            // Facets disappear from loupe enumeration once they own no selectors; live routing state is
+            // defined by current selector ownership, not deployment history.
             _removeFacetAddress(diamondStorage, facetAddress_);
         }
     }
@@ -242,6 +246,8 @@ library LibDiamond {
             }
         }
 
+        // Init runs after selector mutations so delegatecall setup code can immediately target the newly
+        // installed routing surface.
         initializeDiamondCut(init, initCalldata);
     }
 

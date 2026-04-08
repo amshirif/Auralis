@@ -39,6 +39,8 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
     /// @notice Returns idle assets plus the latest reported strategy assets.
     /// @return The estimated total assets across idle vault balance and strategy reports.
     function estimatedTotalManagedAssets() public view returns (uint256) {
+        // This is an operator-facing estimate only; core ERC-4626 pricing continues to use tracked managed
+        // assets so advisory reports cannot silently redefine preview or withdraw math.
         return idleAssets() + strategyReportedAssets();
     }
 
@@ -74,6 +76,8 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         address previousStrategy = layout.strategy;
         layout.strategy = newStrategy;
+        // Reported assets belong to the previous strategy lifecycle and must be cleared so stale operator
+        // state does not survive a replacement.
         layout.strategyReportedAssets = 0;
 
         emit VaultStrategyUpdated(previousStrategy, newStrategy, msg.sender);
@@ -92,6 +96,8 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
 
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         uint256 previousAssets = layout.strategyReportedAssets;
+        // Reports are visibility only, not accounting truth; they inform estimates without mutating the
+        // managed-assets ledger used by ERC-4626 conversions.
         layout.strategyReportedAssets = assets;
 
         emit VaultStrategyAssetsReported(previousAssets, assets, msg.sender);

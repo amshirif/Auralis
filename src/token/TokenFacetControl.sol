@@ -102,6 +102,7 @@ abstract contract TokenFacetControl is IAccessControl, IPausable {
     /// @param scope The scope identifier.
     /// @return True if globally paused or scope paused.
     function paused(bytes32 scope) public view returns (bool) {
+        // Global pause is the emergency override; a scoped unpause never bypasses a contract-wide stop.
         return paused() || scopePaused(scope);
     }
 
@@ -162,6 +163,8 @@ abstract contract TokenFacetControl is IAccessControl, IPausable {
     /// @dev Initializes shared access control and pausability storage when needed.
     /// @param initialAdmin The default admin and initial pauser.
     function _initializeTokenFacetControl(address initialAdmin) internal {
+        // Hosted facets share control storage, so initialization must be opportunistic and idempotent
+        // rather than assuming one dedicated initializer per facet.
         if (!_isAccessControlInitialized()) {
             _initializeAccessControl(initialAdmin);
         }
