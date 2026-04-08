@@ -170,7 +170,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(assets);
+        _decreaseManagedAssetsForAssetExit(assets);
         _safeTransferAsset(receiver, assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -216,7 +216,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         }
 
         _burnShares(owner, shares);
-        _decreaseManagedAssets(assets);
+        _decreaseManagedAssetsForAssetExit(assets);
         _safeTransferAsset(receiver, assets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
@@ -274,6 +274,26 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         }
     }
 
+    /// @dev Decreases managed assets for a user exit while ignoring untracked native surplus.
+    /// @dev Forced ETH can increase `address(this).balance` without increasing managed assets. When a native
+    ///      withdrawal is satisfied from that surplus, book accounting must only burn the tracked portion.
+    function _decreaseManagedAssetsForAssetExit(uint256 assets) internal {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        if (LibVaultAsset.isNativeAsset(layout.asset) && layout.strategyDebt != 0) {
+            uint256 nativeSurplus =
+                LibVaultAsset.balanceOfSelf(layout.asset) - (layout.totalManagedAssets - layout.strategyDebt);
+            if (nativeSurplus >= assets) {
+                return;
+            }
+
+            unchecked {
+                assets -= nativeSurplus;
+            }
+        }
+
+        _decreaseManagedAssets(assets);
+    }
+
     /// @dev Returns the vault's immediately idle asset balance.
     function _idleAssetBalance() internal view returns (uint256) {
         return LibVaultAsset.balanceOfSelf(asset());
@@ -282,7 +302,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Returns the configured strategy's immediately withdrawable assets.
     function _strategyWithdrawableAssets() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategy == address(0) || layout.strategyDebt == 0) {
+        if (layout.strategyDebt == 0) {
             return 0;
         }
 
