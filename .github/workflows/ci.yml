@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   foundry-checks:
-    name: Foundry Checks
+    name: Foundry Fast PR Gate
     runs-on: ubuntu-latest
 
     steps:
@@ -46,5 +46,20 @@ jobs:
       - name: Build With Sizes
         run: forge build --sizes --skip script
 
-      - name: Run Offline Tests
-        run: forge test --offline
+      - name: Run Selector Integrity Core
+        run: forge test --offline --match-path test/DiamondSelectorIntegrityCore.t.sol
+
+      - name: Run Vault Deployment Integration
+        run: forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+
+      - name: Run Vault Host Hardening
+        run: forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
+
+      - name: Run Native Vault Host Hardening
+        run: forge test --offline --match-path test/DiamondNativeVaultHostHardening.t.sol
+
+      - name: Run Token Deployment Integration
+        run: forge test --offline --match-path test/DiamondTokenDeploymentIntegration.t.sol
+
+      - name: Run System Oracle Failure Scenarios
+        run: forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
