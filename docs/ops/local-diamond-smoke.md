@@ -1,6 +1,6 @@
 # Local Diamond Smoke Flow
 
-This repo now includes a deterministic local smoke flow for the deployed diamond
+This runbook covers the deterministic local smoke flow for the deployed diamond
 core.
 
 ## What It Covers
@@ -38,8 +38,8 @@ through a system proxy.
 - deployment artifact: `deployments/diamond-core.local.json`
 - Anvil log: `.anvil-smoke.log`
 
-This flow is intended to become the baseline smoke suite reused by later
-upgrade rehearsal and CI work.
+This flow is the baseline deployment-backed smoke suite reused by the local
+upgrade rehearsal and system-hardening path.
 
 ## Success Signals
 
