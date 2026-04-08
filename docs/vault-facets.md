@@ -3,6 +3,12 @@
 This document is the canonical guide for the hosted vault model implemented in
 the `Diamond-Hosted Vault Platform` milestone.
 
+For the durable architecture decisions behind the hosted vault shape, see
+`docs/adr/0002-separate-diamond-hosts.md`,
+`docs/adr/0003-tracked-managed-assets.md`,
+`docs/adr/0004-native-sentinel-and-facet.md`, and
+`docs/adr/0005-exclude-force-sent-eth.md`.
+
 It covers the supported diamond-hosted vault deployment:
 
 - one diamond

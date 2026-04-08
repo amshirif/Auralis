@@ -3,6 +3,9 @@
 This summary covers security assumptions and guard rails for access, oracle,
 upgrade, and vault modules.
 
+For the accepted architecture decisions that shape these assumptions, see
+`docs/adr/README.md`.
+
 ## In-Scope Modules
 
 - `AccessControl`

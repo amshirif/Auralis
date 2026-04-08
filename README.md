@@ -81,6 +81,8 @@ Architecture and module docs live in `docs/diamond-core.md`,
 `docs/oracle-adapter.md`, `docs/erc4626-vault.md`, `docs/vault-facets.md`,
 `docs/token-facets.md`, and `docs/threat-model.md`.
 
+Durable architecture decisions live in `docs/adr/README.md`.
+
 Operational guidance lives in `docs/ops/README.md`, with the end-to-end
 execution order collected in `docs/ops/runbook-system-hardening.md`.
 

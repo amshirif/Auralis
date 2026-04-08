@@ -3,6 +3,9 @@
 This document is the canonical guide for the hosted token model implemented in
 the `Diamond Token Facets` milestone.
 
+For the decision to deploy separate hosts instead of a single shared token host,
+see `docs/adr/0002-separate-diamond-hosts.md`.
+
 The current supported deployment model is:
 
 - one ERC20-hosted diamond

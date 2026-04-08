@@ -6,6 +6,11 @@ repository:
 - `ERC4626Vault`
 - `ERC4626VaultControls`
 
+For the accounting and native-asset decisions behind this module family, see
+`docs/adr/0003-tracked-managed-assets.md`,
+`docs/adr/0004-native-sentinel-and-facet.md`, and
+`docs/adr/0005-exclude-force-sent-eth.md`.
+
 It covers the standalone vault modules and their math/control behavior. For the
 diamond-hosted vault platform, see `docs/vault-facets.md`.
 
