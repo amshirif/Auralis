@@ -6,6 +6,7 @@ validation, incident response, and release hygiene.
 ## Start Here
 
 - System hardening runbook: `docs/ops/runbook-system-hardening.md`
+- Workflow conventions: `docs/ops/workflow-conventions.md`
 
 ## Local Validation Flows
 
