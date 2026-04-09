@@ -15,6 +15,7 @@ contract MultisigWallet is IERC165, IMultisigWallet {
     mapping(address owner => uint256 indexPlusOne) internal _ownerIndexPlusOne;
 
     constructor() {
+        _nonce = 0;
         _initialized = true;
     }
 
@@ -27,6 +28,7 @@ contract MultisigWallet is IERC165, IMultisigWallet {
         }
 
         _initialized = true;
+        _nonce = 0;
         _setOwners(owners, threshold_);
         _multiSendCallOnly = multiSendCallOnly_;
 
