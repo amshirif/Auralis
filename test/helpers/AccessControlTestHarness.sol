@@ -11,6 +11,7 @@ interface Vm {
     function addr(uint256) external returns (address);
     function deal(address who, uint256 newBalance) external;
     function sign(uint256, bytes32) external returns (uint8, bytes32, bytes32);
+    function expectRevert() external;
     function expectRevert(bytes4) external;
     function expectRevert(bytes calldata) external;
     function expectEmit(bool, bool, bool, bool) external;
