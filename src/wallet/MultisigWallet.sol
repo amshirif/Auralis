@@ -6,7 +6,7 @@ import {IMultisigWallet} from "../interfaces/IMultisigWallet.sol";
 
 /// @title MultisigWallet
 /// @notice Standalone multisig wallet foundation with initializer-based owner/threshold state.
-contract MultisigWallet is IMultisigWallet {
+contract MultisigWallet is IERC165, IMultisigWallet {
     bool internal _initialized;
     uint256 internal _nonce;
     uint256 internal _threshold;
@@ -33,7 +33,7 @@ contract MultisigWallet is IMultisigWallet {
         emit WalletInitialized(_owners, _threshold, _multiSendCallOnly);
     }
 
-    function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IERC165).interfaceId || interfaceId == type(IMultisigWallet).interfaceId;
     }
 

@@ -49,13 +49,11 @@ contract MultisigWalletFoundationCoreTest is MultisigWalletFixture {
         owners[0] = actorAddresses[0];
         owners[1] = actorAddresses[1];
 
-        IMultisigWallet zeroThresholdClone =
-            IMultisigWallet(_deployUninitializedClone(keccak256("zero-threshold")));
+        IMultisigWallet zeroThresholdClone = IMultisigWallet(_deployUninitializedClone(keccak256("zero-threshold")));
         VM.expectRevert(abi.encodeWithSelector(IMultisigWallet.MultisigWalletInvalidThreshold.selector, 0, 2));
         zeroThresholdClone.initialize(owners, 0, DEFAULT_MULTI_SEND);
 
-        IMultisigWallet highThresholdClone =
-            IMultisigWallet(_deployUninitializedClone(keccak256("high-threshold")));
+        IMultisigWallet highThresholdClone = IMultisigWallet(_deployUninitializedClone(keccak256("high-threshold")));
         VM.expectRevert(abi.encodeWithSelector(IMultisigWallet.MultisigWalletInvalidThreshold.selector, 3, 2));
         highThresholdClone.initialize(owners, 3, DEFAULT_MULTI_SEND);
     }
