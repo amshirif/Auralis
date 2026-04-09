@@ -20,6 +20,9 @@ In practice:
 4. repeat until the milestone issue is complete
 5. open one milestone PR from `milestone/*` into `main`
 
+Worktrees are optional in this repo. Use them only when they help local
+execution or review; they are not required workflow state.
+
 ## Issue Planning Before Implementation
 
 Every implementation task should start from a GitHub issue.
@@ -72,7 +75,6 @@ Milestone PRs should:
 - carry the `milestone` label
 - have a project card on `Portfolio`
 - use `In progress` status while open
-- include an `@codex review` comment after creation
 
 Use [`scripts/open-milestone-pr.sh`](/Users/amirshirif/Documents/personal/auralis/scripts/open-milestone-pr.sh)
 to create milestone PRs with the expected metadata in one step.
