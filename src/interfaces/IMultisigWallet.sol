@@ -12,6 +12,7 @@ interface IMultisigWallet {
     error MultisigWalletInvalidSignaturesLength(uint256 providedLength, uint256 requiredLength);
     error MultisigWalletInvalidSigner(address signer);
     error MultisigWalletSignersNotStrictlyOrdered(address previousSigner, address currentSigner);
+    error MultisigWalletZeroTarget();
 
     event WalletInitialized(address[] owners, uint256 threshold, address multiSendCallOnly);
     event TransactionExecuted(bytes32 indexed digest, uint256 indexed nonce, address indexed target, uint256 value);

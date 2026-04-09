@@ -113,6 +113,13 @@ contract MultisigWalletCoreExecutionTest is MultisigWalletFixture {
         wallet.executeTransaction(address(target), 0, data, signatures);
     }
 
+    function testExecuteTransactionRejectsZeroTarget() public {
+        bytes memory signatures = _packedSignaturesForTransaction(address(0), 0, "", wallet.nonce(), 2);
+
+        VM.expectRevert(IMultisigWallet.MultisigWalletZeroTarget.selector);
+        wallet.executeTransaction(address(0), 0, "", signatures);
+    }
+
     function testExecuteTransactionOnlyAdvancesNonceOnSuccessfulCall() public {
         bytes memory data = abi.encodeCall(WalletExecutionTarget.revertWithReason, ());
         bytes memory signatures = _packedSignaturesForTransaction(address(target), 0, data, wallet.nonce(), 2);

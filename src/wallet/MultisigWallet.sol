@@ -61,13 +61,19 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         return _getTransactionHash(to, value, data, nonce_);
     }
 
+    // slither-disable-next-line reentrancy-events
     function executeTransaction(address to, uint256 value, bytes calldata data, bytes calldata signatures) external {
+        if (to == address(0)) {
+            revert MultisigWalletZeroTarget();
+        }
+
         uint256 currentNonce = _nonce;
         bytes32 digest = _getTransactionHash(to, value, data, currentNonce);
 
         _validateSignatures(digest, signatures);
         _nonce = currentNonce + 1;
 
+        // slither-disable-next-line arbitrary-send-eth
         (bool success, bytes memory returndata) = to.call{value: value}(data);
         if (!success) {
             assembly {
@@ -159,7 +165,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
             return false;
         }
 
-        address previousSigner;
+        address previousSigner = address(0);
         for (uint256 i = 0; i < signatureCount; i++) {
             (bytes32 r, bytes32 s, uint8 v) = _signatureAt(signatures, i);
             address signer = _recoverSigner(digest, v, r, s);
@@ -178,7 +184,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
             revert MultisigWalletInvalidSignaturesLength(signatures.length, requiredLength);
         }
 
-        address previousSigner;
+        address previousSigner = address(0);
         for (uint256 i = 0; i < _threshold; i++) {
             (bytes32 r, bytes32 s, uint8 v) = _signatureAt(signatures, i);
             address signer = _recoverSigner(digest, v, r, s);
