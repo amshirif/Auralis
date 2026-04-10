@@ -7,14 +7,14 @@ import {MultisigWalletFixture} from "./helpers/MultisigWalletTestHarness.sol";
 contract MultisigWalletFoundationCoreTest is MultisigWalletFixture {
     function testImplementationIsLockedAndCloneInitializesOnce() public {
         VM.expectRevert(IMultisigWallet.MultisigWalletAlreadyInitialized.selector);
-        implementation.initialize(_initialOwners(), 2, DEFAULT_MULTI_SEND);
+        implementation.initialize(_initialOwners(), 2, defaultMultiSend);
 
         VM.expectRevert(IMultisigWallet.MultisigWalletAlreadyInitialized.selector);
-        wallet.initialize(_initialOwners(), 2, DEFAULT_MULTI_SEND);
+        wallet.initialize(_initialOwners(), 2, defaultMultiSend);
 
         assertTrue(wallet.threshold() == 2, "threshold mismatch");
         assertTrue(wallet.ownerCount() == 3, "owner count mismatch");
-        assertTrue(wallet.multiSendCallOnly() == DEFAULT_MULTI_SEND, "helper mismatch");
+        assertTrue(wallet.multiSendCallOnly() == defaultMultiSend, "helper mismatch");
         assertTrue(wallet.nonce() == 0, "nonce mismatch");
         assertTrue(wallet.isOwner(actorAddresses[0]), "owner A missing");
         assertTrue(wallet.isOwner(actorAddresses[1]), "owner B missing");
@@ -30,7 +30,7 @@ contract MultisigWalletFoundationCoreTest is MultisigWalletFixture {
         IMultisigWallet clone = IMultisigWallet(_deployUninitializedClone(keccak256("duplicate-owner")));
 
         VM.expectRevert(abi.encodeWithSelector(IMultisigWallet.MultisigWalletDuplicateOwner.selector, owners[0]));
-        clone.initialize(owners, 2, DEFAULT_MULTI_SEND);
+        clone.initialize(owners, 2, defaultMultiSend);
     }
 
     function testInitializationRejectsZeroOwner() public {
@@ -41,7 +41,7 @@ contract MultisigWalletFoundationCoreTest is MultisigWalletFixture {
         IMultisigWallet clone = IMultisigWallet(_deployUninitializedClone(keccak256("zero-owner")));
 
         VM.expectRevert(IMultisigWallet.MultisigWalletZeroOwner.selector);
-        clone.initialize(owners, 2, DEFAULT_MULTI_SEND);
+        clone.initialize(owners, 2, defaultMultiSend);
     }
 
     function testInitializationRejectsInvalidThreshold() public {
@@ -51,11 +51,11 @@ contract MultisigWalletFoundationCoreTest is MultisigWalletFixture {
 
         IMultisigWallet zeroThresholdClone = IMultisigWallet(_deployUninitializedClone(keccak256("zero-threshold")));
         VM.expectRevert(abi.encodeWithSelector(IMultisigWallet.MultisigWalletInvalidThreshold.selector, 0, 2));
-        zeroThresholdClone.initialize(owners, 0, DEFAULT_MULTI_SEND);
+        zeroThresholdClone.initialize(owners, 0, defaultMultiSend);
 
         IMultisigWallet highThresholdClone = IMultisigWallet(_deployUninitializedClone(keccak256("high-threshold")));
         VM.expectRevert(abi.encodeWithSelector(IMultisigWallet.MultisigWalletInvalidThreshold.selector, 3, 2));
-        highThresholdClone.initialize(owners, 3, DEFAULT_MULTI_SEND);
+        highThresholdClone.initialize(owners, 3, defaultMultiSend);
     }
 
     function testInitializationRejectsZeroMultiSendAddress() public {

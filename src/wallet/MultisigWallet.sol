@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {IERC165} from "../interfaces/IERC165.sol";
 import {IERC1271} from "../interfaces/IERC1271.sol";
+import {IMultiSendCallOnly} from "../interfaces/IMultiSendCallOnly.sol";
 import {IMultisigWallet} from "../interfaces/IMultisigWallet.sol";
 
 /// @title MultisigWallet
@@ -14,6 +15,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 internal constant TRANSACTION_TYPEHASH =
         keccak256("WalletTransaction(address to,uint256 value,bytes32 dataHash,uint256 nonce)");
+    bytes32 internal constant BATCH_TYPEHASH = keccak256("WalletBatch(bytes32 transactionsHash,uint256 nonce)");
     bytes32 internal constant NAME_HASH = keccak256("Auralis Multisig Wallet");
     bytes32 internal constant VERSION_HASH = keccak256("1");
     uint256 internal constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
@@ -61,6 +63,10 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         return _getTransactionHash(to, value, data, nonce_);
     }
 
+    function getBatchHash(bytes calldata transactions, uint256 nonce_) external view returns (bytes32) {
+        return _getBatchHash(transactions, nonce_);
+    }
+
     // slither-disable-next-line reentrancy-events
     function executeTransaction(address to, uint256 value, bytes calldata data, bytes calldata signatures) external {
         if (to == address(0)) {
@@ -82,6 +88,26 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         }
 
         emit TransactionExecuted(digest, currentNonce, to, value);
+    }
+
+    // slither-disable-next-line reentrancy-events
+    function executeBatch(bytes calldata transactions, bytes calldata signatures) external {
+        uint256 currentNonce = _nonce;
+        bytes32 digest = _getBatchHash(transactions, currentNonce);
+
+        _validateSignatures(digest, signatures);
+        _nonce = currentNonce + 1;
+
+        // slither-disable-next-line controlled-delegatecall
+        (bool success, bytes memory returndata) =
+            _multiSendCallOnly.delegatecall(abi.encodeCall(IMultiSendCallOnly.multiSend, (transactions)));
+        if (!success) {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
+        }
+
+        emit BatchExecuted(digest, currentNonce);
     }
 
     function isValidSignature(bytes32 digest, bytes calldata signatures)
@@ -156,6 +182,11 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         returns (bytes32)
     {
         bytes32 structHash = keccak256(abi.encode(TRANSACTION_TYPEHASH, to, value, keccak256(data), nonce_));
+        return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+    }
+
+    function _getBatchHash(bytes calldata transactions, uint256 nonce_) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(transactions), nonce_));
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 
