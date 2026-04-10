@@ -16,13 +16,16 @@ interface IMultisigWallet {
 
     event WalletInitialized(address[] owners, uint256 threshold, address multiSendCallOnly);
     event TransactionExecuted(bytes32 indexed digest, uint256 indexed nonce, address indexed target, uint256 value);
+    event BatchExecuted(bytes32 indexed digest, uint256 indexed nonce);
 
     function initialize(address[] calldata owners, uint256 threshold_, address multiSendCallOnly_) external;
     function getTransactionHash(address to, uint256 value, bytes calldata data, uint256 nonce_)
         external
         view
         returns (bytes32);
+    function getBatchHash(bytes calldata transactions, uint256 nonce_) external view returns (bytes32);
     function executeTransaction(address to, uint256 value, bytes calldata data, bytes calldata signatures) external;
+    function executeBatch(bytes calldata transactions, bytes calldata signatures) external;
     function isValidSignature(bytes32 digest, bytes calldata signatures) external view returns (bytes4);
     function nonce() external view returns (uint256);
     function threshold() external view returns (uint256);

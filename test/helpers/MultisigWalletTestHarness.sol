@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC165} from "../../src/interfaces/IERC165.sol";
 import {IERC1271} from "../../src/interfaces/IERC1271.sol";
 import {IMultisigWallet} from "../../src/interfaces/IMultisigWallet.sol";
+import {MultiSendCallOnly} from "../../src/wallet/MultiSendCallOnly.sol";
 import {LibClone} from "../../src/libraries/LibClone.sol";
 import {MultisigWallet} from "../../src/wallet/MultisigWallet.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
@@ -13,6 +14,7 @@ abstract contract MultisigWalletFixture is TestBase {
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 internal constant TRANSACTION_TYPEHASH =
         keccak256("WalletTransaction(address to,uint256 value,bytes32 dataHash,uint256 nonce)");
+    bytes32 internal constant BATCH_TYPEHASH = keccak256("WalletBatch(bytes32 transactionsHash,uint256 nonce)");
     bytes32 internal constant NAME_HASH = keccak256("Auralis Multisig Wallet");
     bytes32 internal constant VERSION_HASH = keccak256("1");
     bytes4 internal constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
@@ -23,16 +25,19 @@ abstract contract MultisigWalletFixture is TestBase {
     uint256 internal constant OWNER_KEY_D = 0xD00D;
 
     bytes32 internal constant DEFAULT_SALT = keccak256("auralis.multisig.default-salt");
-    address internal constant DEFAULT_MULTI_SEND = address(0xBEEF);
 
     MultisigWallet internal implementation;
+    MultiSendCallOnly internal multiSendCallOnly;
     IMultisigWallet internal wallet;
 
     address[] internal actorAddresses;
     uint256[] internal actorKeys;
+    address internal defaultMultiSend;
 
     function setUp() public virtual {
         implementation = new MultisigWallet();
+        multiSendCallOnly = new MultiSendCallOnly();
+        defaultMultiSend = address(multiSendCallOnly);
 
         actorAddresses = new address[](4);
         actorKeys = new uint256[](4);
@@ -45,7 +50,7 @@ abstract contract MultisigWalletFixture is TestBase {
             actorAddresses[i] = VM.addr(actorKeys[i]);
         }
 
-        wallet = _deployInitializedWallet(DEFAULT_SALT, _initialOwners(), 2, DEFAULT_MULTI_SEND);
+        wallet = _deployInitializedWallet(DEFAULT_SALT, _initialOwners(), 2, defaultMultiSend);
     }
 
     function _initialOwners() internal view returns (address[] memory owners) {
@@ -88,6 +93,15 @@ abstract contract MultisigWalletFixture is TestBase {
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(walletAddress), structHash));
     }
 
+    function _batchDigest(address walletAddress, bytes memory transactions, uint256 nonce_)
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(transactions), nonce_));
+        return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(walletAddress), structHash));
+    }
+
     function _packedSignaturesForTransaction(
         address to,
         uint256 value,
@@ -95,7 +109,7 @@ abstract contract MultisigWalletFixture is TestBase {
         uint256 nonce_,
         uint256 signerCount
     ) internal returns (bytes memory) {
-        return _packedSignaturesForDigest(_transactionDigest(address(wallet), to, value, data, nonce_), signerCount);
+        return _packedSignaturesForTransactionAtWallet(address(wallet), to, value, data, nonce_, signerCount);
     }
 
     function _packedSignaturesForTransactionByIndexes(
@@ -105,9 +119,64 @@ abstract contract MultisigWalletFixture is TestBase {
         uint256 nonce_,
         uint256[] memory signerIndexes
     ) internal returns (bytes memory) {
+        return _packedSignaturesForTransactionByIndexesAtWallet(address(wallet), to, value, data, nonce_, signerIndexes);
+    }
+
+    function _packedSignaturesForTransactionAtWallet(
+        address walletAddress,
+        address to,
+        uint256 value,
+        bytes memory data,
+        uint256 nonce_,
+        uint256 signerCount
+    ) internal returns (bytes memory) {
+        return _packedSignaturesForDigest(_transactionDigest(walletAddress, to, value, data, nonce_), signerCount);
+    }
+
+    function _packedSignaturesForTransactionByIndexesAtWallet(
+        address walletAddress,
+        address to,
+        uint256 value,
+        bytes memory data,
+        uint256 nonce_,
+        uint256[] memory signerIndexes
+    ) internal returns (bytes memory) {
         return _packedSignaturesForDigestByIndexes(
-            _transactionDigest(address(wallet), to, value, data, nonce_), signerIndexes
+            _transactionDigest(walletAddress, to, value, data, nonce_), signerIndexes
         );
+    }
+
+    function _packedSignaturesForBatch(bytes memory transactions, uint256 nonce_, uint256 signerCount)
+        internal
+        returns (bytes memory)
+    {
+        return _packedSignaturesForBatchAtWallet(address(wallet), transactions, nonce_, signerCount);
+    }
+
+    function _packedSignaturesForBatchByIndexes(
+        bytes memory transactions,
+        uint256 nonce_,
+        uint256[] memory signerIndexes
+    ) internal returns (bytes memory) {
+        return _packedSignaturesForBatchByIndexesAtWallet(address(wallet), transactions, nonce_, signerIndexes);
+    }
+
+    function _packedSignaturesForBatchAtWallet(
+        address walletAddress,
+        bytes memory transactions,
+        uint256 nonce_,
+        uint256 signerCount
+    ) internal returns (bytes memory) {
+        return _packedSignaturesForDigest(_batchDigest(walletAddress, transactions, nonce_), signerCount);
+    }
+
+    function _packedSignaturesForBatchByIndexesAtWallet(
+        address walletAddress,
+        bytes memory transactions,
+        uint256 nonce_,
+        uint256[] memory signerIndexes
+    ) internal returns (bytes memory) {
+        return _packedSignaturesForDigestByIndexes(_batchDigest(walletAddress, transactions, nonce_), signerIndexes);
     }
 
     function _packedSignaturesForDigest(bytes32 digest, uint256 signerCount)
@@ -159,5 +228,9 @@ abstract contract MultisigWalletFixture is TestBase {
         }
 
         return indexes;
+    }
+
+    function _encodeBatchEntry(address to, uint256 value, bytes memory data) internal pure returns (bytes memory) {
+        return bytes.concat(bytes20(to), bytes32(value), bytes32(data.length), data);
     }
 }
