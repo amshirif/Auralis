@@ -84,6 +84,24 @@ strategy-aware accounting, loss and emergency-exit behavior, selector
 ownership, facet replacement persistence, and diamond-routed vault invariants
 locally.
 
+### Multisig Wallet
+
+The standalone wallet track has a bounded reviewer-facing suite set for
+foundation, execution, batch/factory, management, and invariant coverage:
+
+```bash
+forge test --offline --match-path test/MultisigWalletFoundationCore.t.sol
+forge test --offline --match-path test/MultisigWalletCoreExecution.t.sol
+forge test --offline --match-path test/MultisigWalletIntegration.t.sol
+forge test --offline --match-path test/MultisigWalletManagement.t.sol
+forge test --offline --match-path test/MultisigWalletInvariant.t.sol
+```
+
+Use these to reproduce initializer behavior, EIP-712 signing, ERC-1271
+verification, deterministic clone deployment, call-only batch execution,
+self-managed owner/threshold changes, and the wallet invariants around owner
+uniqueness, threshold bounds, and nonce progression.
+
 ### Slither
 
 Install and run the same high-severity gate locally:
