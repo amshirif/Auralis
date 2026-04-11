@@ -23,6 +23,8 @@ abstract contract MultisigWalletFixture is TestBase {
     uint256 internal constant OWNER_KEY_B = 0xB0B;
     uint256 internal constant OWNER_KEY_C = 0xCAFE;
     uint256 internal constant OWNER_KEY_D = 0xD00D;
+    uint256 internal constant OWNER_KEY_E = 0xE11E;
+    uint256 internal constant OWNER_KEY_F = 0xF00D;
 
     bytes32 internal constant DEFAULT_SALT = keccak256("auralis.multisig.default-salt");
 
@@ -39,12 +41,14 @@ abstract contract MultisigWalletFixture is TestBase {
         multiSendCallOnly = new MultiSendCallOnly();
         defaultMultiSend = address(multiSendCallOnly);
 
-        actorAddresses = new address[](4);
-        actorKeys = new uint256[](4);
+        actorAddresses = new address[](6);
+        actorKeys = new uint256[](6);
         actorKeys[0] = OWNER_KEY_A;
         actorKeys[1] = OWNER_KEY_B;
         actorKeys[2] = OWNER_KEY_C;
         actorKeys[3] = OWNER_KEY_D;
+        actorKeys[4] = OWNER_KEY_E;
+        actorKeys[5] = OWNER_KEY_F;
 
         for (uint256 i = 0; i < actorKeys.length; i++) {
             actorAddresses[i] = VM.addr(actorKeys[i]);
@@ -179,6 +183,60 @@ abstract contract MultisigWalletFixture is TestBase {
         return _packedSignaturesForDigestByIndexes(_batchDigest(walletAddress, transactions, nonce_), signerIndexes);
     }
 
+    function _packedCurrentThresholdSignaturesForTransaction(
+        IMultisigWallet wallet_,
+        address to,
+        uint256 value,
+        bytes memory data
+    ) internal returns (bytes memory) {
+        return _packedCurrentThresholdSignaturesForTransactionAtWallet(address(wallet_), to, value, data);
+    }
+
+    function _packedCurrentThresholdSignaturesForTransactionAtWallet(
+        address walletAddress,
+        address to,
+        uint256 value,
+        bytes memory data
+    ) internal returns (bytes memory) {
+        return _packedSignaturesForTransactionByIndexesAtWallet(
+            walletAddress,
+            to,
+            value,
+            data,
+            IMultisigWallet(walletAddress).nonce(),
+            _currentThresholdSignerIndexes(walletAddress)
+        );
+    }
+
+    function _packedCurrentThresholdSignaturesForBatch(IMultisigWallet wallet_, bytes memory transactions)
+        internal
+        returns (bytes memory)
+    {
+        return _packedCurrentThresholdSignaturesForBatchAtWallet(address(wallet_), transactions);
+    }
+
+    function _packedCurrentThresholdSignaturesForBatchAtWallet(address walletAddress, bytes memory transactions)
+        internal
+        returns (bytes memory)
+    {
+        return _packedSignaturesForBatchByIndexesAtWallet(
+            walletAddress,
+            transactions,
+            IMultisigWallet(walletAddress).nonce(),
+            _currentThresholdSignerIndexes(walletAddress)
+        );
+    }
+
+    function _executeSelfTransaction(IMultisigWallet wallet_, bytes memory data) internal {
+        bytes memory signatures = _packedCurrentThresholdSignaturesForTransaction(wallet_, address(wallet_), 0, data);
+        wallet_.executeTransaction(address(wallet_), 0, data, signatures);
+    }
+
+    function _executeSelfBatch(IMultisigWallet wallet_, bytes memory transactions) internal {
+        bytes memory signatures = _packedCurrentThresholdSignaturesForBatch(wallet_, transactions);
+        wallet_.executeBatch(transactions, signatures);
+    }
+
     function _packedSignaturesForDigest(bytes32 digest, uint256 signerCount)
         internal
         returns (bytes memory signatures)
@@ -232,5 +290,35 @@ abstract contract MultisigWalletFixture is TestBase {
 
     function _encodeBatchEntry(address to, uint256 value, bytes memory data) internal pure returns (bytes memory) {
         return bytes.concat(bytes20(to), bytes32(value), bytes32(data.length), data);
+    }
+
+    function _currentThresholdSignerIndexes(address walletAddress)
+        internal
+        view
+        returns (uint256[] memory signerIndexes)
+    {
+        address[] memory owners = IMultisigWallet(walletAddress).getOwners();
+        uint256[] memory ownerIndexes = new uint256[](owners.length);
+
+        for (uint256 i = 0; i < owners.length; i++) {
+            ownerIndexes[i] = _actorIndex(owners[i]);
+        }
+
+        ownerIndexes = _sortedIndexesByAddress(ownerIndexes);
+        uint256 signerCount = IMultisigWallet(walletAddress).threshold();
+        signerIndexes = new uint256[](signerCount);
+        for (uint256 i = 0; i < signerCount; i++) {
+            signerIndexes[i] = ownerIndexes[i];
+        }
+    }
+
+    function _actorIndex(address actor) internal view returns (uint256) {
+        for (uint256 i = 0; i < actorAddresses.length; i++) {
+            if (actorAddresses[i] == actor) {
+                return i;
+            }
+        }
+
+        revert("unknown actor");
     }
 }

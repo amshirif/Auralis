@@ -110,6 +110,29 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         emit BatchExecuted(digest, currentNonce);
     }
 
+    function addOwner(address owner) external {
+        _requireSelfCall();
+        _addOwner(owner);
+    }
+
+    function removeOwner(address owner) external {
+        _requireSelfCall();
+        _removeOwner(owner);
+    }
+
+    function replaceOwner(address oldOwner, address newOwner) external {
+        _requireSelfCall();
+        _replaceOwner(oldOwner, newOwner);
+    }
+
+    function changeThreshold(uint256 newThreshold) external {
+        _requireSelfCall();
+        _requireValidThreshold(newThreshold, _owners.length);
+        _threshold = newThreshold;
+
+        emit ThresholdChanged(newThreshold);
+    }
+
     function isValidSignature(bytes32 digest, bytes calldata signatures)
         external
         view
@@ -146,6 +169,12 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         return _owners;
     }
 
+    function _requireSelfCall() internal view {
+        if (msg.sender != address(this)) {
+            revert MultisigWalletCallerNotSelf();
+        }
+    }
+
     function _setOwners(address[] calldata owners, uint256 threshold_) internal {
         uint256 ownerCount_ = owners.length;
         _requireValidThreshold(threshold_, ownerCount_);
@@ -164,6 +193,73 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         }
 
         _threshold = threshold_;
+    }
+
+    function _addOwner(address owner) internal {
+        if (owner == address(0)) {
+            revert MultisigWalletZeroOwner();
+        }
+        if (_ownerIndexPlusOne[owner] != 0) {
+            revert MultisigWalletDuplicateOwner(owner);
+        }
+
+        _ownerIndexPlusOne[owner] = _owners.length + 1;
+        _owners.push(owner);
+
+        emit OwnerAdded(owner);
+    }
+
+    function _removeOwner(address owner) internal {
+        uint256 ownerIndexPlusOne = _ownerIndexPlusOne[owner];
+        if (ownerIndexPlusOne == 0) {
+            revert MultisigWalletOwnerNotFound(owner);
+        }
+
+        uint256 ownerCount_ = _owners.length;
+        if (ownerCount_ == 1) {
+            revert MultisigWalletCannotRemoveLastOwner();
+        }
+
+        uint256 newOwnerCount = ownerCount_ - 1;
+        if (_threshold > newOwnerCount) {
+            revert MultisigWalletRemovalInvalidatesThreshold(_threshold, newOwnerCount);
+        }
+
+        uint256 ownerIndex = ownerIndexPlusOne - 1;
+        uint256 lastOwnerIndex = ownerCount_ - 1;
+        if (ownerIndex != lastOwnerIndex) {
+            address lastOwner = _owners[lastOwnerIndex];
+            _owners[ownerIndex] = lastOwner;
+            _ownerIndexPlusOne[lastOwner] = ownerIndex + 1;
+        }
+
+        _owners.pop();
+        delete _ownerIndexPlusOne[owner];
+
+        emit OwnerRemoved(owner);
+    }
+
+    function _replaceOwner(address oldOwner, address newOwner) internal {
+        uint256 oldOwnerIndexPlusOne = _ownerIndexPlusOne[oldOwner];
+        if (oldOwnerIndexPlusOne == 0) {
+            revert MultisigWalletOwnerNotFound(oldOwner);
+        }
+        if (oldOwner == newOwner) {
+            revert MultisigWalletReplaceOwnerNoop(oldOwner);
+        }
+        if (newOwner == address(0)) {
+            revert MultisigWalletZeroOwner();
+        }
+        if (_ownerIndexPlusOne[newOwner] != 0) {
+            revert MultisigWalletDuplicateOwner(newOwner);
+        }
+
+        uint256 ownerIndex = oldOwnerIndexPlusOne - 1;
+        _owners[ownerIndex] = newOwner;
+        delete _ownerIndexPlusOne[oldOwner];
+        _ownerIndexPlusOne[newOwner] = oldOwnerIndexPlusOne;
+
+        emit OwnerReplaced(oldOwner, newOwner);
     }
 
     function _requireValidThreshold(uint256 threshold_, uint256 ownerCount_) internal pure {
