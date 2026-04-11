@@ -8,13 +8,13 @@
 [![Foundry CI](https://github.com/amshirif/Auralis/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/Auralis/actions/workflows/ci.yml)
 ![License](https://img.shields.io/github/license/amshirif/Auralis)
 
-Security-first, diamond-ready Solidity systems.
+Security-first Solidity systems.
 
 `Auralis` is a protocol-engineering portfolio repository focused on
 security-first, upgrade-aware Solidity systems. It combines modular contract
-design, deployment-backed validation, local operator flows, and hardening
-coverage so a reviewer can assess architecture and evidence together rather
-than as isolated snippets.
+design, deployment-backed validation, local operator flows, hardening
+coverage, and standalone smart-wallet execution so a reviewer can assess
+architecture and evidence together rather than as isolated snippets.
 
 ## Why This Repo Exists
 
@@ -28,6 +28,7 @@ reviewable engineering system.
 - Architecture decisions: `docs/adr/README.md`
 - Canonical docs map: `docs/README.md`
 - Hosted vault architecture: `docs/vault-facets.md`
+- Smart-wallet architecture: `docs/multisig-wallet.md`
 - Security assumptions: `docs/threat-model.md`
 - Validation and CI policy: `docs/security-checks.md`
 - Local workflow and deployment artifacts: `docs/auralis-local.md`
@@ -35,11 +36,15 @@ reviewable engineering system.
 ## What This Repo Proves
 
 - Core architecture: diamond routing, selector ownership discipline, and
-  separate hosted token and vault deployment models.
+  separate hosted token and vault deployment models plus a standalone
+  smart-wallet track.
 - Safety posture: RBAC, timed permissions, pause semantics, reentrancy
-  protection, oracle validation, and upgrade guardrails.
+  protection, oracle validation, upgrade guardrails, and threshold-based wallet
+  execution.
 - Protocol surfaces: ERC20 and ERC721 token hosts plus a hosted ERC-4626 vault
-  platform with controls, strategy integration, and native-asset support.
+  platform with controls, strategy integration, and native-asset support, plus
+  a standalone multisig wallet with single-call, batch, and self-managed
+  configuration flows.
 - Operational maturity: local bootstrap, smoke validation, activity flows,
   upgrade rehearsal, and matching CI/hardening gates.
 
@@ -53,6 +58,8 @@ reviewable engineering system.
   storage discipline.
 - `docs/vault-facets.md`: hosted vault facet split, lifecycle, and deployment
   model.
+- `docs/multisig-wallet.md`: wallet deployment model, signature semantics,
+  replay protection, and self-managed configuration surface.
 - `docs/threat-model.md`: trust boundaries, threat assumptions, and residual
   risks.
 
@@ -70,6 +77,16 @@ reviewable engineering system.
   recovery behavior.
 - `test/SystemVaultStressInvariant.t.sol`: higher-signal system stress coverage
   for vault behavior under adversarial sequences.
+- `test/MultisigWalletFoundationCore.t.sol`: initializer, owner-set, and clone
+  foundation checks.
+- `test/MultisigWalletCoreExecution.t.sol`: EIP-712 signing, nonce, ERC-1271,
+  and single-call execution behavior.
+- `test/MultisigWalletIntegration.t.sol`: batch execution and deterministic
+  factory deployment coverage.
+- `test/MultisigWalletManagement.t.sol`: self-managed owner and threshold
+  mutation coverage.
+- `test/MultisigWalletInvariant.t.sol`: owner uniqueness, threshold bounds, and
+  nonce progression invariants.
 
 ### Deployment And Operator Evidence
 
@@ -93,6 +110,16 @@ forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
 forge test --offline --match-path test/SystemVaultStressInvariant.t.sol
 ```
 
+For the wallet track:
+
+```shell
+forge test --offline --match-path test/MultisigWalletFoundationCore.t.sol
+forge test --offline --match-path test/MultisigWalletCoreExecution.t.sol
+forge test --offline --match-path test/MultisigWalletIntegration.t.sol
+forge test --offline --match-path test/MultisigWalletManagement.t.sol
+forge test --offline --match-path test/MultisigWalletInvariant.t.sol
+```
+
 For the local Auralis workflow:
 
 ```shell
@@ -109,7 +136,7 @@ Recommended reviewer path:
 
 - Architecture decisions: `docs/adr/README.md`
 - Core architecture: `docs/diamond-core.md`, `docs/token-facets.md`,
-  `docs/vault-facets.md`, `docs/oracle-adapter.md`
+  `docs/vault-facets.md`, `docs/multisig-wallet.md`, `docs/oracle-adapter.md`
 - Security and validation: `docs/threat-model.md`, `docs/security-checks.md`
 - Operations and local workflow: `docs/ops/README.md`, `docs/auralis-local.md`
 

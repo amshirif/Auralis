@@ -1,7 +1,7 @@
 # Threat Model
 
 This summary covers security assumptions and guard rails for access, oracle,
-upgrade, and vault modules.
+upgrade, vault, and wallet modules.
 
 For the accepted architecture decisions that shape these assumptions, see
 `docs/adr/README.md`.
@@ -15,6 +15,9 @@ For the accepted architecture decisions that shape these assumptions, see
 - `Pausable`
 - `ReentrancyGuard`
 - `UpgradeGuardrails`
+- `MultisigWallet`
+- `MultisigWalletFactory`
+- `MultiSendCallOnly`
 
 ## Security Goals
 
@@ -25,12 +28,17 @@ For the accepted architecture decisions that shape these assumptions, see
 - Reentrant state-changing entrypoints are blocked.
 - Upgrade execution follows explicit authorization and guardrail checks.
 - Vault share/accounting behavior remains explicit under rounding and low-liquidity edge conditions.
+- Wallet execution requires the configured threshold of valid owner signatures.
+- Wallet replay protection prevents nonce reuse across signed transactions.
+- Wallet configuration changes require wallet-authorized self-calls.
 
 ## Trust Assumptions
 
 - Initial admin/upgrader/pauser assignments are correct at initialization.
 - Oracle feed sources are configured to trusted contracts with expected ABI behavior.
 - Governance/operator keys are managed securely off-chain.
+- Wallet owners review and approve transaction payloads securely off-chain.
+- The configured `MultiSendCallOnly` helper is the intended fixed batch helper for deployed wallets.
 - Deployed contracts integrate `_applyUpgrade` correctly for their proxy/diamond mechanism.
 - Time-based checks rely on `block.timestamp` and accept normal timestamp variance.
 
@@ -66,6 +74,18 @@ For the accepted architecture decisions that shape these assumptions, see
 10. Emergency response lag on vault write paths
 - Mitigation: pausable controls block `deposit`, `mint`, `withdraw`, and `redeem` when paused.
 
+11. Wallet replay or stale approval reuse
+- Mitigation: every signed wallet transaction includes the current monotonic nonce, and nonce advances on successful wallet execution.
+
+12. Duplicate or malformed threshold approvals
+- Mitigation: wallet signatures are packed at fixed length, recovered signers must be valid owners, and signer addresses must be strictly increasing.
+
+13. Unauthorized wallet reconfiguration
+- Mitigation: owner and threshold mutation methods require `msg.sender == address(this)` and can only be reached through an already-authorized wallet execution.
+
+14. Batch execution widening into arbitrary delegatecall
+- Mitigation: batch execution delegatecalls only into the fixed `MultiSendCallOnly` helper, which performs plain external calls to the encoded targets.
+
 ## Residual Risks / Out of Scope
 
 - Compromised privileged keys can still perform privileged actions.
@@ -74,6 +94,9 @@ For the accepted architecture decisions that shape these assumptions, see
 - Diamond `diamondCut` flows include core guardrails, but governance policy (timelocks/multisig approvals) remains an integration responsibility.
 - The current upgrade guardrails check nonzero implementation; deeper bytecode/interface validation is protocol-specific and should be added where needed.
 - Direct token donations to vault addresses can create untracked surplus unless explicitly reconciled by integration policy.
+- Compromised wallet owner keys can still authorize malicious transactions.
+- Off-chain signing and transaction review policy for multisig owners remains an operational responsibility.
+- The wallet does not yet include modules, guards, fallback handlers, contract owners, or ERC-4337 integration.
 
 ## Operational Guidance
 
