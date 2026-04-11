@@ -6,6 +6,12 @@ Use this surface to understand the current architecture, the major design
 decisions behind it, how safety is validated, and where operator-facing
 runbooks live.
 
+The repo currently has three major protocol surfaces:
+
+- diamond-hosted token systems
+- diamond-hosted vault systems
+- a standalone multisig wallet track
+
 ## Architecture Overview
 
 ```mermaid
@@ -14,6 +20,7 @@ flowchart TD
     Core["Diamond Core<br/>routing and upgrade base"]
     Token["Token Hosts<br/>ERC20 and ERC721 diamonds"]
     Vault["Vault Hosts<br/>hosted ERC-4626 platform"]
+    Wallet["Wallet Track<br/>standalone multisig system"]
     Oracle["Oracle Adapter<br/>validation and breaker policy"]
     Security["Threat Model and Security Checks"]
     Ops["Ops and Local Workflow"]
@@ -21,6 +28,7 @@ flowchart TD
     ADR --> Core
     ADR --> Token
     ADR --> Vault
+    Wallet --> Security
     ADR --> Oracle
     Core --> Token
     Core --> Vault
@@ -37,6 +45,7 @@ flowchart TD
 - Diamond core architecture: `docs/diamond-core.md`
 - Hosted token architecture: `docs/token-facets.md`
 - Hosted vault architecture: `docs/vault-facets.md`
+- Smart-wallet architecture: `docs/multisig-wallet.md`
 - Security assumptions: `docs/threat-model.md`
 - Validation and CI policy: `docs/security-checks.md`
 
@@ -51,6 +60,8 @@ visual model materially improves comprehension.
   role surface, and upgrade assumptions.
 - `docs/vault-facets.md`: hosted vault facet split, selector ownership, and
   deployment model.
+- `docs/multisig-wallet.md`: standalone multisig wallet deployment,
+  authorization, and configuration model.
 - `docs/erc4626-vault.md`: standalone ERC-4626 module semantics, math, fees,
   limits, and native-mode accounting assumptions.
 - `docs/oracle-adapter.md`: oracle adapter validation, breaker behavior, and

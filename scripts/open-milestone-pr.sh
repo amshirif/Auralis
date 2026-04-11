@@ -53,6 +53,4 @@ fi
 pr_item_id="$(ghwf_ensure_project_item "${pr_url}")"
 ghwf_set_project_status "${pr_item_id}" "In progress"
 
-gh pr comment "${pr_number}" --repo "$(ghwf_repo_full_name)" --body "@codex review" >/dev/null
-
 printf '%s\n' "${pr_url}"
