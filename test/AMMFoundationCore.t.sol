@@ -111,7 +111,8 @@ contract AMMFoundationCoreTest is AMMFoundationFixture {
         lpToken.mint(alice, 10);
 
         VM.prank(alice);
-        (bool success, bytes memory returndata) = address(lpToken).call(abi.encodeCall(lpToken.transfer, (address(0), 1)));
+        (bool success, bytes memory returndata) =
+            address(lpToken).call(abi.encodeCall(lpToken.transfer, (address(0), 1)));
         assertFalse(success, "zero-address transfer should revert");
 
         bytes4 revertSelector;

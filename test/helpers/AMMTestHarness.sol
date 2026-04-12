@@ -51,11 +51,14 @@ abstract contract AMMFoundationFixture is TestBase {
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, token));
     }
 
-    function _permitDigest(address token, address owner, address spender, uint256 value, uint256 nonce_, uint256 deadline)
-        internal
-        view
-        returns (bytes32)
-    {
+    function _permitDigest(
+        address token,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 nonce_,
+        uint256 deadline
+    ) internal view returns (bytes32) {
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce_, deadline));
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(token), structHash));
     }
@@ -87,9 +90,7 @@ abstract contract AMMFoundationFixture is TestBase {
     }
 
     function _invalidHighS(bytes32 s) internal pure returns (bytes32) {
-        return bytes32(
-            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141 - uint256(s)
-        );
+        return bytes32(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141 - uint256(s));
     }
 
     function _mathMin(uint256 x, uint256 y) internal pure returns (uint256) {
