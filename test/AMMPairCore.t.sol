@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {AMMFactory} from "../src/amm/AMMFactory.sol";
 import {AMMPair} from "../src/amm/AMMPair.sol";
 import {
-    AMMFactoryHarness,
     AMMPairCoreFixture,
     FalseReturningAMMToken,
     MalformedAMMToken,
@@ -251,53 +251,80 @@ contract AMMPairCoreTest is AMMPairCoreFixture {
     function testSwapRevertsWhenOutputTokenReturnsFalse() public {
         FalseReturningAMMToken falseToken = new FalseReturningAMMToken("False Token", "FTK", 18);
         MockAMMToken normalToken = new MockAMMToken("Normal Token", "NTK", 18);
-        AMMFactoryHarness localFactory = new AMMFactoryHarness(address(this));
+        AMMFactory localFactory = new AMMFactory();
         AMMPair falsePair = AMMPair(localFactory.createPair(address(falseToken), address(normalToken)));
 
         _seedLiquidityDirect(falsePair, falseToken, normalToken, 10_000, 10_000, alice);
         normalToken.mint(address(falsePair), 1_000);
 
-        VM.expectRevert(abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(falseToken), bob, 1));
-        falsePair.swap(1, 0, bob, "");
+        if (falsePair.token0() == address(falseToken)) {
+            VM.expectRevert(abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(falseToken), bob, 1));
+            falsePair.swap(1, 0, bob, "");
+        } else {
+            VM.expectRevert(abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(falseToken), bob, 1));
+            falsePair.swap(0, 1, bob, "");
+        }
     }
 
     function testSwapAcceptsSilentTransferToken() public {
         SilentAMMToken silentToken = new SilentAMMToken("Silent Token", "STK", 18);
         MockAMMToken normalToken = new MockAMMToken("Normal Token", "NTK", 18);
-        AMMFactoryHarness localFactory = new AMMFactoryHarness(address(this));
+        AMMFactory localFactory = new AMMFactory();
         AMMPair silentPair = AMMPair(localFactory.createPair(address(silentToken), address(normalToken)));
 
         _seedLiquidityDirect(silentPair, silentToken, normalToken, 10_000, 10_000, alice);
         normalToken.mint(address(silentPair), 1_000);
 
-        silentPair.swap(1, 0, bob, "");
+        if (silentPair.token0() == address(silentToken)) {
+            silentPair.swap(1, 0, bob, "");
+        } else {
+            silentPair.swap(0, 1, bob, "");
+        }
         assertTrue(silentToken.balanceOf(bob) == 1, "silent transfer output mismatch");
     }
 
     function testSwapRevertsWhenOutputTokenReturnsMalformedData() public {
         MalformedAMMToken malformedToken = new MalformedAMMToken("Malformed Token", "MTK", 18);
         MockAMMToken normalToken = new MockAMMToken("Normal Token", "NTK", 18);
-        AMMFactoryHarness localFactory = new AMMFactoryHarness(address(this));
+        AMMFactory localFactory = new AMMFactory();
         AMMPair malformedPair = AMMPair(localFactory.createPair(address(malformedToken), address(normalToken)));
 
         _seedLiquidityDirect(malformedPair, malformedToken, normalToken, 10_000, 10_000, alice);
         normalToken.mint(address(malformedPair), 1_000);
 
-        VM.expectRevert(abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(malformedToken), bob, 1));
-        malformedPair.swap(1, 0, bob, "");
+        if (malformedPair.token0() == address(malformedToken)) {
+            VM.expectRevert(
+                abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(malformedToken), bob, 1)
+            );
+            malformedPair.swap(1, 0, bob, "");
+        } else {
+            VM.expectRevert(
+                abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(malformedToken), bob, 1)
+            );
+            malformedPair.swap(0, 1, bob, "");
+        }
     }
 
     function testSwapRevertsWhenOutputTransferAttemptsReentrancy() public {
         ReentrantAMMToken reentrantToken = new ReentrantAMMToken("Reentrant Token", "RTK", 18);
         MockAMMToken normalToken = new MockAMMToken("Normal Token", "NTK", 18);
-        AMMFactoryHarness localFactory = new AMMFactoryHarness(address(this));
+        AMMFactory localFactory = new AMMFactory();
         AMMPair reentrantPair = AMMPair(localFactory.createPair(address(reentrantToken), address(normalToken)));
 
         _seedLiquidityDirect(reentrantPair, reentrantToken, normalToken, 10_000, 10_000, alice);
         normalToken.mint(address(reentrantPair), 1_000);
         reentrantToken.setReenterSync(address(reentrantPair), true);
 
-        VM.expectRevert(abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(reentrantToken), bob, 1));
-        reentrantPair.swap(1, 0, bob, "");
+        if (reentrantPair.token0() == address(reentrantToken)) {
+            VM.expectRevert(
+                abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(reentrantToken), bob, 1)
+            );
+            reentrantPair.swap(1, 0, bob, "");
+        } else {
+            VM.expectRevert(
+                abi.encodeWithSelector(AMMPair.AMMPairTransferFailed.selector, address(reentrantToken), bob, 1)
+            );
+            reentrantPair.swap(0, 1, bob, "");
+        }
     }
 }
