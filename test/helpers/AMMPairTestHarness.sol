@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {AMMFactory} from "../../src/amm/AMMFactory.sol";
 import {AMMPair} from "../../src/amm/AMMPair.sol";
-import {IAMMFactory} from "../../src/interfaces/IAMMFactory.sol";
 import {IERC20Metadata} from "../../src/interfaces/IERC20Metadata.sol";
 import {AMMFoundationFixture} from "./AMMTestHarness.sol";
 
@@ -183,116 +183,66 @@ contract ReentrantAMMToken is MockAMMToken {
     }
 }
 
-contract AMMFactoryHarness is IAMMFactory {
-    address public override feeTo;
-    address public override feeToSetter;
+abstract contract AMMPairCoreFixture is AMMFoundationFixture {
+    address internal constant BURN_SINK = 0x000000000000000000000000000000000000dEaD;
 
-    address[] internal _allPairs;
-    mapping(address => mapping(address => address)) internal _pairs;
+    AMMFactory internal factory;
+    AMMPair internal pair;
+    MockAMMToken internal token0;
+    MockAMMToken internal token1;
 
-    constructor(address feeToSetter_) {
-        feeToSetter = feeToSetter_;
+    function setUp() public virtual override {
+        super.setUp();
+
+        factory = new AMMFactory();
+        MockAMMToken firstToken = new MockAMMToken("Token 0", "TK0", 18);
+        MockAMMToken secondToken = new MockAMMToken("Token 1", "TK1", 18);
+
+        pair = AMMPair(factory.createPair(address(firstToken), address(secondToken)));
+        (token0, token1) =
+            address(firstToken) < address(secondToken) ? (firstToken, secondToken) : (secondToken, firstToken);
     }
 
-    function getPair(address tokenA, address tokenB) external view returns (address) {
-        return _pairs[tokenA][tokenB];
+    function _provideLiquidity(
+        AMMPair pair_,
+        MockAMMToken token0_,
+        MockAMMToken token1_,
+        address provider,
+        uint256 amount0,
+        uint256 amount1,
+        address recipient
+    ) internal returns (uint256 liquidity) {
+        token0_.mint(provider, amount0);
+        token1_.mint(provider, amount1);
+
+        VM.startPrank(provider);
+        assertTrue(token0_.transfer(address(pair_), amount0), "token0 transfer should succeed");
+        assertTrue(token1_.transfer(address(pair_), amount1), "token1 transfer should succeed");
+        VM.stopPrank();
+
+        liquidity = pair_.mint(recipient);
     }
 
-    function allPairs(uint256 index) external view returns (address) {
-        return _allPairs[index];
+    function _seedLiquidityDirect(
+        AMMPair pair_,
+        MockAMMToken token0_,
+        MockAMMToken token1_,
+        uint256 amount0,
+        uint256 amount1,
+        address recipient
+    ) internal returns (uint256 liquidity) {
+        token0_.mint(address(pair_), amount0);
+        token1_.mint(address(pair_), amount1);
+        liquidity = pair_.mint(recipient);
     }
 
-    function allPairsLength() external view returns (uint256) {
-        return _allPairs.length;
+    function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
+        uint256 amountInWithFee = amountIn * 997;
+        return (amountInWithFee * reserveOut) / ((reserveIn * 1000) + amountInWithFee);
     }
 
-    function createPair(address tokenA, address tokenB) external returns (address pair) {
-        require(tokenA != address(0) && tokenB != address(0), "ZERO_TOKEN");
-        require(tokenA != tokenB, "IDENTICAL_TOKEN");
-        require(_pairs[tokenA][tokenB] == address(0), "PAIR_EXISTS");
-
-        pair = address(new AMMPair());
-        AMMPair(pair).initialize(tokenA, tokenB);
-
-        _pairs[tokenA][tokenB] = pair;
-        _pairs[tokenB][tokenA] = pair;
-        _allPairs.push(pair);
-
-        emit PairCreated(tokenA, tokenB, pair, _allPairs.length);
-    }
-
-    function setFeeTo(address feeTo_) external {
-        require(msg.sender == feeToSetter, "FORBIDDEN");
-        feeTo = feeTo_;
-    }
-
-    function setFeeToSetter(address feeToSetter_) external {
-        require(msg.sender == feeToSetter, "FORBIDDEN");
-        feeToSetter = feeToSetter_;
+    function _deployPair(address token0_, address token1_) internal returns (AMMPair pair_) {
+        AMMFactory localFactory = new AMMFactory();
+        pair_ = AMMPair(localFactory.createPair(token0_, token1_));
     }
 }
-
-    abstract contract AMMPairCoreFixture is AMMFoundationFixture {
-        address internal constant BURN_SINK = 0x000000000000000000000000000000000000dEaD;
-
-        AMMFactoryHarness internal factory;
-        AMMPair internal pair;
-        MockAMMToken internal token0;
-        MockAMMToken internal token1;
-
-        function setUp() public virtual override {
-            super.setUp();
-
-            factory = new AMMFactoryHarness(address(this));
-            token0 = new MockAMMToken("Token 0", "TK0", 18);
-            token1 = new MockAMMToken("Token 1", "TK1", 18);
-            pair = AMMPair(factory.createPair(address(token0), address(token1)));
-        }
-
-        function _provideLiquidity(
-            AMMPair pair_,
-            MockAMMToken token0_,
-            MockAMMToken token1_,
-            address provider,
-            uint256 amount0,
-            uint256 amount1,
-            address recipient
-        ) internal returns (uint256 liquidity) {
-            token0_.mint(provider, amount0);
-            token1_.mint(provider, amount1);
-
-            VM.startPrank(provider);
-            assertTrue(token0_.transfer(address(pair_), amount0), "token0 transfer should succeed");
-            assertTrue(token1_.transfer(address(pair_), amount1), "token1 transfer should succeed");
-            VM.stopPrank();
-
-            liquidity = pair_.mint(recipient);
-        }
-
-        function _seedLiquidityDirect(
-            AMMPair pair_,
-            MockAMMToken token0_,
-            MockAMMToken token1_,
-            uint256 amount0,
-            uint256 amount1,
-            address recipient
-        ) internal returns (uint256 liquidity) {
-            token0_.mint(address(pair_), amount0);
-            token1_.mint(address(pair_), amount1);
-            liquidity = pair_.mint(recipient);
-        }
-
-        function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
-            internal
-            pure
-            returns (uint256)
-        {
-            uint256 amountInWithFee = amountIn * 997;
-            return (amountInWithFee * reserveOut) / ((reserveIn * 1000) + amountInWithFee);
-        }
-
-        function _deployPair(address token0_, address token1_) internal returns (AMMPair pair_) {
-            AMMFactoryHarness localFactory = new AMMFactoryHarness(address(this));
-            pair_ = AMMPair(localFactory.createPair(token0_, token1_));
-        }
-    }
