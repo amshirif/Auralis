@@ -63,3 +63,39 @@ jobs:
 
       - name: Run System Oracle Failure Scenarios
         run: forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
+
+  amm-hardening:
+    name: AMM Hardening
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.4.3
+
+      - name: Cache Foundry Artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.foundry/cache
+          key: ${{ runner.os }}-foundry-cache-${{ hashFiles('foundry.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-foundry-cache-
+
+      - name: Build With Sizes
+        run: forge build --sizes --skip script
+
+      - name: Run AMM Pair Fuzz
+        run: forge test --offline --match-path test/AMMPairFuzz.t.sol
+
+      - name: Run AMM Router Fuzz
+        run: forge test --offline --match-path test/AMMRouterFuzz.t.sol
+
+      - name: Run AMM Invariants
+        run: FOUNDRY_INVARIANT_RUNS=64 FOUNDRY_INVARIANT_DEPTH=32 forge test --offline --match-path test/AMMInvariant.t.sol
+
+      - name: Run AMM Hardening
+        run: forge test --offline --match-path test/AMMHardening.t.sol
