@@ -27,6 +27,7 @@ reviewable engineering system.
 
 - Architecture decisions: `docs/adr/README.md`
 - Canonical docs map: `docs/README.md`
+- AMM architecture: `docs/amm.md`
 - Hosted vault architecture: `docs/vault-facets.md`
 - Smart-wallet architecture: `docs/multisig-wallet.md`
 - Security assumptions: `docs/threat-model.md`
@@ -36,15 +37,16 @@ reviewable engineering system.
 ## What This Repo Proves
 
 - Core architecture: diamond routing, selector ownership discipline, and
-  separate hosted token and vault deployment models plus a standalone
-  smart-wallet track.
+  separate hosted token and vault deployment models plus standalone AMM and
+  smart-wallet tracks.
 - Safety posture: RBAC, timed permissions, pause semantics, reentrancy
   protection, oracle validation, upgrade guardrails, and threshold-based wallet
   execution.
 - Protocol surfaces: ERC20 and ERC721 token hosts plus a hosted ERC-4626 vault
   platform with controls, strategy integration, and native-asset support, plus
-  a standalone multisig wallet with single-call, batch, and self-managed
-  configuration flows.
+  a standalone V2-style AMM with deterministic pair deployment, wrapped-native
+  routing, and protocol-fee controls, plus a standalone multisig wallet with
+  single-call, batch, and self-managed configuration flows.
 - Operational maturity: local bootstrap, smoke validation, activity flows,
   upgrade rehearsal, and matching CI/hardening gates.
 
@@ -58,6 +60,8 @@ reviewable engineering system.
   storage discipline.
 - `docs/vault-facets.md`: hosted vault facet split, lifecycle, and deployment
   model.
+- `docs/amm.md`: standalone AMM deployment model, pair/router behavior, math,
+  and reviewer path.
 - `docs/multisig-wallet.md`: wallet deployment model, signature semantics,
   replay protection, and self-managed configuration surface.
 - `docs/threat-model.md`: trust boundaries, threat assumptions, and residual
@@ -73,6 +77,14 @@ reviewable engineering system.
   across the hosted vault diamond path.
 - `test/DiamondTokenDeploymentIntegration.t.sol`: ERC20 and ERC721 host
   deployment and selector ownership.
+- `test/AMMFactoryRegistry.t.sol`: AMM factory registry behavior, sorted pair
+  lookups, and deterministic pair address coverage.
+- `test/AMMPairCore.t.sol`: pair mint/burn/swap accounting, fee switch, and
+  reserve update behavior.
+- `test/AMMRouterCore.t.sol`: router quoting, liquidity, wrapped-native, and
+  single-hop/multi-hop swap coverage.
+- `test/AMMHardening.t.sol`: malformed token, transfer-failure, protocol-fee,
+  and router balance hardening coverage.
 - `test/SystemOracleFailureScenarios.t.sol`: stale-data, breaker, fallback, and
   recovery behavior.
 - `test/SystemVaultStressInvariant.t.sol`: higher-signal system stress coverage
@@ -120,6 +132,16 @@ forge test --offline --match-path test/MultisigWalletManagement.t.sol
 forge test --offline --match-path test/MultisigWalletInvariant.t.sol
 ```
 
+For the AMM track:
+
+```shell
+forge test --offline --match-path test/AMMFoundationCore.t.sol
+forge test --offline --match-path test/AMMFactoryRegistry.t.sol
+forge test --offline --match-path test/AMMPairCore.t.sol
+forge test --offline --match-path test/AMMRouterCore.t.sol
+forge test --offline --match-path test/AMMRouterTime.t.sol
+```
+
 For the local Auralis workflow:
 
 ```shell
@@ -136,7 +158,8 @@ Recommended reviewer path:
 
 - Architecture decisions: `docs/adr/README.md`
 - Core architecture: `docs/diamond-core.md`, `docs/token-facets.md`,
-  `docs/vault-facets.md`, `docs/multisig-wallet.md`, `docs/oracle-adapter.md`
+  `docs/vault-facets.md`, `docs/amm.md`, `docs/multisig-wallet.md`,
+  `docs/oracle-adapter.md`
 - Security and validation: `docs/threat-model.md`, `docs/security-checks.md`
 - Operations and local workflow: `docs/ops/README.md`, `docs/auralis-local.md`
 
