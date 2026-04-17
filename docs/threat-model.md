@@ -1,7 +1,7 @@
 # Threat Model
 
 This summary covers security assumptions and guard rails for access, oracle,
-upgrade, vault, and wallet modules.
+upgrade, vault, AMM, and wallet modules.
 
 For the accepted architecture decisions that shape these assumptions, see
 `docs/adr/README.md`.
@@ -15,6 +15,10 @@ For the accepted architecture decisions that shape these assumptions, see
 - `Pausable`
 - `ReentrancyGuard`
 - `UpgradeGuardrails`
+- `AMMFactory`
+- `AMMPair`
+- `AMMRouter`
+- `AMMLpToken`
 - `MultisigWallet`
 - `MultisigWalletFactory`
 - `MultiSendCallOnly`
@@ -28,6 +32,8 @@ For the accepted architecture decisions that shape these assumptions, see
 - Reentrant state-changing entrypoints are blocked.
 - Upgrade execution follows explicit authorization and guardrail checks.
 - Vault share/accounting behavior remains explicit under rounding and low-liquidity edge conditions.
+- AMM liquidity, reserve updates, and fee-switch behavior remain explicit under
+  direct-transfer, malformed-token, and adversarial routing conditions.
 - Wallet execution requires the configured threshold of valid owner signatures.
 - Wallet replay protection prevents nonce reuse across signed transactions.
 - Wallet configuration changes require wallet-authorized self-calls.
@@ -37,6 +43,8 @@ For the accepted architecture decisions that shape these assumptions, see
 - Initial admin/upgrader/pauser assignments are correct at initialization.
 - Oracle feed sources are configured to trusted contracts with expected ABI behavior.
 - Governance/operator keys are managed securely off-chain.
+- The configured wrapped-native contract implements the expected deposit,
+  withdraw, and ERC-20 transfer semantics.
 - Wallet owners review and approve transaction payloads securely off-chain.
 - The configured `MultiSendCallOnly` helper is the intended fixed batch helper for deployed wallets.
 - Deployed contracts integrate `_applyUpgrade` correctly for their proxy/diamond mechanism.
@@ -86,6 +94,30 @@ For the accepted architecture decisions that shape these assumptions, see
 14. Batch execution widening into arbitrary delegatecall
 - Mitigation: batch execution delegatecalls only into the fixed `MultiSendCallOnly` helper, which performs plain external calls to the encoded targets.
 
+15. Unauthorized AMM fee-switch control
+- Mitigation: `feeTo` and `feeToSetter` changes are restricted to the current
+  `feeToSetter`, and pair fee minting is derived only from the factory state.
+
+16. Reentrant or malformed token behavior during AMM transfers
+- Mitigation: pair write paths are lock-guarded, router and pair transfers use
+  strict low-level success checks, and the hardening suites cover false,
+  silent, malformed, and reentrant token behaviors.
+
+17. Invalid wrapped-native routing or stuck native value
+- Mitigation: the router validates wrapped-native path boundaries, accepts raw
+  native value only from the configured wrapped-native contract, unwraps only
+  on native-out paths, and refunds surplus native input where applicable.
+
+18. Reserve drift after direct donations or token transfers
+- Mitigation: reserves are tracked separately from raw balances, `skim` and
+  `sync` remain explicit correction surfaces, and the invariant coverage checks
+  reserve and LP accounting consistency.
+
+19. Unstated assumptions around AMM price accumulation
+- Mitigation: cumulative prices advance only on elapsed-time reserve updates,
+  and the reviewer documentation treats them as low-level accounting outputs
+  rather than as a full oracle policy.
+
 ## Residual Risks / Out of Scope
 
 - Compromised privileged keys can still perform privileged actions.
@@ -94,6 +126,11 @@ For the accepted architecture decisions that shape these assumptions, see
 - Diamond `diamondCut` flows include core guardrails, but governance policy (timelocks/multisig approvals) remains an integration responsibility.
 - The current upgrade guardrails check nonzero implementation; deeper bytecode/interface validation is protocol-specific and should be added where needed.
 - Direct token donations to vault addresses can create untracked surplus unless explicitly reconciled by integration policy.
+- AMM cumulative prices are not, by themselves, a manipulation-resistant
+  oracle design.
+- Compromised `feeToSetter` control can redirect AMM protocol-fee minting.
+- Highly adversarial ERC-20 behavior beyond the documented supported semantics
+  remains an integration risk.
 - Compromised wallet owner keys can still authorize malicious transactions.
 - Off-chain signing and transaction review policy for multisig owners remains an operational responsibility.
 - The wallet does not yet include modules, guards, fallback handlers, contract owners, or ERC-4337 integration.

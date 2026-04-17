@@ -4,6 +4,9 @@
 ERC20 vault host, native vault host, and a small amount of simulated protocol
 activity on Anvil.
 
+The standalone AMM track is currently documented as a reviewer-facing,
+test-first local flow rather than a managed deployment script stack.
+
 ## Prerequisites
 
 - `anvil`
@@ -122,3 +125,45 @@ For the native hosted vault specifically, the local workflow assumes:
 - exits use standard `withdraw` and `redeem` and pay raw native asset
 - strategy profit injection is payable and uses raw ETH
 - force-sent ETH is not treated as managed assets by the vault accounting model
+
+## Standalone AMM Track
+
+The AMM subsystem is intentionally separate from `auralis-up.sh` and the
+diamond-hosted local stack.
+
+Today, the local AMM review path is:
+
+- read `docs/amm.md` for the deployment model, math, and security notes
+- use the AMM Foundry suites as the executable deployment and validation path
+- treat wrapped-native deployment, factory deployment, router deployment, and
+  first-pair creation as the canonical AMM bring-up order
+
+The deployment reasoning order is:
+
+1. deploy the wrapped-native dependency
+2. deploy `AMMFactory`
+3. deploy `AMMRouter`
+4. create pairs directly through the factory or lazily via the first liquidity
+   add flow
+
+The bounded local reviewer path is:
+
+```shell
+forge test --offline --match-path test/AMMFoundationCore.t.sol
+forge test --offline --match-path test/AMMFactoryRegistry.t.sol
+forge test --offline --match-path test/AMMPairCore.t.sol
+forge test --offline --match-path test/AMMRouterCore.t.sol
+forge test --offline --match-path test/AMMRouterTime.t.sol
+```
+
+For the fuller AMM hardening path:
+
+```shell
+forge test --offline --match-path test/AMMPairFuzz.t.sol
+forge test --offline --match-path test/AMMRouterFuzz.t.sol
+FOUNDRY_INVARIANT_RUNS=64 FOUNDRY_INVARIANT_DEPTH=32 forge test --offline --match-path test/AMMInvariant.t.sol
+forge test --offline --match-path test/AMMHardening.t.sol
+```
+
+The repo does not currently write a dedicated AMM deployment artifact file for
+this track.
