@@ -6,10 +6,11 @@ Use this surface to understand the current architecture, the major design
 decisions behind it, how safety is validated, and where operator-facing
 runbooks live.
 
-The repo currently has three major protocol surfaces:
+The repo currently has four major protocol surfaces:
 
 - diamond-hosted token systems
 - diamond-hosted vault systems
+- a standalone AMM track
 - a standalone multisig wallet track
 
 ## Architecture Overview
@@ -20,6 +21,7 @@ flowchart TD
     Core["Diamond Core<br/>routing and upgrade base"]
     Token["Token Hosts<br/>ERC20 and ERC721 diamonds"]
     Vault["Vault Hosts<br/>hosted ERC-4626 platform"]
+    AMM["AMM Track<br/>standalone V2-style exchange"]
     Wallet["Wallet Track<br/>standalone multisig system"]
     Oracle["Oracle Adapter<br/>validation and breaker policy"]
     Security["Threat Model and Security Checks"]
@@ -28,11 +30,14 @@ flowchart TD
     ADR --> Core
     ADR --> Token
     ADR --> Vault
+    ADR --> AMM
+    ADR --> Wallet
     Wallet --> Security
     ADR --> Oracle
     Core --> Token
     Core --> Vault
     Oracle --> Vault
+    AMM --> Security
     Vault --> Security
     Token --> Security
     Core --> Security
@@ -45,6 +50,7 @@ flowchart TD
 - Diamond core architecture: `docs/diamond-core.md`
 - Hosted token architecture: `docs/token-facets.md`
 - Hosted vault architecture: `docs/vault-facets.md`
+- AMM architecture: `docs/amm.md`
 - Smart-wallet architecture: `docs/multisig-wallet.md`
 - Security assumptions: `docs/threat-model.md`
 - Validation and CI policy: `docs/security-checks.md`
@@ -60,6 +66,8 @@ visual model materially improves comprehension.
   role surface, and upgrade assumptions.
 - `docs/vault-facets.md`: hosted vault facet split, selector ownership, and
   deployment model.
+- `docs/amm.md`: standalone AMM deployment model, pair/router semantics, math,
+  and reviewer-facing validation path.
 - `docs/multisig-wallet.md`: standalone multisig wallet deployment,
   authorization, and configuration model.
 - `docs/erc4626-vault.md`: standalone ERC-4626 module semantics, math, fees,

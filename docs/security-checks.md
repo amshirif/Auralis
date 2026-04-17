@@ -4,6 +4,21 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
 
 ## CI Policy
 
+### Foundry CI (`.github/workflows/ci.yml`)
+
+- Trigger: pull requests, pushes to `main` and `milestone/**`, manual dispatch.
+- Tooling: GitHub Actions + Foundry.
+- Policy:
+  - `Foundry Fast PR Gate` runs formatting, `forge build --sizes --skip script`,
+    and the current fast diamond-host and system suites.
+  - `AMM Hardening` runs the standalone AMM fuzz, invariant, and hardening
+    suites.
+- AMM scope:
+  - `forge test --offline --match-path test/AMMPairFuzz.t.sol`
+  - `forge test --offline --match-path test/AMMRouterFuzz.t.sol`
+  - `FOUNDRY_INVARIANT_RUNS=64 FOUNDRY_INVARIANT_DEPTH=32 forge test --offline --match-path test/AMMInvariant.t.sol`
+  - `forge test --offline --match-path test/AMMHardening.t.sol`
+
 ### System Hardening (`.github/workflows/system-hardening.yml`)
 
 - Trigger: pull requests, pushes to `main` and `milestone/**`, manual dispatch.
@@ -83,6 +98,27 @@ Use these to reproduce hosted-vault deployment, strategy binding, live
 strategy-aware accounting, loss and emergency-exit behavior, selector
 ownership, facet replacement persistence, and diamond-routed vault invariants
 locally.
+
+### Standalone AMM
+
+The standalone AMM track has a bounded reviewer path plus a separate hardening
+gate in `Foundry CI`:
+
+```bash
+forge test --offline --match-path test/AMMFoundationCore.t.sol
+forge test --offline --match-path test/AMMFactoryRegistry.t.sol
+forge test --offline --match-path test/AMMPairCore.t.sol
+forge test --offline --match-path test/AMMRouterCore.t.sol
+forge test --offline --match-path test/AMMRouterTime.t.sol
+forge test --offline --match-path test/AMMPairFuzz.t.sol
+forge test --offline --match-path test/AMMRouterFuzz.t.sol
+FOUNDRY_INVARIANT_RUNS=64 FOUNDRY_INVARIANT_DEPTH=32 forge test --offline --match-path test/AMMInvariant.t.sol
+forge test --offline --match-path test/AMMHardening.t.sol
+```
+
+Use the first five suites when reviewing factory, pair, router, permit, and
+wrapped-native behavior, then run the fuzz, invariant, and hardening suites for
+the adversarial AMM surface.
 
 ### Multisig Wallet
 
