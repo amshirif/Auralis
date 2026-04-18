@@ -74,9 +74,7 @@ contract ERC7540VaultFoundationCoreTest is ERC7540VaultFoundationFixture {
     }
 
     function testRequireAggregateRequestIdRevertsForNonZeroIds() public {
-        VM.expectRevert(
-            abi.encodeWithSelector(LibERC7540RequestAccounting.ERC7540VaultInvalidRequestId.selector, 7)
-        );
+        VM.expectRevert(abi.encodeWithSelector(LibERC7540RequestAccounting.ERC7540VaultInvalidRequestId.selector, 7));
         harness.requireAggregateRequestId(7);
     }
 
