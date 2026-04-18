@@ -7,6 +7,9 @@ import {IERC20} from "../../interfaces/IERC20.sol";
 import {IERC20Metadata} from "../../interfaces/IERC20Metadata.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC4626} from "../../interfaces/IERC4626.sol";
+import {IERC7540Deposit} from "../../interfaces/IERC7540Deposit.sol";
+import {IERC7540Operators} from "../../interfaces/IERC7540Operators.sol";
+import {IERC7540Redeem} from "../../interfaces/IERC7540Redeem.sol";
 import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultBase} from "../../interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
@@ -56,6 +59,21 @@ library LibVaultFacetSelectors {
         selectors = new bytes4[](2);
         selectors[0] = IERC7535VaultFacet.depositNative.selector;
         selectors[1] = IERC7535VaultFacet.mintNative.selector;
+    }
+
+    /// @notice Returns the hosted vault async selector group.
+    function vaultAsyncSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](10);
+        selectors[0] = IERC7540Deposit.requestDeposit.selector;
+        selectors[1] = IERC7540Deposit.pendingDepositRequest.selector;
+        selectors[2] = IERC7540Deposit.claimableDepositRequest.selector;
+        selectors[3] = IERC7540Deposit.deposit.selector;
+        selectors[4] = IERC7540Deposit.mint.selector;
+        selectors[5] = IERC7540Redeem.requestRedeem.selector;
+        selectors[6] = IERC7540Redeem.pendingRedeemRequest.selector;
+        selectors[7] = IERC7540Redeem.claimableRedeemRequest.selector;
+        selectors[8] = IERC7540Operators.isOperator.selector;
+        selectors[9] = IERC7540Operators.setOperator.selector;
     }
 
     /// @notice Returns the hosted vault controls selector group.
