@@ -137,8 +137,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         );
         _unpauseVault();
 
-        VM.prank(dave);
-        coreFacetInterface().deposit(1, dave);
+        _settleAndClaimDeposit(dave, 1);
         assertTrue(coreFacetInterface().balanceOf(dave) == 1, "dave should receive shares after unpause");
     }
 

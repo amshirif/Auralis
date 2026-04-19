@@ -171,6 +171,10 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
         return ERC4626VaultFacetHarness(address(diamond));
     }
 
+    function asyncDepositFacetInterface() internal view returns (ERC7540VaultDepositFacetHarness) {
+        return ERC7540VaultDepositFacetHarness(address(diamond));
+    }
+
     function controlsFacetInterface() internal view returns (ERC4626VaultControlsFacetHarness) {
         return ERC4626VaultControlsFacetHarness(address(diamond));
     }

@@ -119,6 +119,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _installAndSeedVaultHost() internal {
         _installVaultHostFacets();
+        _installVaultAsyncDepositTestSelector();
         _initializeVaultHost();
         _wireOracleAdapter();
         _seedCoreState();
@@ -127,14 +128,20 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _seedCoreState() internal {
-        VM.prank(bob);
-        coreFacetInterface().deposit(BOB_DEPOSIT, bob);
-
-        VM.prank(carol);
-        coreFacetInterface().deposit(CAROL_DEPOSIT, carol);
+        _settleAndClaimDeposit(bob, BOB_DEPOSIT);
+        _settleAndClaimDeposit(carol, CAROL_DEPOSIT);
 
         VM.prank(bob);
         coreFacetInterface().approve(eve, SHARE_ALLOWANCE);
+    }
+
+    function _settleAndClaimDeposit(address controller, uint256 assets) internal {
+        VM.prank(controller);
+        asyncDepositFacetInterface().requestDeposit(assets, controller, controller);
+        asyncDepositFacetInterface().harnessSettleDepositRequest(controller, assets);
+
+        VM.prank(controller);
+        coreFacetInterface().deposit(assets, controller);
     }
 
     function _seedControlsState() internal {
