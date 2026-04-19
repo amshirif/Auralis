@@ -175,7 +175,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _replaceCoreFacet(address facetAddress_) internal {
-        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultCoreSelectors());
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncHostCoreSelectors());
     }
 
     function _replaceControlsFacet(address facetAddress_) internal {
@@ -199,7 +199,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _removeCoreFacetWithMarker() internal {
-        _removeSelectors(_concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
     }
 
     function _removeControlsFacetWithMarker() internal {
@@ -211,7 +211,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
     }
 
     function _reAddControlsFacetWithMarker(address facetAddress_) internal {

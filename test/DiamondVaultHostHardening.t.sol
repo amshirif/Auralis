@@ -26,7 +26,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         _replaceCoreFacet(address(coreReplacement));
         _addCoreReplacementMarker(address(coreReplacement));
 
-        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultCoreSelectors(), address(coreReplacement));
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), address(coreReplacement));
         assertTrue(
             IDiamondLoupe(address(diamond)).facetAddress(IFacetVersionMarker.facetVersion.selector)
                 == address(coreReplacement),
@@ -70,7 +70,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
 
         _reAddCoreFacetWithMarker(address(coreReplacement));
 
-        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultCoreSelectors(), address(coreReplacement));
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), address(coreReplacement));
         assertTrue(IFacetVersionMarker(address(diamond)).facetVersion() == 2, "core marker mismatch after re-add");
         assertTrue(
             IERC165(address(diamond)).supportsInterface(type(IERC4626VaultFacet).interfaceId),
