@@ -11,10 +11,13 @@ import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
+import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
+import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC4626VaultStrategy} from "../src/interfaces/IERC4626VaultStrategy.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {ERC4626VaultControlsFacet} from "../src/vault/facets/ERC4626VaultControlsFacet.sol";
 import {ERC4626VaultFacet} from "../src/vault/facets/ERC4626VaultFacet.sol";
+import {ERC7540VaultDepositFacet} from "../src/vault/facets/ERC7540VaultDepositFacet.sol";
 import {ERC4626VaultIntegrationFacet} from "../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultHostScriptBase} from "./common/DiamondVaultHostScriptBase.sol";
@@ -33,6 +36,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         address cutFacetAddress;
         address loupeFacetAddress;
         address vaultCoreFacetAddress;
+        address vaultAsyncDepositFacetAddress;
         address vaultControlsFacetAddress;
         address vaultIntegrationFacetAddress;
         address vaultAssetAddress;
@@ -84,6 +88,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
                 diamondCutFacet: state.cutFacetAddress,
                 diamondLoupeFacet: state.loupeFacetAddress,
                 vaultCoreFacet: state.vaultCoreFacetAddress,
+                vaultAsyncDepositFacet: state.vaultAsyncDepositFacetAddress,
                 vaultNativeFacet: address(0),
                 vaultControlsFacet: state.vaultControlsFacetAddress,
                 vaultIntegrationFacet: state.vaultIntegrationFacetAddress,
@@ -113,6 +118,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         returns (VaultHostDeploymentState memory)
     {
         state.vaultCoreFacetAddress = address(new ERC4626VaultFacet());
+        state.vaultAsyncDepositFacetAddress = address(new ERC7540VaultDepositFacet());
         state.vaultControlsFacetAddress = address(new ERC4626VaultControlsFacet());
         state.vaultIntegrationFacetAddress = address(new ERC4626VaultIntegrationFacet());
         state.vaultAssetAddress = address(new LocalMintableVaultAsset("Mock USD", "mUSD", 6));
@@ -124,18 +130,23 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
     }
 
     function _installVaultHostFacets(VaultHostDeploymentState memory state) internal {
-        IDiamondCut.FacetCut[] memory vaultCut = new IDiamondCut.FacetCut[](3);
+        IDiamondCut.FacetCut[] memory vaultCut = new IDiamondCut.FacetCut[](4);
         vaultCut[0] = IDiamondCut.FacetCut({
             facetAddress: state.vaultCoreFacetAddress,
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: LibVaultFacetSelectors.vaultCoreSelectors()
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncHostCoreSelectors()
         });
         vaultCut[1] = IDiamondCut.FacetCut({
+            facetAddress: state.vaultAsyncDepositFacetAddress,
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncDepositHostSelectors()
+        });
+        vaultCut[2] = IDiamondCut.FacetCut({
             facetAddress: state.vaultControlsFacetAddress,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
         });
-        vaultCut[2] = IDiamondCut.FacetCut({
+        vaultCut[3] = IDiamondCut.FacetCut({
             facetAddress: state.vaultIntegrationFacetAddress,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultIntegrationSelectors()
@@ -153,10 +164,14 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         IERC4626VaultStrategy strategy = IERC4626VaultStrategy(state.strategyAddress);
         address[] memory facetAddresses = loupe.facetAddresses();
 
-        require(facetAddresses.length == 5, "vault host facet count mismatch");
+        require(facetAddresses.length == 6, "vault host facet count mismatch");
         require(_containsAddress(facetAddresses, state.cutFacetAddress), "vault host missing cut facet");
         require(_containsAddress(facetAddresses, state.loupeFacetAddress), "vault host missing loupe facet");
         require(_containsAddress(facetAddresses, state.vaultCoreFacetAddress), "vault host missing core facet");
+        require(
+            _containsAddress(facetAddresses, state.vaultAsyncDepositFacetAddress),
+            "vault host missing async deposit facet"
+        );
         require(_containsAddress(facetAddresses, state.vaultControlsFacetAddress), "vault host missing controls facet");
         require(
             _containsAddress(facetAddresses, state.vaultIntegrationFacetAddress), "vault host missing integration facet"
@@ -164,8 +179,13 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
 
         require(
             loupe.facetFunctionSelectors(state.vaultCoreFacetAddress).length
-                == LibVaultFacetSelectors.vaultCoreSelectors().length,
+                == LibVaultFacetSelectors.vaultAsyncHostCoreSelectors().length,
             "vault host core selector count mismatch"
+        );
+        require(
+            loupe.facetFunctionSelectors(state.vaultAsyncDepositFacetAddress).length
+                == LibVaultFacetSelectors.vaultAsyncDepositHostSelectors().length,
+            "vault host async deposit selector count mismatch"
         );
         require(
             loupe.facetFunctionSelectors(state.vaultControlsFacetAddress).length
@@ -217,6 +237,14 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
             "vault host missing controls interface"
         );
         require(
+            IERC165(state.diamondAddress).supportsInterface(type(IERC7540Deposit).interfaceId),
+            "vault host missing async deposit interface"
+        );
+        require(
+            IERC165(state.diamondAddress).supportsInterface(type(IERC7540Operators).interfaceId),
+            "vault host missing operator interface"
+        );
+        require(
             IERC165(state.diamondAddress).supportsInterface(type(IERC4626VaultIntegrationFacet).interfaceId),
             "vault host missing integration interface"
         );
@@ -225,6 +253,12 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         _requireSelectorOwner(loupe, DiamondLoupeFacet.facets.selector, state.loupeFacetAddress, "vault loupe owner");
         _requireSelectorOwner(
             loupe, IERC4626VaultFacet.initializeVault.selector, state.vaultCoreFacetAddress, "vault init owner"
+        );
+        _requireSelectorOwner(
+            loupe,
+            IERC7540Deposit.requestDeposit.selector,
+            state.vaultAsyncDepositFacetAddress,
+            "vault async deposit owner"
         );
         _requireSelectorOwner(
             loupe,

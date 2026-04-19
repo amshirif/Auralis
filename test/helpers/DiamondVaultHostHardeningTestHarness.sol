@@ -119,6 +119,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _installAndSeedVaultHost() internal {
         _installVaultHostFacets();
+        _installVaultAsyncDepositTestSelector();
         _initializeVaultHost();
         _wireOracleAdapter();
         _seedCoreState();
@@ -127,14 +128,20 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _seedCoreState() internal {
-        VM.prank(bob);
-        coreFacetInterface().deposit(BOB_DEPOSIT, bob);
-
-        VM.prank(carol);
-        coreFacetInterface().deposit(CAROL_DEPOSIT, carol);
+        _settleAndClaimDeposit(bob, BOB_DEPOSIT);
+        _settleAndClaimDeposit(carol, CAROL_DEPOSIT);
 
         VM.prank(bob);
         coreFacetInterface().approve(eve, SHARE_ALLOWANCE);
+    }
+
+    function _settleAndClaimDeposit(address controller, uint256 assets) internal {
+        VM.prank(controller);
+        asyncDepositFacetInterface().requestDeposit(assets, controller, controller);
+        asyncDepositFacetInterface().harnessSettleDepositRequest(controller, assets);
+
+        VM.prank(controller);
+        coreFacetInterface().deposit(assets, controller);
     }
 
     function _seedControlsState() internal {
@@ -175,7 +182,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _replaceCoreFacet(address facetAddress_) internal {
-        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultCoreSelectors());
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncHostCoreSelectors());
     }
 
     function _replaceControlsFacet(address facetAddress_) internal {
@@ -199,7 +206,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _removeCoreFacetWithMarker() internal {
-        _removeSelectors(_concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
     }
 
     function _removeControlsFacetWithMarker() internal {
@@ -211,7 +218,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
     }
 
     function _reAddControlsFacetWithMarker(address facetAddress_) internal {

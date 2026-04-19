@@ -6,6 +6,8 @@ import {DiamondLoupeFacet} from "../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC20Metadata} from "../src/interfaces/IERC20Metadata.sol";
+import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
+import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
@@ -17,6 +19,7 @@ import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {DiamondVaultDeploymentFixture} from "./helpers/DiamondVaultDeploymentTestHarness.sol";
+import {ERC7540VaultDepositFacetHarness} from "./helpers/ERC7540VaultDepositFacetTestHarness.sol";
 
 contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture {
     function testVaultHostDeployInstallInitOracleAndStrategyWiring() public {
@@ -29,17 +32,23 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         address[] memory facetAddresses = loupe.facetAddresses();
         IOracleAdapter.OracleQuote memory quotePayload = integrationFacetInterface().oracleQuote();
 
-        assertTrue(facetAddresses.length == 5, "vault host facet count mismatch");
+        assertTrue(facetAddresses.length == 6, "vault host facet count mismatch");
         assertTrue(_containsAddress(facetAddresses, address(cutFacet)), "missing cut facet");
         assertTrue(_containsAddress(facetAddresses, address(loupeFacet)), "missing loupe facet");
         assertTrue(_containsAddress(facetAddresses, address(coreFacet)), "missing core facet");
+        assertTrue(_containsAddress(facetAddresses, address(asyncDepositFacet)), "missing async deposit facet");
         assertTrue(_containsAddress(facetAddresses, address(controlsFacet)), "missing controls facet");
         assertTrue(_containsAddress(facetAddresses, address(integrationFacet)), "missing integration facet");
 
         assertTrue(
             loupe.facetFunctionSelectors(address(coreFacet)).length
-                == LibVaultFacetSelectors.vaultCoreSelectors().length,
+                == LibVaultFacetSelectors.vaultAsyncHostCoreSelectors().length,
             "unexpected core selector count"
+        );
+        assertTrue(
+            loupe.facetFunctionSelectors(address(asyncDepositFacet)).length
+                == LibVaultFacetSelectors.vaultAsyncDepositHostSelectors().length,
+            "unexpected async selector count"
         );
         assertTrue(
             loupe.facetFunctionSelectors(address(controlsFacet)).length
@@ -52,7 +61,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
             "unexpected integration selector count"
         );
 
-        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultCoreSelectors(), address(coreFacet));
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), address(coreFacet));
+        _assertSelectorsOwnedByFacet(
+            LibVaultFacetSelectors.vaultAsyncDepositHostSelectors(), address(asyncDepositFacet)
+        );
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultControlsSelectors(), address(controlsFacet));
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultIntegrationSelectors(), address(integrationFacet));
 
@@ -60,6 +72,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         assertTrue(loupe.facetAddress(DiamondLoupeFacet.facets.selector) == address(loupeFacet), "loupe owner mismatch");
         assertTrue(
             loupe.facetAddress(IERC4626VaultFacet.initializeVault.selector) == address(coreFacet), "init owner mismatch"
+        );
+        assertTrue(
+            loupe.facetAddress(IERC7540Deposit.requestDeposit.selector) == address(asyncDepositFacet),
+            "async deposit owner mismatch"
         );
         assertTrue(
             loupe.facetAddress(IERC4626VaultControls.VAULT_MANAGER_ROLE.selector) == address(controlsFacet),
@@ -119,6 +135,14 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
             "missing controls interface"
         );
         assertTrue(
+            IERC165(address(diamond)).supportsInterface(type(IERC7540Deposit).interfaceId),
+            "missing async deposit interface"
+        );
+        assertTrue(
+            IERC165(address(diamond)).supportsInterface(type(IERC7540Operators).interfaceId),
+            "missing operator interface"
+        );
+        assertTrue(
             IERC165(address(diamond)).supportsInterface(type(IERC4626VaultIntegrationFacet).interfaceId),
             "missing integration interface"
         );
@@ -130,6 +154,7 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
 
     function testVaultHostSmokeCoversStrategyLifecycle() public {
         _installVaultHostFacets();
+        _installVaultAsyncDepositTestSelector();
         _initializeVaultHost();
         _wireOracleAdapter();
         _wireStrategy();
@@ -137,6 +162,9 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         asset.mint(admin, 1_500_000_000);
         VM.prank(admin);
         asset.approve(address(diamond), 1_500_000_000);
+        VM.prank(admin);
+        IERC7540Deposit(address(diamond)).requestDeposit(1_000_000_000, admin, admin);
+        ERC7540VaultDepositFacetHarness(address(diamond)).harnessSettleDepositRequest(admin, 1_000_000_000);
         VM.prank(admin);
         coreFacetInterface().deposit(1_000_000_000, admin);
 
