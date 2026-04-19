@@ -70,21 +70,41 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
     }
 
     function _installVaultHostFacets() internal {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](4);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(coreFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultCoreSelectors()
         });
         cut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(coreFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncDepositSelectors()
+        });
+        cut[2] = IDiamondCut.FacetCut({
             facetAddress: address(controlsFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
         });
-        cut[2] = IDiamondCut.FacetCut({
+        cut[3] = IDiamondCut.FacetCut({
             facetAddress: address(integrationFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultIntegrationSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installVaultAsyncDepositTestSelector() internal {
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = ERC4626VaultFacetHarness.harnessSettleDepositRequest.selector;
+
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(coreFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
         });
 
         VM.prank(admin);

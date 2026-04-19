@@ -64,16 +64,36 @@ library LibVaultFacetSelectors {
     /// @notice Returns the hosted vault async selector group.
     function vaultAsyncSelectors() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](10);
+        bytes4[] memory depositSelectors = vaultAsyncDepositSelectors();
+        bytes4[] memory redeemSelectors = vaultAsyncRedeemSelectors();
+
+        for (uint256 i = 0; i < depositSelectors.length; i++) {
+            selectors[i] = depositSelectors[i];
+        }
+
+        for (uint256 i = 0; i < redeemSelectors.length; i++) {
+            selectors[depositSelectors.length + i] = redeemSelectors[i];
+        }
+    }
+
+    /// @notice Returns the hosted vault async deposit selector group.
+    function vaultAsyncDepositSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](7);
         selectors[0] = IERC7540Deposit.requestDeposit.selector;
         selectors[1] = IERC7540Deposit.pendingDepositRequest.selector;
         selectors[2] = IERC7540Deposit.claimableDepositRequest.selector;
         selectors[3] = IERC7540Deposit.deposit.selector;
         selectors[4] = IERC7540Deposit.mint.selector;
-        selectors[5] = IERC7540Redeem.requestRedeem.selector;
-        selectors[6] = IERC7540Redeem.pendingRedeemRequest.selector;
-        selectors[7] = IERC7540Redeem.claimableRedeemRequest.selector;
-        selectors[8] = IERC7540Operators.isOperator.selector;
-        selectors[9] = IERC7540Operators.setOperator.selector;
+        selectors[5] = IERC7540Operators.isOperator.selector;
+        selectors[6] = IERC7540Operators.setOperator.selector;
+    }
+
+    /// @notice Returns the hosted vault async redeem selector group.
+    function vaultAsyncRedeemSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IERC7540Redeem.requestRedeem.selector;
+        selectors[1] = IERC7540Redeem.pendingRedeemRequest.selector;
+        selectors[2] = IERC7540Redeem.claimableRedeemRequest.selector;
     }
 
     /// @notice Returns the hosted vault controls selector group.

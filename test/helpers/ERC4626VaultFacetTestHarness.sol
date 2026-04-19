@@ -8,6 +8,7 @@ import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
 import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
 import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
+import {LibERC7540RequestAccounting} from "../../src/vault/libraries/LibERC7540RequestAccounting.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibERC4626VaultStorage} from "../../src/vault/storage/LibERC4626VaultStorage.sol";
 import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
@@ -15,11 +16,25 @@ import {TestBase} from "./AccessControlTestHarness.sol";
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 
 contract ERC4626VaultFacetHarness is ERC4626VaultFacet {
+    bool internal asyncDepositModeEnabledForHarness;
+
     function feeRecipient() external view returns (address) {
         return LibERC4626VaultStorage.layout().fees.feeRecipient;
     }
 
     function probeNonReentrant() external nonReentrant {}
+
+    function harnessSetAsyncDepositMode(bool enabled) external {
+        asyncDepositModeEnabledForHarness = enabled;
+    }
+
+    function harnessSettleDepositRequest(address controller, uint256 assets) external {
+        LibERC7540RequestAccounting.movePendingDepositToClaimable(controller, assets);
+    }
+
+    function _asyncDepositModeEnabled() internal view override returns (bool) {
+        return asyncDepositModeEnabledForHarness || super._asyncDepositModeEnabled();
+    }
 }
 
 contract RejectingNativeReceiver {
@@ -119,9 +134,41 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
+    function _installVaultAsyncDepositSelectorsToDiamond() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncDepositSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installVaultAsyncDepositTestSelectorToDiamond() internal {
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = ERC4626VaultFacetHarness.harnessSettleDepositRequest.selector;
+
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
     function _installHostedVaultFacetsToDiamond() internal {
         _installVaultCoreFacetToDiamond();
         _installVaultControlsFacetToDiamond();
+    }
+
+    function _installHostedVaultAsyncDepositFacetsToDiamond() internal {
+        _installHostedVaultFacetsToDiamond();
+        _installVaultAsyncDepositSelectorsToDiamond();
     }
 
     function _installHostedVaultNativeFacetsToDiamond() internal {
