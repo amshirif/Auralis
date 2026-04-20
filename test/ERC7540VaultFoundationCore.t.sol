@@ -25,18 +25,24 @@ contract ERC7540VaultFoundationCoreTest is ERC7540VaultFoundationFixture {
 
     function testAsyncSelectorGroupCoversExpectedSurface() public pure {
         bytes4[] memory asyncSelectors = LibVaultFacetSelectors.vaultAsyncSelectors();
-        bytes4[] memory coreSelectors = LibVaultFacetSelectors.vaultCoreSelectors();
+        bytes4[] memory coreSelectors = LibVaultFacetSelectors.vaultFullyAsyncHostCoreSelectors();
         bytes4[] memory nativeSelectors = LibVaultFacetSelectors.vaultNativeSelectors();
         bytes4[] memory controlSelectors = LibVaultFacetSelectors.vaultControlsSelectors();
         bytes4[] memory integrationSelectors = LibVaultFacetSelectors.vaultIntegrationSelectors();
 
-        assertTrue(asyncSelectors.length == 10, "unexpected async selector count");
+        assertTrue(asyncSelectors.length == 22, "unexpected async selector count");
 
         _assertContains(asyncSelectors, IERC7540Deposit.requestDeposit.selector);
         _assertContains(asyncSelectors, IERC7540Deposit.pendingDepositRequest.selector);
         _assertContains(asyncSelectors, IERC7540Deposit.claimableDepositRequest.selector);
         _assertContains(asyncSelectors, IERC7540Deposit.deposit.selector);
         _assertContains(asyncSelectors, IERC7540Deposit.mint.selector);
+        _assertContains(asyncSelectors, IERC4626.maxWithdraw.selector);
+        _assertContains(asyncSelectors, IERC4626.previewWithdraw.selector);
+        _assertContains(asyncSelectors, IERC4626.withdraw.selector);
+        _assertContains(asyncSelectors, IERC4626.maxRedeem.selector);
+        _assertContains(asyncSelectors, IERC4626.previewRedeem.selector);
+        _assertContains(asyncSelectors, IERC4626.redeem.selector);
         _assertContains(asyncSelectors, IERC7540Redeem.requestRedeem.selector);
         _assertContains(asyncSelectors, IERC7540Redeem.pendingRedeemRequest.selector);
         _assertContains(asyncSelectors, IERC7540Redeem.claimableRedeemRequest.selector);

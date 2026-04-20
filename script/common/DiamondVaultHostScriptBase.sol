@@ -19,6 +19,7 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         address diamondLoupeFacet;
         address vaultCoreFacet;
         address vaultAsyncDepositFacet;
+        address vaultAsyncRedeemFacet;
         address vaultNativeFacet;
         address vaultControlsFacet;
         address vaultIntegrationFacet;
@@ -90,6 +91,7 @@ abstract contract DiamondVaultHostScriptBase is DiamondCoreScriptBase {
         json = VM.serializeAddress(objectKey, "diamondLoupeFacet", artifact.diamondLoupeFacet);
         json = VM.serializeAddress(objectKey, "vaultCoreFacet", artifact.vaultCoreFacet);
         json = VM.serializeAddress(objectKey, "vaultAsyncDepositFacet", artifact.vaultAsyncDepositFacet);
+        json = VM.serializeAddress(objectKey, "vaultAsyncRedeemFacet", artifact.vaultAsyncRedeemFacet);
         json = VM.serializeAddress(objectKey, "vaultNativeFacet", artifact.vaultNativeFacet);
         json = VM.serializeAddress(objectKey, "vaultControlsFacet", artifact.vaultControlsFacet);
         json = VM.serializeAddress(objectKey, "vaultIntegrationFacet", artifact.vaultIntegrationFacet);

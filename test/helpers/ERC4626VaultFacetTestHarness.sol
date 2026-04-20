@@ -13,6 +13,7 @@ import {LibERC4626VaultStorage} from "../../src/vault/storage/LibERC4626VaultSto
 import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 import {ERC7540VaultDepositFacetHarness} from "./ERC7540VaultDepositFacetTestHarness.sol";
+import {ERC7540VaultRedeemFacetHarness} from "./ERC7540VaultRedeemFacetTestHarness.sol";
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 
 contract ERC4626VaultFacetHarness is ERC4626VaultFacet {
@@ -39,6 +40,7 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
     ReentrantMockVaultAsset internal asset;
     ERC4626VaultFacetHarness internal facet;
     ERC7540VaultDepositFacetHarness internal asyncDepositFacet;
+    ERC7540VaultRedeemFacetHarness internal asyncRedeemFacet;
     ERC7535VaultFacet internal nativeFacet;
     ERC4626VaultControlsFacet internal controlsFacet;
     DiamondCutFacet internal cutFacet;
@@ -49,6 +51,7 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
         asset = new ReentrantMockVaultAsset();
         facet = new ERC4626VaultFacetHarness();
         asyncDepositFacet = new ERC7540VaultDepositFacetHarness();
+        asyncRedeemFacet = new ERC7540VaultRedeemFacetHarness();
         nativeFacet = new ERC7535VaultFacet();
         controlsFacet = new ERC4626VaultControlsFacet();
         cutFacet = new DiamondCutFacet();
@@ -149,6 +152,21 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
+    function _installVaultAsyncRedeemTestSelectorToDiamond() internal {
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = ERC7540VaultRedeemFacetHarness.harnessSettleRedeemRequest.selector;
+
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(asyncRedeemFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: selectors
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
     function _installHostedVaultFacetsToDiamond() internal {
         _installVaultCoreFacetToDiamond();
         _installVaultControlsFacetToDiamond();
@@ -167,6 +185,33 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
             functionSelectors: LibVaultFacetSelectors.vaultAsyncDepositHostSelectors()
         });
         cut[2] = IDiamondCut.FacetCut({
+            facetAddress: address(controlsFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installHostedVaultFullyAsyncFacetsToDiamond() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](4);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultFullyAsyncHostCoreSelectors()
+        });
+        cut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(asyncDepositFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncDepositHostSelectors()
+        });
+        cut[2] = IDiamondCut.FacetCut({
+            facetAddress: address(asyncRedeemFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncRedeemHostSelectors()
+        });
+        cut[3] = IDiamondCut.FacetCut({
             facetAddress: address(controlsFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
