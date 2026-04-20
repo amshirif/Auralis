@@ -8,6 +8,7 @@ import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC20Metadata} from "../src/interfaces/IERC20Metadata.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
+import {IERC7540Redeem} from "../src/interfaces/IERC7540Redeem.sol";
 import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
@@ -20,10 +21,11 @@ import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelect
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {DiamondVaultDeploymentFixture} from "./helpers/DiamondVaultDeploymentTestHarness.sol";
 import {ERC7540VaultDepositFacetHarness} from "./helpers/ERC7540VaultDepositFacetTestHarness.sol";
+import {ERC7540VaultRedeemFacetHarness} from "./helpers/ERC7540VaultRedeemFacetTestHarness.sol";
 
 contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture {
     function testVaultHostDeployInstallInitOracleAndStrategyWiring() public {
-        _installVaultHostFacets();
+        _installFullyAsyncVaultHostFacets();
         _initializeVaultHost();
         _wireOracleAdapter();
         _wireStrategy();
@@ -32,23 +34,29 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         address[] memory facetAddresses = loupe.facetAddresses();
         IOracleAdapter.OracleQuote memory quotePayload = integrationFacetInterface().oracleQuote();
 
-        assertTrue(facetAddresses.length == 6, "vault host facet count mismatch");
+        assertTrue(facetAddresses.length == 7, "vault host facet count mismatch");
         assertTrue(_containsAddress(facetAddresses, address(cutFacet)), "missing cut facet");
         assertTrue(_containsAddress(facetAddresses, address(loupeFacet)), "missing loupe facet");
         assertTrue(_containsAddress(facetAddresses, address(coreFacet)), "missing core facet");
         assertTrue(_containsAddress(facetAddresses, address(asyncDepositFacet)), "missing async deposit facet");
+        assertTrue(_containsAddress(facetAddresses, address(asyncRedeemFacet)), "missing async redeem facet");
         assertTrue(_containsAddress(facetAddresses, address(controlsFacet)), "missing controls facet");
         assertTrue(_containsAddress(facetAddresses, address(integrationFacet)), "missing integration facet");
 
         assertTrue(
             loupe.facetFunctionSelectors(address(coreFacet)).length
-                == LibVaultFacetSelectors.vaultAsyncHostCoreSelectors().length,
+                == LibVaultFacetSelectors.vaultFullyAsyncHostCoreSelectors().length,
             "unexpected core selector count"
         );
         assertTrue(
             loupe.facetFunctionSelectors(address(asyncDepositFacet)).length
                 == LibVaultFacetSelectors.vaultAsyncDepositHostSelectors().length,
             "unexpected async selector count"
+        );
+        assertTrue(
+            loupe.facetFunctionSelectors(address(asyncRedeemFacet)).length
+                == LibVaultFacetSelectors.vaultAsyncRedeemHostSelectors().length,
+            "unexpected async redeem selector count"
         );
         assertTrue(
             loupe.facetFunctionSelectors(address(controlsFacet)).length
@@ -61,10 +69,11 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
             "unexpected integration selector count"
         );
 
-        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), address(coreFacet));
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultFullyAsyncHostCoreSelectors(), address(coreFacet));
         _assertSelectorsOwnedByFacet(
             LibVaultFacetSelectors.vaultAsyncDepositHostSelectors(), address(asyncDepositFacet)
         );
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncRedeemHostSelectors(), address(asyncRedeemFacet));
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultControlsSelectors(), address(controlsFacet));
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultIntegrationSelectors(), address(integrationFacet));
 
@@ -76,6 +85,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         assertTrue(
             loupe.facetAddress(IERC7540Deposit.requestDeposit.selector) == address(asyncDepositFacet),
             "async deposit owner mismatch"
+        );
+        assertTrue(
+            loupe.facetAddress(IERC7540Redeem.requestRedeem.selector) == address(asyncRedeemFacet),
+            "async redeem owner mismatch"
         );
         assertTrue(
             loupe.facetAddress(IERC4626VaultControls.VAULT_MANAGER_ROLE.selector) == address(controlsFacet),
@@ -139,6 +152,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
             "missing async deposit interface"
         );
         assertTrue(
+            IERC165(address(diamond)).supportsInterface(type(IERC7540Redeem).interfaceId),
+            "missing async redeem interface"
+        );
+        assertTrue(
             IERC165(address(diamond)).supportsInterface(type(IERC7540Operators).interfaceId),
             "missing operator interface"
         );
@@ -153,8 +170,9 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
     }
 
     function testVaultHostSmokeCoversStrategyLifecycle() public {
-        _installVaultHostFacets();
+        _installFullyAsyncVaultHostFacets();
         _installVaultAsyncDepositTestSelector();
+        _installVaultAsyncRedeemTestSelector();
         _initializeVaultHost();
         _wireOracleAdapter();
         _wireStrategy();
@@ -186,6 +204,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         );
 
         VM.prank(admin);
+        IERC7540Redeem(address(diamond)).requestRedeem(700_000_000, admin, admin);
+        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(admin, 700_000_000);
+
+        VM.prank(admin);
         coreFacetInterface().withdraw(700_000_000, admin, admin);
 
         assertTrue(
@@ -194,6 +216,7 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         assertTrue(integrationFacetInterface().liveStrategyAssets() == 400_000_000, "live strategy assets mismatch");
         assertTrue(integrationFacetInterface().idleAssets() == 0, "idle assets should be exhausted after auto-pull");
         assertTrue(coreFacetInterface().totalManagedAssets() == 400_000_000, "book value mismatch after user withdraw");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, admin) > 0, "claimable redeem mismatch");
 
         VM.prank(admin);
         uint256 emergencyAssets = integrationFacetInterface().emergencyExitStrategy();
