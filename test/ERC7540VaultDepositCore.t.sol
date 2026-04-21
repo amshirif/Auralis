@@ -104,9 +104,7 @@ contract ERC7540VaultDepositCoreTest is ERC4626VaultFacetFixture {
 
         bytes32 managerRole = IERC4626VaultControls(address(diamond)).VAULT_MANAGER_ROLE();
 
-        VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, eve, managerRole)
-        );
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, eve, managerRole));
         VM.prank(eve);
         IERC7540VaultSettlementFacet(address(diamond)).settleDepositRequest(bob, 10);
     }
@@ -167,9 +165,7 @@ contract ERC7540VaultDepositCoreTest is ERC4626VaultFacetFixture {
 
         bytes32 managerRole = IERC4626VaultControls(address(diamond)).VAULT_MANAGER_ROLE();
 
-        VM.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, eve, managerRole)
-        );
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, eve, managerRole));
         VM.prank(eve);
         IERC7540VaultSettlementFacet(address(diamond)).settleDepositRequest(bob, 10);
     }

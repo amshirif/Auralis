@@ -13,7 +13,12 @@ import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultIntegrationFacet
 /// @notice Hosted integration/config facet for oracle references and active strategy lifecycle operations.
-contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultIntegrationFacet, IERC7540VaultSettlementFacet {
+contract ERC4626VaultIntegrationFacet is
+    ERC4626Vault,
+    VaultFacetControl,
+    IERC4626VaultIntegrationFacet,
+    IERC7540VaultSettlementFacet
+{
     /// @notice Returns the pause scope that gates manager settlement entrypoints.
     /// @return The settlement pause scope identifier.
     function ASYNC_SETTLEMENT_SCOPE() public pure returns (bytes32) {
