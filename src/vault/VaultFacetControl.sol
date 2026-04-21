@@ -370,6 +370,12 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         }
     }
 
+    function _requireScopeNotPaused(bytes32 scope) internal view {
+        if (paused(scope)) {
+            revert PausableScopeEnforcedPause(scope);
+        }
+    }
+
     function _requirePaused() internal view {
         if (!paused()) {
             revert PausableExpectedPause();

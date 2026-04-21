@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
@@ -9,19 +10,27 @@ import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../src/interfaces/IERC7540Redeem.sol";
-import {ERC7540VaultDepositFacetHarness} from "./helpers/ERC7540VaultDepositFacetTestHarness.sol";
-import {ERC7540VaultRedeemFacetHarness} from "./helpers/ERC7540VaultRedeemFacetTestHarness.sol";
+import {IERC7540VaultSettlementFacet} from "../src/interfaces/IERC7540VaultSettlementFacet.sol";
+import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC7540VaultRedeemFacet} from "../src/vault/facets/ERC7540VaultRedeemFacet.sol";
 import {ERC4626VaultFacetFixture} from "./helpers/ERC4626VaultFacetTestHarness.sol";
 
 contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
     function _initializeDiamondFullAsyncVault() internal {
         _installHostedVaultFullyAsyncFacetsToDiamond();
-        _installVaultAsyncDepositTestSelectorToDiamond();
-        _installVaultAsyncRedeemTestSelectorToDiamond();
 
         VM.prank(admin);
         IERC4626VaultFacet(address(diamond)).initializeVault(address(asset), "Vault Share", "vSHARE", admin);
+    }
+
+    function _settleDeposit(address controller, uint256 assets) internal {
+        VM.prank(admin);
+        IERC7540VaultSettlementFacet(address(diamond)).settleDepositRequest(controller, assets);
+    }
+
+    function _settleRedeem(address controller, uint256 shares) internal {
+        VM.prank(admin);
+        IERC7540VaultSettlementFacet(address(diamond)).settleRedeemRequest(controller, shares);
     }
 
     function _seedClaimedShares(address controller, uint256 assets) internal {
@@ -29,7 +38,7 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
 
         VM.prank(controller);
         IERC7540Deposit(address(diamond)).requestDeposit(assets, controller, controller);
-        ERC7540VaultDepositFacetHarness(address(diamond)).harnessSettleDepositRequest(controller, assets);
+        _settleDeposit(controller, assets);
 
         VM.prank(controller);
         IERC4626(address(diamond)).deposit(assets, controller);
@@ -60,7 +69,8 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
 
         VM.prank(bob);
         IERC7540Redeem(address(diamond)).requestRedeem(40, bob, bob);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(bob, 25);
+        _settleRedeem(bob, 10);
+        _settleRedeem(bob, 15);
 
         VM.expectRevert(
             abi.encodeWithSelector(ERC7540VaultRedeemFacet.ERC7540VaultAsyncRedeemPreviewUnsupported.selector)
@@ -85,7 +95,7 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
 
         VM.prank(bob);
         IERC7540Redeem(address(diamond)).requestRedeem(40, bob, bob);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(bob, 40);
+        _settleRedeem(bob, 40);
 
         uint256 eveAssetsBefore = asset.balanceOf(eve);
 
@@ -105,13 +115,27 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
         assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 25, "receiver asset balance mismatch");
     }
 
+    function testOnlyManagerCanSettleAsyncRedeemRequests() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 30);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(10, bob, bob);
+
+        bytes32 managerRole = IERC4626VaultControls(address(diamond)).VAULT_MANAGER_ROLE();
+
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, eve, managerRole));
+        VM.prank(eve);
+        IERC7540VaultSettlementFacet(address(diamond)).settleRedeemRequest(bob, 10);
+    }
+
     function testRequestOwnerCanAssignSeparateControllerAndControllerCanClaim() public {
         _initializeDiamondFullAsyncVault();
         _seedClaimedShares(bob, 30);
 
         VM.prank(bob);
         IERC7540Redeem(address(diamond)).requestRedeem(10, eve, bob);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(eve, 10);
+        _settleRedeem(eve, 10);
 
         uint256 eveAssetsBefore = asset.balanceOf(eve);
 
@@ -152,7 +176,7 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
 
         VM.prank(bob);
         IERC7540Redeem(address(diamond)).requestRedeem(10, bob, bob);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(bob, 10);
+        _settleRedeem(bob, 10);
 
         VM.prank(eve);
         VM.expectRevert(
@@ -179,7 +203,7 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
 
         VM.prank(bob);
         IERC7540Redeem(address(diamond)).requestRedeem(35, bob, bob);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(bob, 35);
+        _settleRedeem(bob, 35);
 
         uint256 eveAssetsBefore = asset.balanceOf(eve);
 
@@ -201,7 +225,7 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
 
         VM.prank(bob);
         IERC7540Redeem(address(diamond)).requestRedeem(10, bob, bob);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(bob, 10);
+        _settleRedeem(bob, 10);
 
         VM.prank(bob);
         bool approved = IERC7540Operators(address(diamond)).setOperator(eve, true);
@@ -215,5 +239,50 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
         assertTrue(assets == 10, "operator claim assets mismatch");
         assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 10, "operator receiver balance mismatch");
         assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 0, "claimable should clear");
+    }
+
+    function testControllerOperatorCannotSettleAsyncRedeemRequest() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 25);
+
+        VM.prank(bob);
+        IERC7540Operators(address(diamond)).setOperator(eve, true);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(10, bob, bob);
+
+        bytes32 managerRole = IERC4626VaultControls(address(diamond)).VAULT_MANAGER_ROLE();
+
+        VM.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorized.selector, eve, managerRole));
+        VM.prank(eve);
+        IERC7540VaultSettlementFacet(address(diamond)).settleRedeemRequest(bob, 10);
+    }
+
+    function testSettlementPauseBlocksSettlementButNotExistingRedeemClaims() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 40);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(30, bob, bob);
+        _settleRedeem(bob, 10);
+
+        bytes32 settlementScope = IERC7540VaultSettlementFacet(address(diamond)).ASYNC_SETTLEMENT_SCOPE();
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).pauseScope(settlementScope);
+
+        VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, settlementScope));
+        VM.prank(admin);
+        IERC7540VaultSettlementFacet(address(diamond)).settleRedeemRequest(bob, 10);
+
+        uint256 bobAssetsBefore = asset.balanceOf(bob);
+
+        VM.prank(bob);
+        uint256 assets = IERC4626(address(diamond)).redeem(10, bob, bob);
+
+        assertTrue(assets == 10, "claim should still succeed while settlement is paused");
+        assertTrue(asset.balanceOf(bob) == bobAssetsBefore + 10, "claimed assets mismatch");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 0, "claimable should clear");
+        assertTrue(IERC7540Redeem(address(diamond)).pendingRedeemRequest(0, bob) == 20, "pending should remain");
     }
 }

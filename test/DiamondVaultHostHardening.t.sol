@@ -150,7 +150,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         _addIntegrationReplacementMarker(address(integrationReplacement));
 
         _assertSelectorsOwnedByFacet(
-            LibVaultFacetSelectors.vaultIntegrationSelectors(), address(integrationReplacement)
+            LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), address(integrationReplacement)
         );
         assertTrue(
             IDiamondLoupe(address(diamond)).facetAddress(IFacetVersionMarker.facetVersion.selector)
@@ -204,7 +204,7 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         _reAddIntegrationFacetWithMarker(address(integrationReplacement));
 
         _assertSelectorsOwnedByFacet(
-            LibVaultFacetSelectors.vaultIntegrationSelectors(), address(integrationReplacement)
+            LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), address(integrationReplacement)
         );
         assertTrue(
             IFacetVersionMarker(address(diamond)).facetVersion() == 2, "integration marker mismatch after re-add"

@@ -28,7 +28,7 @@ contract ERC7540VaultFoundationCoreTest is ERC7540VaultFoundationFixture {
         bytes4[] memory coreSelectors = LibVaultFacetSelectors.vaultFullyAsyncHostCoreSelectors();
         bytes4[] memory nativeSelectors = LibVaultFacetSelectors.vaultNativeSelectors();
         bytes4[] memory controlSelectors = LibVaultFacetSelectors.vaultControlsSelectors();
-        bytes4[] memory integrationSelectors = LibVaultFacetSelectors.vaultIntegrationSelectors();
+        bytes4[] memory integrationSelectors = LibVaultFacetSelectors.vaultAsyncIntegrationSelectors();
 
         assertTrue(asyncSelectors.length == 22, "unexpected async selector count");
 

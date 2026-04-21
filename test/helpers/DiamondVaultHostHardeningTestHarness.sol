@@ -119,7 +119,6 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     function _installAndSeedVaultHost() internal {
         _installVaultHostFacets();
-        _installVaultAsyncDepositTestSelector();
         _initializeVaultHost();
         _wireOracleAdapter();
         _seedCoreState();
@@ -138,7 +137,8 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     function _settleAndClaimDeposit(address controller, uint256 assets) internal {
         VM.prank(controller);
         asyncDepositFacetInterface().requestDeposit(assets, controller, controller);
-        asyncDepositFacetInterface().harnessSettleDepositRequest(controller, assets);
+        VM.prank(admin);
+        integrationFacetInterface().settleDepositRequest(controller, assets);
 
         VM.prank(controller);
         coreFacetInterface().deposit(assets, controller);
@@ -190,7 +190,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _replaceIntegrationFacet(address facetAddress_) internal {
-        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultIntegrationSelectors());
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncIntegrationSelectors());
     }
 
     function _addCoreReplacementMarker(address facetAddress_) internal {
@@ -214,7 +214,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _removeIntegrationFacetWithMarker() internal {
-        _removeSelectors(_concat(LibVaultFacetSelectors.vaultIntegrationSelectors(), _markerSelectors()));
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), _markerSelectors()));
     }
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
@@ -226,7 +226,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _reAddIntegrationFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultIntegrationSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), _markerSelectors()));
     }
 
     function _pauseVault() internal {
