@@ -7,6 +7,7 @@ import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC7540Deposit} from "../../interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../../interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../../interfaces/IERC7540Redeem.sol";
+import {IERC7540VaultSettlementFacet} from "../../interfaces/IERC7540VaultSettlementFacet.sol";
 import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../../interfaces/IERC4626VaultControlsFacet.sol";
@@ -41,6 +42,8 @@ contract ERC4626VaultControlsFacet is ERC4626VaultControlSurface {
                 && LibDiamond.selectorExists(IERC7540Deposit.requestDeposit.selector))
             || (interfaceId == type(IERC7540Redeem).interfaceId
                 && LibDiamond.selectorExists(IERC7540Redeem.requestRedeem.selector))
+            || (interfaceId == type(IERC7540VaultSettlementFacet).interfaceId
+                && LibDiamond.selectorExists(IERC7540VaultSettlementFacet.settleDepositRequest.selector))
             || (interfaceId == type(IERC7535VaultFacet).interfaceId
                 && LibDiamond.selectorExists(IERC7535VaultFacet.depositNative.selector))
             || (interfaceId == type(IERC4626VaultIntegrationFacet).interfaceId

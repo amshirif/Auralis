@@ -10,6 +10,7 @@ import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC7540Deposit} from "../../interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../../interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../../interfaces/IERC7540Redeem.sol";
+import {IERC7540VaultSettlementFacet} from "../../interfaces/IERC7540VaultSettlementFacet.sol";
 import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultBase} from "../../interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
@@ -122,6 +123,14 @@ library LibVaultFacetSelectors {
         for (uint256 i = 0; i < redeemSelectors.length; i++) {
             selectors[depositSelectors.length + i] = redeemSelectors[i];
         }
+    }
+
+    /// @notice Returns the manager-facing settlement selector group for async request transitions.
+    function vaultSettlementSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IERC7540VaultSettlementFacet.ASYNC_SETTLEMENT_SCOPE.selector;
+        selectors[1] = IERC7540VaultSettlementFacet.settleDepositRequest.selector;
+        selectors[2] = IERC7540VaultSettlementFacet.settleRedeemRequest.selector;
     }
 
     /// @notice Returns the standard ERC-4626 selectors whose behavior becomes async-claim-aware for redeem flows.
@@ -245,5 +254,20 @@ library LibVaultFacetSelectors {
         selectors[10] = IERC4626VaultIntegrationFacet.withdrawFromStrategy.selector;
         selectors[11] = IERC4626VaultIntegrationFacet.syncStrategyAssets.selector;
         selectors[12] = IERC4626VaultIntegrationFacet.emergencyExitStrategy.selector;
+    }
+
+    /// @notice Returns the hosted vault integration selector group when async settlement entrypoints are installed.
+    function vaultAsyncIntegrationSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](16);
+        bytes4[] memory integrationSelectors = vaultIntegrationSelectors();
+        bytes4[] memory settlementSelectors = vaultSettlementSelectors();
+
+        for (uint256 i = 0; i < integrationSelectors.length; i++) {
+            selectors[i] = integrationSelectors[i];
+        }
+
+        for (uint256 i = 0; i < settlementSelectors.length; i++) {
+            selectors[integrationSelectors.length + i] = settlementSelectors[i];
+        }
     }
 }

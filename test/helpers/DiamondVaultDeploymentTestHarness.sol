@@ -95,37 +95,7 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
         cut[3] = IDiamondCut.FacetCut({
             facetAddress: address(integrationFacet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: LibVaultFacetSelectors.vaultIntegrationSelectors()
-        });
-
-        VM.prank(admin);
-        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
-    }
-
-    function _installVaultAsyncDepositTestSelector() internal {
-        bytes4[] memory selectors = new bytes4[](1);
-        selectors[0] = ERC7540VaultDepositFacetHarness.harnessSettleDepositRequest.selector;
-
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] = IDiamondCut.FacetCut({
-            facetAddress: address(asyncDepositFacet),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: selectors
-        });
-
-        VM.prank(admin);
-        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
-    }
-
-    function _installVaultAsyncRedeemTestSelector() internal {
-        bytes4[] memory selectors = new bytes4[](1);
-        selectors[0] = ERC7540VaultRedeemFacetHarness.harnessSettleRedeemRequest.selector;
-
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] = IDiamondCut.FacetCut({
-            facetAddress: address(asyncRedeemFacet),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: selectors
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncIntegrationSelectors()
         });
 
         VM.prank(admin);
@@ -184,7 +154,7 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
         cut[4] = IDiamondCut.FacetCut({
             facetAddress: address(integrationFacet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: LibVaultFacetSelectors.vaultIntegrationSelectors()
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncIntegrationSelectors()
         });
 
         VM.prank(admin);

@@ -9,6 +9,7 @@ import {IERC20Metadata} from "../src/interfaces/IERC20Metadata.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../src/interfaces/IERC7540Redeem.sol";
+import {IERC7540VaultSettlementFacet} from "../src/interfaces/IERC7540VaultSettlementFacet.sol";
 import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
@@ -20,8 +21,6 @@ import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {DiamondVaultDeploymentFixture} from "./helpers/DiamondVaultDeploymentTestHarness.sol";
-import {ERC7540VaultDepositFacetHarness} from "./helpers/ERC7540VaultDepositFacetTestHarness.sol";
-import {ERC7540VaultRedeemFacetHarness} from "./helpers/ERC7540VaultRedeemFacetTestHarness.sol";
 
 contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture {
     function testVaultHostDeployInstallInitOracleAndStrategyWiring() public {
@@ -65,7 +64,7 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         );
         assertTrue(
             loupe.facetFunctionSelectors(address(integrationFacet)).length
-                == LibVaultFacetSelectors.vaultIntegrationSelectors().length,
+                == LibVaultFacetSelectors.vaultAsyncIntegrationSelectors().length,
             "unexpected integration selector count"
         );
 
@@ -75,7 +74,7 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         );
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncRedeemHostSelectors(), address(asyncRedeemFacet));
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultControlsSelectors(), address(controlsFacet));
-        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultIntegrationSelectors(), address(integrationFacet));
+        _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), address(integrationFacet));
 
         assertTrue(loupe.facetAddress(DiamondCutFacet.diamondCut.selector) == address(cutFacet), "cut owner mismatch");
         assertTrue(loupe.facetAddress(DiamondLoupeFacet.facets.selector) == address(loupeFacet), "loupe owner mismatch");
@@ -101,6 +100,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         assertTrue(
             loupe.facetAddress(IERC4626VaultIntegrationFacet.deployToStrategy.selector) == address(integrationFacet),
             "deploy strategy selector owner mismatch"
+        );
+        assertTrue(
+            loupe.facetAddress(IERC7540VaultSettlementFacet.settleDepositRequest.selector) == address(integrationFacet),
+            "settle deposit selector owner mismatch"
         );
         assertTrue(
             loupe.facetAddress(IERC165.supportsInterface.selector) == address(controlsFacet),
@@ -163,6 +166,10 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
             IERC165(address(diamond)).supportsInterface(type(IERC4626VaultIntegrationFacet).interfaceId),
             "missing integration interface"
         );
+        assertTrue(
+            IERC165(address(diamond)).supportsInterface(type(IERC7540VaultSettlementFacet).interfaceId),
+            "missing settlement interface"
+        );
 
         VM.prank(admin);
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultBase.ERC4626VaultAlreadyInitialized.selector));
@@ -171,8 +178,6 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
 
     function testVaultHostSmokeCoversStrategyLifecycle() public {
         _installFullyAsyncVaultHostFacets();
-        _installVaultAsyncDepositTestSelector();
-        _installVaultAsyncRedeemTestSelector();
         _initializeVaultHost();
         _wireOracleAdapter();
         _wireStrategy();
@@ -182,7 +187,8 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
         asset.approve(address(diamond), 1_500_000_000);
         VM.prank(admin);
         IERC7540Deposit(address(diamond)).requestDeposit(1_000_000_000, admin, admin);
-        ERC7540VaultDepositFacetHarness(address(diamond)).harnessSettleDepositRequest(admin, 1_000_000_000);
+        VM.prank(admin);
+        IERC7540VaultSettlementFacet(address(diamond)).settleDepositRequest(admin, 1_000_000_000);
         VM.prank(admin);
         coreFacetInterface().deposit(1_000_000_000, admin);
 
@@ -205,7 +211,8 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
 
         VM.prank(admin);
         IERC7540Redeem(address(diamond)).requestRedeem(700_000_000, admin, admin);
-        ERC7540VaultRedeemFacetHarness(address(diamond)).harnessSettleRedeemRequest(admin, 700_000_000);
+        VM.prank(admin);
+        IERC7540VaultSettlementFacet(address(diamond)).settleRedeemRequest(admin, 700_000_000);
 
         VM.prank(admin);
         coreFacetInterface().withdraw(700_000_000, admin, admin);

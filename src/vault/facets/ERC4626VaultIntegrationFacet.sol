@@ -3,14 +3,23 @@ pragma solidity ^0.8.30;
 
 import {IERC4626VaultIntegrationFacet} from "../../interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
+import {IERC7540VaultSettlementFacet} from "../../interfaces/IERC7540VaultSettlementFacet.sol";
 import {IOracleAdapter} from "../../interfaces/IOracleAdapter.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
+import {LibERC7540RequestAccounting} from "../libraries/LibERC7540RequestAccounting.sol";
+import {LibVaultFacetConstants} from "../libraries/LibVaultFacetConstants.sol";
 import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultIntegrationFacet
 /// @notice Hosted integration/config facet for oracle references and active strategy lifecycle operations.
-contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultIntegrationFacet {
+contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC4626VaultIntegrationFacet, IERC7540VaultSettlementFacet {
+    /// @notice Returns the pause scope that gates manager settlement entrypoints.
+    /// @return The settlement pause scope identifier.
+    function ASYNC_SETTLEMENT_SCOPE() public pure returns (bytes32) {
+        return LibVaultFacetConstants.ASYNC_SETTLEMENT_SCOPE;
+    }
+
     /// @notice Returns the configured external oracle adapter address.
     /// @return The adapter address, or zero when unset.
     function oracleAdapter() public view returns (address) {
@@ -180,6 +189,30 @@ contract ERC4626VaultIntegrationFacet is ERC4626Vault, VaultFacetControl, IERC46
         } catch (bytes memory revertData) {
             emit VaultStrategyEmergencyExitFailed(address(configuredStrategy), msg.sender, revertData);
         }
+    }
+
+    /// @notice Moves pending deposit assets into claimable state for `controller`.
+    /// @param controller Request controller account.
+    /// @param assets Asset amount to settle.
+    function settleDepositRequest(address controller, uint256 assets) public {
+        _requireInitialized();
+        _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
+        _requireScopeNotPaused(ASYNC_SETTLEMENT_SCOPE());
+
+        LibERC7540RequestAccounting.movePendingDepositToClaimable(controller, assets);
+        emit VaultDepositRequestSettled(controller, assets, msg.sender);
+    }
+
+    /// @notice Moves pending redeem shares into claimable state for `controller`.
+    /// @param controller Request controller account.
+    /// @param shares Share amount to settle.
+    function settleRedeemRequest(address controller, uint256 shares) public {
+        _requireInitialized();
+        _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
+        _requireScopeNotPaused(ASYNC_SETTLEMENT_SCOPE());
+
+        LibERC7540RequestAccounting.movePendingRedeemToClaimable(controller, shares);
+        emit VaultRedeemRequestSettled(controller, shares, msg.sender);
     }
 
     function _configuredStrategy() internal view returns (IERC4626VaultStrategy configuredStrategy) {
