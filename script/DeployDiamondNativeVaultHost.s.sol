@@ -88,6 +88,8 @@ contract DeployDiamondNativeVaultHostScript is DiamondVaultHostScriptBase {
                 diamondCutFacet: state.cutFacetAddress,
                 diamondLoupeFacet: state.loupeFacetAddress,
                 vaultCoreFacet: state.vaultCoreFacetAddress,
+                vaultAsyncDepositFacet: address(0),
+                vaultAsyncRedeemFacet: address(0),
                 vaultNativeFacet: state.vaultNativeFacetAddress,
                 vaultControlsFacet: state.vaultControlsFacetAddress,
                 vaultIntegrationFacet: state.vaultIntegrationFacetAddress,

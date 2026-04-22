@@ -7,6 +7,10 @@ import {IERC20} from "../../interfaces/IERC20.sol";
 import {IERC20Metadata} from "../../interfaces/IERC20Metadata.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC4626} from "../../interfaces/IERC4626.sol";
+import {IERC7540Deposit} from "../../interfaces/IERC7540Deposit.sol";
+import {IERC7540Operators} from "../../interfaces/IERC7540Operators.sol";
+import {IERC7540Redeem} from "../../interfaces/IERC7540Redeem.sol";
+import {IERC7540VaultSettlementFacet} from "../../interfaces/IERC7540VaultSettlementFacet.sol";
 import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {IERC4626VaultBase} from "../../interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
@@ -51,11 +55,154 @@ library LibVaultFacetSelectors {
         selectors[27] = IERC4626.redeem.selector;
     }
 
+    /// @notice Returns the hosted vault core selector group when async deposit entrypoints are split out.
+    function vaultAsyncHostCoreSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](22);
+        selectors[0] = IERC4626VaultFacet.initializeVault.selector;
+        selectors[1] = IERC4626VaultBase.isVaultInitialized.selector;
+        selectors[2] = IERC4626.asset.selector;
+        selectors[3] = IERC4626VaultBase.totalManagedAssets.selector;
+        selectors[4] = IERC20Metadata.name.selector;
+        selectors[5] = IERC20Metadata.symbol.selector;
+        selectors[6] = IERC20Metadata.decimals.selector;
+        selectors[7] = IERC20.totalSupply.selector;
+        selectors[8] = IERC20.balanceOf.selector;
+        selectors[9] = IERC20.allowance.selector;
+        selectors[10] = IERC20.transfer.selector;
+        selectors[11] = IERC20.approve.selector;
+        selectors[12] = IERC20.transferFrom.selector;
+        selectors[13] = IERC4626.totalAssets.selector;
+        selectors[14] = IERC4626.convertToShares.selector;
+        selectors[15] = IERC4626.convertToAssets.selector;
+        selectors[16] = IERC4626.maxWithdraw.selector;
+        selectors[17] = IERC4626.previewWithdraw.selector;
+        selectors[18] = IERC4626.withdraw.selector;
+        selectors[19] = IERC4626.maxRedeem.selector;
+        selectors[20] = IERC4626.previewRedeem.selector;
+        selectors[21] = IERC4626.redeem.selector;
+    }
+
+    /// @notice Returns the hosted vault core selector group when both async deposit and async redeem are split out.
+    function vaultFullyAsyncHostCoreSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](16);
+        selectors[0] = IERC4626VaultFacet.initializeVault.selector;
+        selectors[1] = IERC4626VaultBase.isVaultInitialized.selector;
+        selectors[2] = IERC4626.asset.selector;
+        selectors[3] = IERC4626VaultBase.totalManagedAssets.selector;
+        selectors[4] = IERC20Metadata.name.selector;
+        selectors[5] = IERC20Metadata.symbol.selector;
+        selectors[6] = IERC20Metadata.decimals.selector;
+        selectors[7] = IERC20.totalSupply.selector;
+        selectors[8] = IERC20.balanceOf.selector;
+        selectors[9] = IERC20.allowance.selector;
+        selectors[10] = IERC20.transfer.selector;
+        selectors[11] = IERC20.approve.selector;
+        selectors[12] = IERC20.transferFrom.selector;
+        selectors[13] = IERC4626.totalAssets.selector;
+        selectors[14] = IERC4626.convertToShares.selector;
+        selectors[15] = IERC4626.convertToAssets.selector;
+    }
+
     /// @notice Returns the hosted vault native selector group.
     function vaultNativeSelectors() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](2);
         selectors[0] = IERC7535VaultFacet.depositNative.selector;
         selectors[1] = IERC7535VaultFacet.mintNative.selector;
+    }
+
+    /// @notice Returns the hosted vault async selector group.
+    function vaultAsyncSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](22);
+        bytes4[] memory depositSelectors = vaultAsyncDepositHostSelectors();
+        bytes4[] memory redeemSelectors = vaultAsyncRedeemHostSelectors();
+
+        for (uint256 i = 0; i < depositSelectors.length; i++) {
+            selectors[i] = depositSelectors[i];
+        }
+
+        for (uint256 i = 0; i < redeemSelectors.length; i++) {
+            selectors[depositSelectors.length + i] = redeemSelectors[i];
+        }
+    }
+
+    /// @notice Returns the manager-facing settlement selector group for async request transitions.
+    function vaultSettlementSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IERC7540VaultSettlementFacet.ASYNC_SETTLEMENT_SCOPE.selector;
+        selectors[1] = IERC7540VaultSettlementFacet.settleDepositRequest.selector;
+        selectors[2] = IERC7540VaultSettlementFacet.settleRedeemRequest.selector;
+    }
+
+    /// @notice Returns the standard ERC-4626 selectors whose behavior becomes async-claim-aware for redeem flows.
+    function vaultAsyncRedeemClaimSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IERC4626.maxWithdraw.selector;
+        selectors[1] = IERC4626.previewWithdraw.selector;
+        selectors[2] = IERC4626.withdraw.selector;
+        selectors[3] = IERC4626.maxRedeem.selector;
+        selectors[4] = IERC4626.previewRedeem.selector;
+        selectors[5] = IERC4626.redeem.selector;
+    }
+
+    /// @notice Returns the standard ERC-4626 selectors whose behavior becomes async-claim-aware.
+    function vaultAsyncDepositClaimSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IERC4626.maxDeposit.selector;
+        selectors[1] = IERC4626.previewDeposit.selector;
+        selectors[2] = IERC4626.deposit.selector;
+        selectors[3] = IERC4626.maxMint.selector;
+        selectors[4] = IERC4626.previewMint.selector;
+        selectors[5] = IERC4626.mint.selector;
+    }
+
+    /// @notice Returns the full selector group owned by the async deposit host facet.
+    function vaultAsyncDepositHostSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](13);
+        bytes4[] memory claimSelectors = vaultAsyncDepositClaimSelectors();
+        bytes4[] memory requestSelectors = vaultAsyncDepositSelectors();
+
+        for (uint256 i = 0; i < claimSelectors.length; i++) {
+            selectors[i] = claimSelectors[i];
+        }
+
+        for (uint256 i = 0; i < requestSelectors.length; i++) {
+            selectors[claimSelectors.length + i] = requestSelectors[i];
+        }
+    }
+
+    /// @notice Returns the full selector group owned by the async redeem host facet.
+    function vaultAsyncRedeemHostSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](9);
+        bytes4[] memory claimSelectors = vaultAsyncRedeemClaimSelectors();
+        bytes4[] memory requestSelectors = vaultAsyncRedeemSelectors();
+
+        for (uint256 i = 0; i < claimSelectors.length; i++) {
+            selectors[i] = claimSelectors[i];
+        }
+
+        for (uint256 i = 0; i < requestSelectors.length; i++) {
+            selectors[claimSelectors.length + i] = requestSelectors[i];
+        }
+    }
+
+    /// @notice Returns the hosted vault async deposit selector group.
+    function vaultAsyncDepositSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](7);
+        selectors[0] = IERC7540Deposit.requestDeposit.selector;
+        selectors[1] = IERC7540Deposit.pendingDepositRequest.selector;
+        selectors[2] = IERC7540Deposit.claimableDepositRequest.selector;
+        selectors[3] = IERC7540Deposit.deposit.selector;
+        selectors[4] = IERC7540Deposit.mint.selector;
+        selectors[5] = IERC7540Operators.isOperator.selector;
+        selectors[6] = IERC7540Operators.setOperator.selector;
+    }
+
+    /// @notice Returns the hosted vault async redeem selector group.
+    function vaultAsyncRedeemSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IERC7540Redeem.requestRedeem.selector;
+        selectors[1] = IERC7540Redeem.pendingRedeemRequest.selector;
+        selectors[2] = IERC7540Redeem.claimableRedeemRequest.selector;
     }
 
     /// @notice Returns the hosted vault controls selector group.
@@ -107,5 +254,20 @@ library LibVaultFacetSelectors {
         selectors[10] = IERC4626VaultIntegrationFacet.withdrawFromStrategy.selector;
         selectors[11] = IERC4626VaultIntegrationFacet.syncStrategyAssets.selector;
         selectors[12] = IERC4626VaultIntegrationFacet.emergencyExitStrategy.selector;
+    }
+
+    /// @notice Returns the hosted vault integration selector group when async settlement entrypoints are installed.
+    function vaultAsyncIntegrationSelectors() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](16);
+        bytes4[] memory integrationSelectors = vaultIntegrationSelectors();
+        bytes4[] memory settlementSelectors = vaultSettlementSelectors();
+
+        for (uint256 i = 0; i < integrationSelectors.length; i++) {
+            selectors[i] = integrationSelectors[i];
+        }
+
+        for (uint256 i = 0; i < settlementSelectors.length; i++) {
+            selectors[integrationSelectors.length + i] = settlementSelectors[i];
+        }
     }
 }

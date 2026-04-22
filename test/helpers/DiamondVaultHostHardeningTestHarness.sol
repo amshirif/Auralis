@@ -126,15 +126,114 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         _seedIntegrationState();
     }
 
-    function _seedCoreState() internal {
-        VM.prank(bob);
-        coreFacetInterface().deposit(BOB_DEPOSIT, bob);
+    function _installAndSeedFullyAsyncVaultHost() internal {
+        _installFullyAsyncVaultHostFacets();
+        _initializeVaultHost();
+        _wireOracleAdapter();
+        _seedCoreState();
+        _seedControlsState();
+        _seedIntegrationState();
+    }
 
-        VM.prank(carol);
-        coreFacetInterface().deposit(CAROL_DEPOSIT, carol);
+    function _seedCoreState() internal {
+        _settleAndClaimDeposit(bob, BOB_DEPOSIT);
+        _settleAndClaimDeposit(carol, CAROL_DEPOSIT);
 
         VM.prank(bob);
         coreFacetInterface().approve(eve, SHARE_ALLOWANCE);
+    }
+
+    function _settleAndClaimDeposit(address controller, uint256 assets) internal {
+        _requestDeposit(controller, assets);
+        _settleDepositRequest(controller, assets);
+        _claimDeposit(controller, assets, controller);
+    }
+
+    function _requestDeposit(address controller, uint256 assets) internal {
+        VM.prank(controller);
+        asyncDepositFacetInterface().requestDeposit(assets, controller, controller);
+    }
+
+    function _settleDepositRequest(address controller, uint256 assets) internal {
+        VM.prank(admin);
+        integrationFacetInterface().settleDepositRequest(controller, assets);
+    }
+
+    function _claimDeposit(address controller, uint256 assets, address receiver) internal returns (uint256 shares) {
+        VM.prank(controller);
+        shares = coreFacetInterface().deposit(assets, receiver);
+    }
+
+    function _requestRedeem(address controller, uint256 shares) internal {
+        VM.prank(controller);
+        asyncRedeemFacetInterface().requestRedeem(shares, controller, controller);
+    }
+
+    function _settleRedeemRequest(address controller, uint256 shares) internal {
+        VM.prank(admin);
+        integrationFacetInterface().settleRedeemRequest(controller, shares);
+    }
+
+    function _claimRedeem(address controller, uint256 shares, address receiver) internal returns (uint256 assets) {
+        VM.prank(controller);
+        assets = coreFacetInterface().redeem(shares, receiver, controller);
+    }
+
+    function _pendingDepositRequestAssets(address controller) internal view returns (uint256 assets) {
+        return asyncDepositFacetInterface().pendingDepositRequest(0, controller);
+    }
+
+    function _claimableDepositRequestAssets(address controller) internal view returns (uint256 assets) {
+        return asyncDepositFacetInterface().claimableDepositRequest(0, controller);
+    }
+
+    function _pendingRedeemRequestShares(address controller) internal view returns (uint256 shares) {
+        return asyncRedeemFacetInterface().pendingRedeemRequest(0, controller);
+    }
+
+    function _claimableRedeemRequestShares(address controller) internal view returns (uint256 shares) {
+        return asyncRedeemFacetInterface().claimableRedeemRequest(0, controller);
+    }
+
+    function _sumPendingDepositRequestAssets() internal view returns (uint256 assets) {
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            assets += _pendingDepositRequestAssets(actors[i]);
+        }
+    }
+
+    function _sumClaimableDepositRequestAssets() internal view returns (uint256 assets) {
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            assets += _claimableDepositRequestAssets(actors[i]);
+        }
+    }
+
+    function _sumPendingRedeemRequestShares() internal view returns (uint256 shares) {
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            shares += _pendingRedeemRequestShares(actors[i]);
+        }
+    }
+
+    function _sumClaimableRedeemRequestShares() internal view returns (uint256 shares) {
+        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
+            shares += _claimableRedeemRequestShares(actors[i]);
+        }
+    }
+
+    function _bookIdleAssets() internal view returns (uint256) {
+        return coreFacetInterface().totalManagedAssets() - integrationFacetInterface().strategyDebt();
+    }
+
+    function _availableIdleAssetsForStrategyDeploy() internal view returns (uint256) {
+        uint256 actualIdleAssets = asset.balanceOf(address(diamond));
+        uint256 idleBookAssets = _bookIdleAssets();
+        return actualIdleAssets < idleBookAssets ? actualIdleAssets : idleBookAssets;
+    }
+
+    function _immediateTrackedLiquidity() internal view returns (uint256 liquidity) {
+        liquidity = _bookIdleAssets();
+        if (integrationFacetInterface().strategy() == address(strategyContract)) {
+            liquidity += strategyContract.maxWithdrawableAssets();
+        }
     }
 
     function _seedControlsState() internal {
@@ -175,7 +274,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _replaceCoreFacet(address facetAddress_) internal {
-        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultCoreSelectors());
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncHostCoreSelectors());
     }
 
     function _replaceControlsFacet(address facetAddress_) internal {
@@ -183,7 +282,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _replaceIntegrationFacet(address facetAddress_) internal {
-        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultIntegrationSelectors());
+        _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncIntegrationSelectors());
     }
 
     function _addCoreReplacementMarker(address facetAddress_) internal {
@@ -199,7 +298,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _removeCoreFacetWithMarker() internal {
-        _removeSelectors(_concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
     }
 
     function _removeControlsFacetWithMarker() internal {
@@ -207,11 +306,11 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _removeIntegrationFacetWithMarker() internal {
-        _removeSelectors(_concat(LibVaultFacetSelectors.vaultIntegrationSelectors(), _markerSelectors()));
+        _removeSelectors(_concat(LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), _markerSelectors()));
     }
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
     }
 
     function _reAddControlsFacetWithMarker(address facetAddress_) internal {
@@ -219,7 +318,7 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _reAddIntegrationFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultIntegrationSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultAsyncIntegrationSelectors(), _markerSelectors()));
     }
 
     function _pauseVault() internal {

@@ -119,7 +119,8 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
             revert IERC4626VaultControls.ERC4626VaultWithdrawLimitExceeded(assets, maxAssets);
         }
 
-        uint256 availableIdleAssets = _idleAssetBalance();
+        uint256 availableIdleAssets =
+            LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();
         if (grossAssets > availableIdleAssets) {
             revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
         }
@@ -169,7 +170,8 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
 
-        uint256 availableIdleAssets = _idleAssetBalance();
+        uint256 availableIdleAssets =
+            LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();
         if (grossAssets > availableIdleAssets) {
             revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
         }
@@ -209,10 +211,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
             return type(uint256).max;
         }
 
-        uint256 actualIdleAssets = _idleAssetBalance();
-        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
-        uint256 trackedIdleAssets = actualIdleAssets < idleBookAssets ? actualIdleAssets : idleBookAssets;
-        return trackedIdleAssets + _strategyWithdrawableAssets();
+        return _trackedIdleAssetBalance() + _strategyWithdrawableAssets();
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {
@@ -229,7 +228,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
             return;
         }
 
-        uint256 idleAssets = _idleAssetBalance();
+        uint256 idleAssets = _trackedIdleAssetBalance();
         while (idleAssets < requiredGrossAssets) {
             uint256 strategyLiquidity = _strategyWithdrawableAssets();
             if (strategyLiquidity == 0) {
@@ -244,7 +243,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
             (uint256 returnedAssets, uint256 postCallLiveAssets) = _withdrawStrategyAssets(requestedAssets);
             _reconcileStrategyWithdrawalAccounting(returnedAssets, postCallLiveAssets);
 
-            uint256 nextIdleAssets = _idleAssetBalance();
+            uint256 nextIdleAssets = _trackedIdleAssetBalance();
             if (nextIdleAssets <= idleAssets) {
                 break;
             }
