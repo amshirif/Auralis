@@ -9,6 +9,7 @@ import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC462
 import {VaultFacetControl} from "../VaultFacetControl.sol";
 import {LibERC7540RequestAccounting} from "../libraries/LibERC7540RequestAccounting.sol";
 import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
+import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC7540VaultRedeemFacet
 /// @notice Hosted async redeem extension facet for ERC-7540-style request flows.
@@ -45,7 +46,16 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
             LibERC7540RequestAccounting.aggregateRequestId(), controller
         );
         uint256 grossAssets = _convertToAssets(claimableShares, Rounding.Down);
+        uint256 liquidityCapAssets = _withdrawLiquidityCapAssets();
+        if (grossAssets > liquidityCapAssets) {
+            grossAssets = liquidityCapAssets;
+        }
         (assets,) = LibERC4626VaultControlLogic.withdrawNetFromGross(grossAssets);
+
+        (,,, uint128 maxWithdraw_,) = LibERC4626VaultControlLogic.limitConfig();
+        if (maxWithdraw_ != 0 && assets > maxWithdraw_) {
+            return maxWithdraw_;
+        }
     }
 
     /// @notice Returns max shares that can currently be claimed for `controller`.
@@ -62,9 +72,22 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
             return 0;
         }
 
-        return LibERC7540RequestAccounting.claimableRedeemRequest(
+        shares = LibERC7540RequestAccounting.claimableRedeemRequest(
             LibERC7540RequestAccounting.aggregateRequestId(), controller
         );
+
+        uint256 liquidityCapAssets = _withdrawLiquidityCapAssets();
+        if (liquidityCapAssets != type(uint256).max) {
+            uint256 liquidityCappedShares = _convertToShares(liquidityCapAssets, Rounding.Down);
+            if (liquidityCappedShares < shares) {
+                shares = liquidityCappedShares;
+            }
+        }
+
+        (,,,, uint128 maxRedeem_) = LibERC4626VaultControlLogic.limitConfig();
+        if (maxRedeem_ != 0 && shares > maxRedeem_) {
+            return maxRedeem_;
+        }
     }
 
     /// @notice Returns shares for an async withdraw preview.
@@ -120,7 +143,8 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
         (uint256 grossAssets, uint256 feeAssets) = LibERC4626VaultControlLogic.withdrawGrossFromNet(assets);
         _sourceStrategyLiquidity(grossAssets);
 
-        uint256 availableIdleAssets = _idleAssetBalance();
+        uint256 availableIdleAssets =
+            LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();
         if (grossAssets > availableIdleAssets) {
             revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
         }
@@ -170,7 +194,8 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
 
-        uint256 availableIdleAssets = _idleAssetBalance();
+        uint256 availableIdleAssets =
+            LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();
         if (grossAssets > availableIdleAssets) {
             revert ERC4626VaultInsufficientLiquidity(grossAssets, availableIdleAssets);
         }
@@ -256,6 +281,14 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
             && LibDiamond.selectorExists(IERC7540Redeem.requestRedeem.selector);
     }
 
+    function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
+        if (LibERC4626VaultStorage.layout().strategyDebt == 0) {
+            return type(uint256).max;
+        }
+
+        return _trackedIdleAssetBalance() + _strategyWithdrawableAssets();
+    }
+
     function _maxRequestRedeemShares(address owner) internal view returns (uint256 maxShares) {
         if (owner == address(0) || paused()) {
             return 0;
@@ -273,7 +306,7 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
             return;
         }
 
-        uint256 idleAssets = _idleAssetBalance();
+        uint256 idleAssets = _trackedIdleAssetBalance();
         while (idleAssets < requiredGrossAssets) {
             uint256 strategyLiquidity = _strategyWithdrawableAssets();
             if (strategyLiquidity == 0) {
@@ -288,7 +321,7 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
             (uint256 returnedAssets, uint256 postCallLiveAssets) = _withdrawStrategyAssets(requestedAssets);
             _reconcileStrategyWithdrawalAccounting(returnedAssets, postCallLiveAssets);
 
-            uint256 nextIdleAssets = _idleAssetBalance();
+            uint256 nextIdleAssets = _trackedIdleAssetBalance();
             if (nextIdleAssets <= idleAssets) {
                 break;
             }

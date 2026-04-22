@@ -11,7 +11,7 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
 
     function setUp() public override {
         super.setUp();
-        _installVaultHostFacets();
+        _installFullyAsyncVaultHostFacets();
         _initializeVaultHost();
         _wireOracleAdapter();
         _wireStrategy();
@@ -25,11 +25,73 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         contracts[0] = address(this);
     }
 
+    function actionRequestDeposit(uint8 actorSeed, uint96 assetsRaw) external {
+        address actor = _actor(actorSeed);
+        uint256 maxAssets = _maxRequestDepositAssets(actor);
+        uint256 assets_ = _boundAmount(assetsRaw, _min(maxAssets, asset.balanceOf(actor)));
+        if (assets_ == 0) {
+            return;
+        }
+
+        VM.prank(actor);
+        asyncDepositFacetInterface().requestDeposit(assets_, actor, actor);
+    }
+
+    function actionSettleDepositRequest(uint8 actorSeed, uint96 assetsRaw) external {
+        address actor = _actor(actorSeed);
+        uint256 assets_ = _boundAmount(assetsRaw, _pendingDepositRequestAssets(actor));
+        if (assets_ == 0) {
+            return;
+        }
+
+        bytes32 settlementScope = integrationFacetInterface().ASYNC_SETTLEMENT_SCOPE();
+        if (controlsFacetInterface().scopePaused(settlementScope)) {
+            VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, settlementScope));
+            VM.prank(admin);
+            integrationFacetInterface().settleDepositRequest(actor, assets_);
+            return;
+        }
+
+        VM.prank(admin);
+        integrationFacetInterface().settleDepositRequest(actor, assets_);
+    }
+
+    function actionSettleRedeemRequest(uint8 actorSeed, uint96 sharesRaw) external {
+        address actor = _actor(actorSeed);
+        uint256 shares = _boundAmount(sharesRaw, _pendingRedeemRequestShares(actor));
+        if (shares == 0) {
+            return;
+        }
+
+        bytes32 settlementScope = integrationFacetInterface().ASYNC_SETTLEMENT_SCOPE();
+        if (controlsFacetInterface().scopePaused(settlementScope)) {
+            VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, settlementScope));
+            VM.prank(admin);
+            integrationFacetInterface().settleRedeemRequest(actor, shares);
+            return;
+        }
+
+        VM.prank(admin);
+        integrationFacetInterface().settleRedeemRequest(actor, shares);
+    }
+
+    function actionRequestRedeem(uint8 actorSeed, uint96 sharesRaw) external {
+        address actor = _actor(actorSeed);
+        uint256 shares = _boundAmount(sharesRaw, _maxRequestRedeemShares(actor));
+        if (shares == 0) {
+            return;
+        }
+
+        VM.prank(actor);
+        asyncRedeemFacetInterface().requestRedeem(shares, actor, actor);
+    }
+
     function actionDeposit(uint8 actorSeed, uint96 assetsRaw) external {
         address actor = _actor(actorSeed);
-        uint256 maxAssets = _min(coreFacetInterface().maxDeposit(actor), asset.balanceOf(actor));
+        VM.prank(actor);
+        uint256 maxAssets = coreFacetInterface().maxDeposit(actor);
         uint256 assets_ = _boundAmount(assetsRaw, maxAssets);
-        if (assets_ == 0 || coreFacetInterface().previewDeposit(assets_) == 0) {
+        if (assets_ == 0) {
             return;
         }
 
@@ -47,15 +109,10 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
 
     function actionMint(uint8 actorSeed, uint96 sharesRaw) external {
         address actor = _actor(actorSeed);
-        uint256 feasibleShares = coreFacetInterface().previewDeposit(asset.balanceOf(actor));
-        uint256 maxShares = _min(coreFacetInterface().maxMint(actor), feasibleShares);
+        VM.prank(actor);
+        uint256 maxShares = coreFacetInterface().maxMint(actor);
         uint256 shares = _boundAmount(sharesRaw, maxShares);
         if (shares == 0) {
-            return;
-        }
-
-        uint256 requiredAssets = coreFacetInterface().previewMint(shares);
-        if (requiredAssets == 0 || requiredAssets > asset.balanceOf(actor)) {
             return;
         }
 
@@ -93,7 +150,7 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
     function actionRedeem(uint8 actorSeed, uint96 sharesRaw) external {
         address actor = _actor(actorSeed);
         uint256 shares = _boundAmount(sharesRaw, coreFacetInterface().maxRedeem(actor));
-        if (shares == 0 || coreFacetInterface().previewRedeem(shares) == 0) {
+        if (shares == 0) {
             return;
         }
 
@@ -157,6 +214,19 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         }
     }
 
+    function actionSettlementPauseToggle(bool shouldPause) external {
+        bytes32 settlementScope = integrationFacetInterface().ASYNC_SETTLEMENT_SCOPE();
+        bool isPaused = controlsFacetInterface().scopePaused(settlementScope);
+
+        if (shouldPause && !isPaused) {
+            VM.prank(admin);
+            controlsFacetInterface().pauseScope(settlementScope);
+        } else if (!shouldPause && isPaused) {
+            VM.prank(admin);
+            controlsFacetInterface().unpauseScope(settlementScope);
+        }
+    }
+
     function actionSetFeeConfig(uint16 depositFeeRaw, uint16 withdrawFeeRaw) external {
         AccountingSnapshot memory snapshot = _snapshotAccounting();
         uint16 depositFeeBps = uint16(uint256(depositFeeRaw) % 2_001);
@@ -177,10 +247,11 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
     ) external {
         AccountingSnapshot memory snapshot = _snapshotAccounting();
 
-        uint256 currentAssets = coreFacetInterface().totalAssets();
+        uint256 currentCommittedAssets = coreFacetInterface().totalAssets() + _sumPendingDepositRequestAssets()
+            + _sumClaimableDepositRequestAssets();
         uint128 maxTotalAssets = totalCapRaw % 4 == 0
             ? 0
-            : uint128(currentAssets + (uint256(totalCapRaw) % EXPECTED_INITIAL_ASSET_SUPPLY) + 1);
+            : uint128(currentCommittedAssets + (uint256(totalCapRaw) % EXPECTED_INITIAL_ASSET_SUPPLY) + 1);
         uint128 maxDeposit = depositRaw % 4 == 0 ? 0 : uint128((uint256(depositRaw) % INITIAL_ASSETS) + 1);
         uint128 maxMint = mintRaw % 4 == 0 ? 0 : uint128((uint256(mintRaw) % INITIAL_ASSETS) + 1);
         uint128 maxWithdraw = withdrawRaw % 4 == 0 ? 0 : uint128((uint256(withdrawRaw) % INITIAL_ASSETS) + 1);
@@ -228,7 +299,7 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
             return;
         }
 
-        uint256 assets_ = _boundAmount(assetsRaw, integrationFacetInterface().idleAssets());
+        uint256 assets_ = _boundAmount(assetsRaw, _availableIdleAssetsForStrategyDeploy());
         if (assets_ == 0) {
             return;
         }
@@ -322,13 +393,13 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         }
 
         address actor = _actor(actorSeed);
-        uint256 ownerShares = coreFacetInterface().balanceOf(actor);
-        if (ownerShares == 0) {
+        uint256 claimableShares = _claimableRedeemRequestShares(actor);
+        if (claimableShares == 0) {
             return;
         }
 
         uint256 maxWithdraw = coreFacetInterface().maxWithdraw(actor);
-        uint256 grossEntitlement = coreFacetInterface().previewRedeem(ownerShares);
+        uint256 grossEntitlement = coreFacetInterface().convertToAssets(claimableShares);
         if (grossEntitlement <= maxWithdraw) {
             return;
         }
@@ -345,33 +416,52 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         VM.stopPrank();
     }
 
-    function invariantIdleAssetsMatchVaultBalance() public view {
+    function invariantRawVaultBalanceCoversPendingAndClaimableDeposits() public view {
         assertTrue(
-            integrationFacetInterface().idleAssets() == asset.balanceOf(address(diamond)),
-            "idle assets should match vault-held underlying"
+            asset.balanceOf(address(diamond))
+                >= _sumPendingDepositRequestAssets() + _sumClaimableDepositRequestAssets(),
+            "raw vault balance should cover pending and claimable deposit requests"
         );
     }
 
-    function invariantBookAccountingMatchesIdlePlusStrategyDebt() public view {
+    function invariantBookAccountingMatchesTrackedIdlePlusStrategyDebt() public view {
+        uint256 trackedIdleAssets =
+            asset.balanceOf(address(diamond)) - _sumPendingDepositRequestAssets() - _sumClaimableDepositRequestAssets();
         assertTrue(
-            coreFacetInterface().totalManagedAssets()
-                == integrationFacetInterface().idleAssets() + integrationFacetInterface().strategyDebt(),
-            "book accounting should equal idle assets plus strategy debt"
+            coreFacetInterface().totalManagedAssets() == trackedIdleAssets + integrationFacetInterface().strategyDebt(),
+            "book accounting should equal tracked idle assets plus strategy debt"
         );
     }
 
-    function invariantLiveAccountingMatchesIdlePlusStrategyAssets() public view {
+    function invariantLiveAccountingMatchesTrackedIdlePlusStrategyAssets() public view {
+        uint256 trackedIdleAssets =
+            asset.balanceOf(address(diamond)) - _sumPendingDepositRequestAssets() - _sumClaimableDepositRequestAssets();
         assertTrue(
-            coreFacetInterface().totalAssets()
-                == integrationFacetInterface().idleAssets() + integrationFacetInterface().liveStrategyAssets(),
-            "live accounting should equal idle assets plus live strategy assets"
+            coreFacetInterface().totalAssets() == trackedIdleAssets + integrationFacetInterface().liveStrategyAssets(),
+            "live accounting should equal tracked idle assets plus live strategy assets"
         );
     }
 
-    function invariantShareSupplyMatchesTrackedActorBalances() public view {
+    function invariantManagedAssetsStayAboveStrategyDebt() public view {
         assertTrue(
-            coreFacetInterface().totalSupply() == _sumTrackedShareBalances(),
-            "share supply should remain equal to tracked balances"
+            coreFacetInterface().totalManagedAssets() >= integrationFacetInterface().strategyDebt(),
+            "managed assets should stay above strategy debt"
+        );
+    }
+
+    function invariantShareSupplyMatchesTrackedActorBalancesPlusEscrow() public view {
+        assertTrue(
+            coreFacetInterface().totalSupply()
+                == _sumTrackedShareBalances() + coreFacetInterface().balanceOf(address(diamond)),
+            "share supply should remain equal to tracked balances plus vault escrow"
+        );
+    }
+
+    function invariantEscrowedSharesMatchPendingAndClaimableRedeemRequests() public view {
+        assertTrue(
+            coreFacetInterface().balanceOf(address(diamond))
+                == _sumPendingRedeemRequestShares() + _sumClaimableRedeemRequestShares(),
+            "vault escrowed shares should equal pending and claimable redeem requests"
         );
     }
 
@@ -396,42 +486,51 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
         }
     }
 
-    function invariantMaxWithdrawBoundedByImmediateLiquidity() public view {
-        uint256 immediateLiquidity = _immediateLiquidity();
-
-        for (uint256 i = 0; i < ACTOR_COUNT; i++) {
-            address actor = actors[i];
-            uint256 actorBalance = coreFacetInterface().balanceOf(actor);
-            uint256 grossEntitlement = actorBalance == 0 ? 0 : coreFacetInterface().previewRedeem(actorBalance);
-            uint256 maxWithdraw = coreFacetInterface().maxWithdraw(actor);
-
-            assertTrue(maxWithdraw <= immediateLiquidity, "maxWithdraw should stay within immediate liquidity");
-            assertTrue(maxWithdraw <= grossEntitlement, "maxWithdraw should stay within live-priced entitlement");
-        }
-    }
-
-    function invariantPreviewRedeemOfMaxRedeemBoundedByImmediateLiquidity() public view {
-        uint256 immediateLiquidity = _immediateLiquidity();
-
+    function invariantMaxRedeemBoundedByClaimableShares() public view {
         for (uint256 i = 0; i < ACTOR_COUNT; i++) {
             address actor = actors[i];
             uint256 maxRedeem = coreFacetInterface().maxRedeem(actor);
             assertTrue(
-                coreFacetInterface().previewRedeem(maxRedeem) <= immediateLiquidity,
-                "previewRedeem(maxRedeem) should stay within immediate liquidity"
+                maxRedeem <= _claimableRedeemRequestShares(actor), "maxRedeem should stay within claimable shares"
             );
         }
     }
 
-    function _immediateLiquidity() internal view returns (uint256) {
-        if (integrationFacetInterface().strategyDebt() == 0) {
-            return coreFacetInterface().totalAssets();
+    function _maxRequestDepositAssets(address controller) internal view returns (uint256 maxAssets) {
+        if (controller == address(0) || controlsFacetInterface().paused()) {
+            return 0;
         }
 
-        uint256 liquidity = integrationFacetInterface().idleAssets();
-        if (integrationFacetInterface().strategy() == address(strategyContract)) {
-            liquidity += strategyContract.maxWithdrawableAssets();
+        maxAssets = type(uint256).max;
+        (uint128 maxTotalAssets_, uint128 maxDeposit_,,,) = controlsFacetInterface().limitConfig();
+
+        if (maxDeposit_ != 0) {
+            maxAssets = maxDeposit_;
         }
-        return liquidity;
+
+        if (maxTotalAssets_ != 0) {
+            uint256 currentCommittedAssets = coreFacetInterface().totalAssets() + _sumPendingDepositRequestAssets()
+                + _sumClaimableDepositRequestAssets();
+            if (currentCommittedAssets >= maxTotalAssets_) {
+                return 0;
+            }
+
+            uint256 remainingAssets = maxTotalAssets_ - currentCommittedAssets;
+            if (remainingAssets < maxAssets) {
+                maxAssets = remainingAssets;
+            }
+        }
+    }
+
+    function _maxRequestRedeemShares(address owner) internal view returns (uint256 maxShares) {
+        if (owner == address(0) || controlsFacetInterface().paused()) {
+            return 0;
+        }
+
+        maxShares = coreFacetInterface().balanceOf(owner);
+        (,,,, uint128 maxRedeem_) = controlsFacetInterface().limitConfig();
+        if (maxRedeem_ != 0 && maxRedeem_ < maxShares) {
+            maxShares = maxRedeem_;
+        }
     }
 }

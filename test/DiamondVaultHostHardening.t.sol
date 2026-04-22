@@ -272,6 +272,112 @@ contract DiamondVaultHostHardeningTest is DiamondVaultHostHardeningFixture {
         assertTrue(integrationFacetInterface().strategyDebt() == 1, "deploy should work after strategy rebind");
     }
 
+    function testFullAsyncHostedVaultTracksInterleavedPendingAndClaimableRequestAccounting() public {
+        _installAndSeedFullyAsyncVaultHost();
+
+        _requestDeposit(dave, 40_000);
+        _requestDeposit(eve, 30_000);
+        _requestRedeem(bob, 60_000);
+        _requestRedeem(carol, 50_000);
+
+        _settleDepositRequest(dave, 15_000);
+        _settleDepositRequest(eve, 10_000);
+        _settleRedeemRequest(bob, 25_000);
+        _settleRedeemRequest(carol, 20_000);
+
+        assertTrue(_pendingDepositRequestAssets(dave) == 25_000, "dave pending deposit mismatch");
+        assertTrue(_claimableDepositRequestAssets(dave) == 15_000, "dave claimable deposit mismatch");
+        assertTrue(_pendingDepositRequestAssets(eve) == 20_000, "eve pending deposit mismatch");
+        assertTrue(_claimableDepositRequestAssets(eve) == 10_000, "eve claimable deposit mismatch");
+        assertTrue(_pendingRedeemRequestShares(bob) == 35_000, "bob pending redeem mismatch");
+        assertTrue(_claimableRedeemRequestShares(bob) == 25_000, "bob claimable redeem mismatch");
+        assertTrue(_pendingRedeemRequestShares(carol) == 30_000, "carol pending redeem mismatch");
+        assertTrue(_claimableRedeemRequestShares(carol) == 20_000, "carol claimable redeem mismatch");
+
+        assertTrue(_sumPendingDepositRequestAssets() == 45_000, "pending deposit total mismatch");
+        assertTrue(_sumClaimableDepositRequestAssets() == 25_000, "claimable deposit total mismatch");
+        assertTrue(_sumPendingRedeemRequestShares() == 65_000, "pending redeem total mismatch");
+        assertTrue(_sumClaimableRedeemRequestShares() == 45_000, "claimable redeem total mismatch");
+        assertTrue(coreFacetInterface().balanceOf(address(diamond)) == 110_000, "escrowed share total mismatch");
+
+        uint256 claimedDepositShares = _claimDeposit(dave, 10_000, dave);
+        uint256 claimedRedeemAssets = _claimRedeem(bob, 10_000, bob);
+
+        assertTrue(claimedDepositShares == 9_900, "claimed deposit shares mismatch");
+        assertTrue(claimedRedeemAssets == 9_950, "claimed redeem assets mismatch");
+
+        assertTrue(_pendingDepositRequestAssets(dave) == 25_000, "dave pending deposit should remain");
+        assertTrue(_claimableDepositRequestAssets(dave) == 5_000, "dave remaining claimable deposit mismatch");
+        assertTrue(_pendingDepositRequestAssets(eve) == 20_000, "eve pending deposit should remain");
+        assertTrue(_claimableDepositRequestAssets(eve) == 10_000, "eve claimable deposit should remain");
+        assertTrue(_pendingRedeemRequestShares(bob) == 35_000, "bob pending redeem should remain");
+        assertTrue(_claimableRedeemRequestShares(bob) == 15_000, "bob remaining claimable redeem mismatch");
+        assertTrue(_pendingRedeemRequestShares(carol) == 30_000, "carol pending redeem should remain");
+        assertTrue(_claimableRedeemRequestShares(carol) == 20_000, "carol claimable redeem should remain");
+
+        assertTrue(_sumPendingDepositRequestAssets() == 45_000, "pending deposit total should remain");
+        assertTrue(_sumClaimableDepositRequestAssets() == 15_000, "claimable deposit total mismatch after claim");
+        assertTrue(_sumPendingRedeemRequestShares() == 65_000, "pending redeem total should remain");
+        assertTrue(_sumClaimableRedeemRequestShares() == 35_000, "claimable redeem total mismatch after claim");
+        assertTrue(
+            coreFacetInterface().balanceOf(address(diamond)) == 100_000,
+            "escrowed shares should match remaining requests"
+        );
+        assertTrue(
+            asset.balanceOf(address(diamond))
+                == _bookIdleAssets() + _sumPendingDepositRequestAssets() + _sumClaimableDepositRequestAssets(),
+            "vault raw balance should equal book idle plus remaining deposit requests"
+        );
+    }
+
+    function testFullAsyncRedeemClaimsPreservePendingDepositLiquidityAccounting() public {
+        _installAndSeedFullyAsyncVaultHost();
+
+        _requestDeposit(dave, 40_000);
+
+        uint256 deployableIdle = _availableIdleAssetsForStrategyDeploy();
+        assertTrue(deployableIdle == 125_000, "deployable idle mismatch");
+        assertTrue(
+            asset.balanceOf(address(diamond)) == deployableIdle + 40_000, "pending deposit should sit in raw idle"
+        );
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultIntegrationFacet.ERC4626VaultStrategyInsufficientIdleAssets.selector,
+                deployableIdle + 1,
+                deployableIdle
+            )
+        );
+        VM.prank(admin);
+        integrationFacetInterface().deployToStrategy(deployableIdle + 1);
+
+        _requestRedeem(bob, 180_000);
+        _settleRedeemRequest(bob, 180_000);
+
+        uint256 bobAssetsBefore = asset.balanceOf(bob);
+        uint256 redeemedAssets = _claimRedeem(bob, 180_000, bob);
+
+        assertTrue(redeemedAssets == 179_100, "redeemed assets mismatch");
+        assertTrue(asset.balanceOf(bob) == bobAssetsBefore + redeemedAssets, "bob asset balance mismatch");
+        assertTrue(integrationFacetInterface().strategyDebt() == 170_000, "strategy debt mismatch after redeem");
+        assertTrue(coreFacetInterface().totalManagedAssets() == 170_000, "managed assets mismatch after redeem");
+        assertTrue(_bookIdleAssets() == 0, "book idle should stay zero after redeem");
+        assertTrue(_pendingDepositRequestAssets(dave) == 40_000, "pending deposit should remain reserved");
+        assertTrue(_claimableDepositRequestAssets(dave) == 0, "claimable deposit should stay zero before settlement");
+        assertTrue(asset.balanceOf(address(diamond)) == 40_000, "pending deposit liquidity should remain in the vault");
+
+        _settleDepositRequest(dave, 40_000);
+        uint256 claimedDepositShares = _claimDeposit(dave, 40_000, dave);
+
+        assertTrue(claimedDepositShares == 39_600, "claimed deposit shares mismatch");
+        assertTrue(_pendingDepositRequestAssets(dave) == 0, "pending deposit should clear after settlement");
+        assertTrue(_claimableDepositRequestAssets(dave) == 0, "claimable deposit should clear after claim");
+        assertTrue(integrationFacetInterface().strategyDebt() == 170_000, "strategy debt should stay reconciled");
+        assertTrue(coreFacetInterface().totalManagedAssets() == 209_600, "managed assets mismatch after deposit claim");
+        assertTrue(_bookIdleAssets() == 39_600, "book idle should match post-claim managed idle");
+        assertTrue(asset.balanceOf(address(diamond)) == 39_600, "vault balance should match post-claim book idle");
+    }
+
     function _assertSelectorsOwnedByFacet(bytes4[] memory selectors, address expectedFacet) internal view {
         for (uint256 i = 0; i < selectors.length; i++) {
             assertTrue(
