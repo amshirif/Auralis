@@ -301,6 +301,16 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
         return LibVaultAsset.balanceOfSelf(asset());
     }
 
+    /// @dev Returns the tracked idle assets available to support exits when a strategy is active.
+    /// @dev Raw idle balances can exceed tracked idle because of pending async deposits or direct transfers.
+    ///      Exit paths that must preserve strategy-debt accounting use the smaller tracked value instead.
+    function _trackedIdleAssetBalance() internal view returns (uint256) {
+        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
+        uint256 actualIdleAssets = _idleAssetBalance();
+        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
+        return actualIdleAssets < idleBookAssets ? actualIdleAssets : idleBookAssets;
+    }
+
     /// @dev Returns the configured strategy's immediately withdrawable assets.
     function _strategyWithdrawableAssets() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
