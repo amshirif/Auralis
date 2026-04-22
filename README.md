@@ -29,6 +29,7 @@ reviewable engineering system.
 - Canonical docs map: `docs/README.md`
 - AMM architecture: `docs/amm.md`
 - Hosted vault architecture: `docs/vault-facets.md`
+- Async vault requests: `docs/erc7540-vault.md`
 - Smart-wallet architecture: `docs/multisig-wallet.md`
 - Security assumptions: `docs/threat-model.md`
 - Validation and CI policy: `docs/security-checks.md`
@@ -43,10 +44,11 @@ reviewable engineering system.
   protection, oracle validation, upgrade guardrails, and threshold-based wallet
   execution.
 - Protocol surfaces: ERC20 and ERC721 token hosts plus a hosted ERC-4626 vault
-  platform with controls, strategy integration, and native-asset support, plus
-  a standalone V2-style AMM with deterministic pair deployment, wrapped-native
-  routing, and protocol-fee controls, plus a standalone multisig wallet with
-  single-call, batch, and self-managed configuration flows.
+  platform with controls, strategy integration, native-asset support, and an
+  ERC-7540 async request track for ERC-20 hosts, plus a standalone V2-style
+  AMM with deterministic pair deployment, wrapped-native routing, and
+  protocol-fee controls, plus a standalone multisig wallet with single-call,
+  batch, and self-managed configuration flows.
 - Operational maturity: local bootstrap, smoke validation, activity flows,
   upgrade rehearsal, and matching CI/hardening gates.
 
@@ -58,8 +60,10 @@ reviewable engineering system.
   shaped this way.
 - `docs/diamond-core.md`: diamond routing, cut flow, selector ownership, and
   storage discipline.
-- `docs/vault-facets.md`: hosted vault facet split, lifecycle, and deployment
-  model.
+- `docs/vault-facets.md`: hosted vault family, facet split, lifecycle, and
+  deployment model.
+- `docs/erc7540-vault.md`: async request lifecycle, settlement surface,
+  controller/operator semantics, and reviewer entrypoints.
 - `docs/amm.md`: standalone AMM deployment model, pair/router behavior, math,
   and reviewer path.
 - `docs/multisig-wallet.md`: wallet deployment model, signature semantics,
@@ -72,9 +76,15 @@ reviewable engineering system.
 - `test/DiamondSelectorIntegrityCore.t.sol`: selector routing and loupe
   integrity regressions.
 - `test/DiamondVaultDeploymentIntegration.t.sol`: hosted vault deployment,
-  init, selector ownership, and oracle wiring.
+  init, async selector ownership, settlement surface, and oracle wiring.
 - `test/DiamondVaultHostHardening.t.sol`: replace/remove/re-add hardening
   across the hosted vault diamond path.
+- `test/ERC7540VaultFoundationCore.t.sol`: aggregate request model, selector
+  split, and operator bookkeeping coverage.
+- `test/ERC7540VaultDepositCore.t.sol`: async deposit request, settlement, and
+  claim coverage.
+- `test/ERC7540VaultRedeemCore.t.sol`: async redeem request, settlement, and
+  claim coverage.
 - `test/DiamondTokenDeploymentIntegration.t.sol`: ERC20 and ERC721 host
   deployment and selector ownership.
 - `test/AMMFactoryRegistry.t.sol`: AMM factory registry behavior, sorted pair
@@ -117,6 +127,9 @@ forge build --sizes --skip script
 forge test --offline --match-path test/DiamondSelectorIntegrityCore.t.sol
 forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
 forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
+forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
 forge test --offline --match-path test/DiamondTokenDeploymentIntegration.t.sol
 forge test --offline --match-path test/SystemOracleFailureScenarios.t.sol
 forge test --offline --match-path test/SystemVaultStressInvariant.t.sol
@@ -158,8 +171,8 @@ Recommended reviewer path:
 
 - Architecture decisions: `docs/adr/README.md`
 - Core architecture: `docs/diamond-core.md`, `docs/token-facets.md`,
-  `docs/vault-facets.md`, `docs/amm.md`, `docs/multisig-wallet.md`,
-  `docs/oracle-adapter.md`
+  `docs/vault-facets.md`, `docs/erc7540-vault.md`, `docs/amm.md`,
+  `docs/multisig-wallet.md`, `docs/oracle-adapter.md`
 - Security and validation: `docs/threat-model.md`, `docs/security-checks.md`
 - Operations and local workflow: `docs/ops/README.md`, `docs/auralis-local.md`
 

@@ -12,7 +12,8 @@ For the accounting and native-asset decisions behind this module family, see
 `docs/adr/0005-exclude-force-sent-eth.md`.
 
 It covers the standalone vault modules and their math/control behavior. For the
-diamond-hosted vault platform, see `docs/vault-facets.md`.
+diamond-hosted vault platform, see `docs/vault-facets.md`. For the hosted
+ERC-7540 async request track, see `docs/erc7540-vault.md`.
 
 ## Accounting Model
 
@@ -36,6 +37,9 @@ flowchart TD
 
 Native-asset mode is only supported through the diamond-hosted vault platform.
 The standalone `ERC4626Vault` module remains an ERC-20 asset vault surface.
+The standalone module also remains synchronous: it does not implement
+controller-scoped async requests, manager settlement, or claimable request
+buckets.
 
 ## Contract Roles
 
@@ -171,6 +175,8 @@ Implications:
 - `deposit` and `mint` remain ERC-20 entrypoints only.
 - native funding, exact `msg.value` validation, and raw native payouts are
   documented in `docs/vault-facets.md`.
+- async request flows, settlement, and controller/operator semantics are
+  documented in `docs/erc7540-vault.md`.
 - forced native transfers are a hosted-vault accounting concern, not a
   standalone ERC-20 vault concern.
 

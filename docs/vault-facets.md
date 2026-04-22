@@ -9,22 +9,22 @@ For the durable architecture decisions behind the hosted vault shape, see
 `docs/adr/0004-native-sentinel-and-facet.md`, and
 `docs/adr/0005-exclude-force-sent-eth.md`.
 
-It covers the supported diamond-hosted vault deployment:
+It covers the supported diamond-hosted vault family:
 
-- one diamond
-- one `ERC4626VaultFacet`
-- one `ERC7535VaultFacet` for native mode
-- one `ERC4626VaultControlsFacet`
-- one `ERC4626VaultIntegrationFacet`
+- synchronous ERC-20 hosts
+- synchronous native hosts
+- async ERC-20 hosts with ERC-7540-style request flows
 - one active strategy per vault
 
 For the standalone ERC-4626 module behavior and math reference, see
-`docs/erc4626-vault.md`.
+`docs/erc4626-vault.md`. For the async request lifecycle and reviewer entry
+surface, see `docs/erc7540-vault.md`.
 
 ## Supported Host Model
 
 The hosted vault diamond preserves a split between user-facing vault flows,
-control-plane selectors, and integration/config selectors.
+control-plane selectors, async request selectors when installed, and
+integration/config selectors.
 
 ### Host Structure
 
@@ -33,31 +33,62 @@ flowchart TD
     Diamond["Vault Diamond"]
     Cut["DiamondCutFacet<br/>diamondCut"]
     Loupe["DiamondLoupeFacet<br/>loupe and owner reads"]
-    Core["ERC4626VaultFacet<br/>user flows and max/preview helpers"]
+    Core["ERC4626VaultFacet<br/>core user flows and ERC-4626 helpers"]
+    Async["ERC7540 Async Facets<br/>request and claim selectors"]
     Controls["ERC4626VaultControlsFacet<br/>fees, limits, roles, pause"]
-    Integration["ERC4626VaultIntegrationFacet<br/>oracle and strategy config"]
+    Integration["ERC4626VaultIntegrationFacet<br/>oracle, strategy, settlement"]
 
     Diamond --> Cut
     Diamond --> Loupe
     Diamond --> Core
+    Diamond --> Async
     Diamond --> Controls
     Diamond --> Integration
 ```
 
 ### Core Facet
 
-`ERC4626VaultFacet` owns the ERC-4626/share-token selector group:
+`ERC4626VaultFacet` owns the initialization, accounting, and share-token base
+surface. The exact selector group depends on the host variant:
+
+- synchronous ERC-20 host:
+  - `deposit`, `mint`, `withdraw`, `redeem`
+  - conversion, preview, and `max*` helpers
+- async-deposit host:
+  - `withdraw`, `redeem`
+  - conversion and async-redeem-facing helpers
+- fully async host:
+  - initialization, metadata, share-token flows, `asset()`,
+    `totalManagedAssets()`, `totalAssets()`, `convertToShares()`, and
+    `convertToAssets()`
+
+Across the family, the core facet owns:
 
 - vault initialization
 - share metadata and share-token flows
-- `deposit`, `mint`, `withdraw`, `redeem`
-- conversion, preview, and `max*` helpers
 - `asset()` and `totalManagedAssets()`
 
 The core facet also owns runtime liquidity sourcing for user withdrawals and
 redemptions. When idle vault liquidity is insufficient, it will pull
 immediately withdrawable assets from the configured strategy before finishing
 `withdraw` or `redeem`.
+
+### Async Request Facets
+
+ERC-20 hosted vaults can install async request selectors:
+
+- `ERC7540VaultDepositFacet`:
+  - `requestDeposit`
+  - pending/claimable deposit request views
+  - operator approvals
+  - async-claim-aware `deposit`, `mint`, `maxDeposit`, and `maxMint`
+- `ERC7540VaultRedeemFacet`:
+  - `requestRedeem`
+  - pending/claimable redeem request views
+  - async-claim-aware `withdraw`, `redeem`, `maxWithdraw`, and `maxRedeem`
+
+The aggregate request model and exact async lifecycle are documented in
+`docs/erc7540-vault.md`.
 
 ### Native Facet
 
@@ -94,6 +125,7 @@ Native mode keeps the standard ERC-4626 surface unchanged:
 - oracle adapter reference
 - strategy reference and emergency-exit state
 - strategy lifecycle methods
+- async settlement methods when the async request track is installed
 - `idleAssets()`
 - `liveStrategyAssets()`
 - `strategyDebt()`
@@ -101,6 +133,12 @@ Native mode keeps the standard ERC-4626 surface unchanged:
 
 The integration facet is the manager-facing strategy surface. It does not own
 vault initialization and it does not own user ERC-4626 entrypoints.
+
+When async selectors are installed, the integration facet also owns:
+
+- `ASYNC_SETTLEMENT_SCOPE()`
+- `settleDepositRequest(address controller, uint256 assets)`
+- `settleRedeemRequest(address controller, uint256 shares)`
 
 ## Initialization And Deployment Model
 
@@ -110,12 +148,13 @@ Initialization sequence:
 
 1. Install loupe selectors.
 2. Install the core, controls, and integration selector groups.
-3. For native mode, also install the native selector group.
-4. Call
+3. For async ERC-20 hosts, also install the async request selector groups.
+4. For native mode, also install the native selector group.
+5. Call
    `initializeVault(address vaultAsset, string vaultName, string vaultSymbol, address admin)`
    through the diamond.
-5. Call `setOracleAdapter(address newAdapter)` through the integration facet.
-6. Call `setStrategy(address newStrategy)` through the integration facet.
+6. Call `setOracleAdapter(address newAdapter)` through the integration facet.
+7. Call `setStrategy(address newStrategy)` through the integration facet.
 
 Initialization behavior:
 
@@ -162,10 +201,14 @@ Hosted vault facets reuse the shared control plane.
 - `withdrawFromStrategy(...)`
 - `syncStrategyAssets()`
 - `emergencyExitStrategy()`
+- `settleDepositRequest(...)` when async deposit selectors are installed
+- `settleRedeemRequest(...)` when async redeem selectors are installed
 
 ### Pause Behavior
 
-The hosted vault currently uses a global pause model for vault entrypoints.
+The hosted vault currently uses a global pause model for request and claim
+entrypoints, plus a dedicated settlement scope when async selectors are
+installed.
 
 Global pause blocks:
 
@@ -175,6 +218,8 @@ Global pause blocks:
 - `mintNative`
 - `withdraw`
 - `redeem`
+- `requestDeposit`
+- `requestRedeem`
 
 Global pause does not block share-token flows:
 
@@ -183,7 +228,14 @@ Global pause does not block share-token flows:
 - `transferFrom`
 
 Scoped pause selectors still route through the controls facet, but the hosted
-vault does not currently use per-scope pause behavior for ERC-4626 entrypoints.
+vault does not currently use per-scope pause behavior for ERC-4626 request or
+claim entrypoints.
+
+When the async request track is installed:
+
+- `ASYNC_SETTLEMENT_SCOPE` gates manager settlement only
+- pausing that scope blocks `settleDepositRequest` and `settleRedeemRequest`
+- already-claimable requests remain claimable while settlement is scope-paused
 
 ## Strategy Model
 
@@ -196,8 +248,8 @@ flowchart LR
     Init["initializeVault"] --> Roles["grant admin, manager, pauser roles"]
     Roles --> Oracle["optional setOracleAdapter"]
     Oracle --> Strategy["optional setStrategy"]
-    Strategy --> Users["deposit / mint / withdraw / redeem"]
-    Strategy --> Manager["deploy / withdraw / sync / emergencyExit"]
+    Strategy --> Users["sync or async user flows"]
+    Strategy --> Manager["deploy / withdraw / sync / emergencyExit / settle"]
     Manager --> Book["strategyDebt and totalManagedAssets"]
     Users --> Pricing["ERC-4626 pricing and liquidity"]
     Strategy --> Live["liveStrategyAssets"]
@@ -208,8 +260,9 @@ flowchart LR
 - single-asset only
 - strategy instance is vault-bound and asset-bound
 - no allocator or multi-strategy routing
-- no async withdrawal queue
 - no automatic harvest or keeper loop
+- async request support is controller-scoped and aggregate-id based rather than
+  per-request queue based
 
 A strategy must satisfy `IERC4626VaultStrategy` and report:
 
@@ -231,6 +284,10 @@ Manager lifecycle methods live on the integration facet:
 - `withdrawFromStrategy(uint256)`
 - `syncStrategyAssets()`
 - `emergencyExitStrategy()`
+- `settleDepositRequest(address controller, uint256 assets)` when async deposit
+  selectors are installed
+- `settleRedeemRequest(address controller, uint256 shares)` when async redeem
+  selectors are installed
 
 Behavior:
 
@@ -279,6 +336,37 @@ Operationally:
 
 This means the hosted vault uses live strategy pricing for ERC-4626 conversions
 while still keeping explicit book accounting for deployed debt.
+
+## Async Request Model
+
+The ERC-20 hosted vault track supports controller-scoped async requests.
+
+### Async Deposits
+
+- `requestDeposit` transfers assets into the vault and increases the
+  controller's pending deposit bucket
+- pending and claimable deposit assets are excluded from managed assets until
+  claim
+- a manager settles deposits through the integration facet
+- the controller or its approved operator claims settled deposits through the
+  async deposit facet's `deposit` or `mint` entrypoints
+
+### Async Redeems
+
+- `requestRedeem` escrows shares in the vault and increases the controller's
+  pending redeem bucket
+- settled redeem requests become claimable by the controller
+- claim execution burns escrowed shares only at claim time
+- async redeem claims may source immediately withdrawable strategy liquidity
+  before paying the receiver
+
+### Reviewer Notes
+
+- the only supported request id is the aggregate id `0`
+- async preview helpers revert instead of estimating unsettled future pricing
+- `maxDeposit`, `maxMint`, `maxWithdraw`, and `maxRedeem` become
+  claimable-aware when async selectors are installed
+- native hosted vaults remain synchronous and do not install this async surface
 
 ## User-Facing Withdraw And Redeem Semantics
 
@@ -407,6 +495,9 @@ Reference local deployment flow:
 Reference deployment-backed validation:
 
 - `test/DiamondVaultDeploymentIntegration.t.sol`
+- `test/ERC7540VaultFoundationCore.t.sol`
+- `test/ERC7540VaultDepositCore.t.sol`
+- `test/ERC7540VaultRedeemCore.t.sol`
 - `test/ERC4626VaultIntegrationFacetCore.t.sol`
 - `test/ERC4626VaultStrategyAccountingCore.t.sol`
 - `test/VaultStrategyFoundationCore.t.sol`
@@ -420,8 +511,8 @@ Reference deployment-backed validation:
 The current hosted strategy model does not include:
 
 - multi-strategy allocation
-- async or queued withdrawals
 - automatic harvest or keeper-driven execution
 - wrapping native balances into WETH or another canonical ERC-20 asset inside
   the hosted vault
+- per-request queue ids or FIFO claim ordering for the async request track
 - extension-standard work deferred to `#24 Advanced Extensions`

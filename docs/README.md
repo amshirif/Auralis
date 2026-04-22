@@ -9,7 +9,7 @@ runbooks live.
 The repo currently has four major protocol surfaces:
 
 - diamond-hosted token systems
-- diamond-hosted vault systems
+- diamond-hosted vault systems, including an ERC-7540 async request track
 - a standalone AMM track
 - a standalone multisig wallet track
 
@@ -20,7 +20,7 @@ flowchart TD
     ADR["ADRs<br/>accepted design choices"]
     Core["Diamond Core<br/>routing and upgrade base"]
     Token["Token Hosts<br/>ERC20 and ERC721 diamonds"]
-    Vault["Vault Hosts<br/>hosted ERC-4626 platform"]
+    Vault["Vault Hosts<br/>sync, native, and async request variants"]
     AMM["AMM Track<br/>standalone V2-style exchange"]
     Wallet["Wallet Track<br/>standalone multisig system"]
     Oracle["Oracle Adapter<br/>validation and breaker policy"]
@@ -50,6 +50,7 @@ flowchart TD
 - Diamond core architecture: `docs/diamond-core.md`
 - Hosted token architecture: `docs/token-facets.md`
 - Hosted vault architecture: `docs/vault-facets.md`
+- Async vault requests: `docs/erc7540-vault.md`
 - AMM architecture: `docs/amm.md`
 - Smart-wallet architecture: `docs/multisig-wallet.md`
 - Security assumptions: `docs/threat-model.md`
@@ -64,8 +65,10 @@ visual model materially improves comprehension.
   storage discipline.
 - `docs/token-facets.md`: separate ERC20 and ERC721 host model, initialization,
   role surface, and upgrade assumptions.
-- `docs/vault-facets.md`: hosted vault facet split, selector ownership, and
-  deployment model.
+- `docs/vault-facets.md`: hosted vault family, facet split, selector
+  ownership, and deployment model.
+- `docs/erc7540-vault.md`: async request lifecycle, settlement semantics,
+  controller/operator rules, and reviewer entrypoints.
 - `docs/amm.md`: standalone AMM deployment model, pair/router semantics, math,
   and reviewer-facing validation path.
 - `docs/multisig-wallet.md`: standalone multisig wallet deployment,
