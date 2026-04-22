@@ -81,12 +81,15 @@ reinstall persistence, and diamond-routed invariant coverage locally.
 
 ### Hosted Vault
 
-The hosted vault now has matching deployment, strategy lifecycle, hardening,
-and invariant coverage for the supported three-facet vault host with one active
-strategy per vault:
+The hosted vault family now has matching deployment, strategy lifecycle,
+async-request, hardening, and invariant coverage for the supported hosted vault
+variants with one active strategy per vault:
 
 ```bash
 forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
 forge test --offline --match-path test/ERC4626VaultIntegrationFacetCore.t.sol
 forge test --offline --match-path test/ERC4626VaultStrategyAccountingCore.t.sol
 forge test --offline --match-path test/VaultStrategyFoundationCore.t.sol
@@ -95,9 +98,29 @@ forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
 ```
 
 Use these to reproduce hosted-vault deployment, strategy binding, live
-strategy-aware accounting, loss and emergency-exit behavior, selector
+strategy-aware accounting, async request lifecycle and settlement behavior,
+controller/operator authorization, loss and emergency-exit behavior, selector
 ownership, facet replacement persistence, and diamond-routed vault invariants
 locally.
+
+### Async Vault Requests
+
+The ERC-7540 reviewer path is intentionally separate from the broader hosted
+vault strategy suites:
+
+```bash
+forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
+forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
+forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
+forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
+```
+
+Use these when reviewing the aggregate request-id model, pending versus
+claimable request buckets, manager settlement, controller/operator semantics,
+settlement-scope pause behavior, async selector ownership, and strategy-aware
+redeem claims.
 
 ### Standalone AMM
 
