@@ -406,12 +406,17 @@ Native hosted vaults use the ERC-7535-style entry surface for asset-in flows.
 - caller sends raw native asset as `msg.value`
 - shares are minted from the same fee/limit/pause logic used by hosted
   `deposit`
+- share pricing uses the same live strategy-aware accounting as the hosted
+  ERC-4626 core facet, so active strategy debt prices native deposits from
+  tracked idle assets plus the strategy's `totalAssets()`
 - the vault asset remains the sentinel address, not wrapped native token state
 
 #### `mintNative(shares, receiver)`
 
 - caller requests exact `shares`
 - the vault computes the gross native assets required under current fee logic
+- the gross native asset requirement uses the same live strategy-aware pricing
+  as hosted ERC-4626 `mint`
 - `msg.value` must equal that required gross amount exactly
 - underpayment reverts
 - overpayment also reverts

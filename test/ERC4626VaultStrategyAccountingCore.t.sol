@@ -6,6 +6,7 @@ import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControl
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
+import {ERC4626Vault} from "../src/vault/ERC4626Vault.sol";
 import {MockVaultStrategyForcedRevert} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
 import {ERC4626VaultStrategyAccountingFixture} from "./helpers/ERC4626VaultStrategyAccountingTestHarness.sol";
 
@@ -359,6 +360,167 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "post-withdraw totalAssets mismatch");
         assertTrue(address(diamond).balance == 0, "vault idle balance should be exhausted");
+    }
+
+    function testDiamondNativeDepositUsesLiveStrategyPricingAfterProfit() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(eve, INITIAL_ASSETS);
+        VM.deal(address(this), 20);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeProfitStrategy.injectProfit{value: 20}();
+
+        uint256 depositAssets = 12;
+        uint256 expectedShares = IERC4626VaultFacet(address(diamond)).previewDeposit(depositAssets);
+
+        VM.prank(eve);
+        uint256 mintedShares = IERC7535VaultFacet(address(diamond)).depositNative{value: depositAssets}(eve);
+
+        assertTrue(expectedShares == 10, "fixture should expose non-1:1 live pricing");
+        assertTrue(mintedShares == expectedShares, "native deposit should match live-priced previewDeposit");
+    }
+
+    function testDiamondNativeMintUsesLiveStrategyPricingAfterProfit() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(eve, INITIAL_ASSETS);
+        VM.deal(address(this), 20);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeProfitStrategy.injectProfit{value: 20}();
+
+        uint256 mintShares = 10;
+        uint256 expectedAssets = IERC4626VaultFacet(address(diamond)).previewMint(mintShares);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                ERC4626Vault.ERC4626VaultInvalidNativeAssetValue.selector, expectedAssets - 1, expectedAssets
+            )
+        );
+        VM.prank(eve);
+        IERC7535VaultFacet(address(diamond)).mintNative{value: expectedAssets - 1}(mintShares, eve);
+
+        VM.prank(eve);
+        uint256 consumedAssets = IERC7535VaultFacet(address(diamond)).mintNative{value: expectedAssets}(mintShares, eve);
+
+        assertTrue(expectedAssets == 12, "fixture should expose non-1:1 live pricing");
+        assertTrue(consumedAssets == expectedAssets, "native mint should match live-priced previewMint");
+    }
+
+    function testDiamondNativeDepositAndMintUseLiveStrategyPricingAfterLoss() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(eve, INITIAL_ASSETS);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeLossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeLossStrategy.applyLoss(30, 10);
+
+        uint256 depositAssets = 14;
+        uint256 bookOnlyShares = depositAssets;
+        uint256 expectedShares = IERC4626VaultFacet(address(diamond)).previewDeposit(depositAssets);
+
+        VM.prank(eve);
+        uint256 mintedShares = IERC7535VaultFacet(address(diamond)).depositNative{value: depositAssets}(eve);
+
+        assertTrue(expectedShares > bookOnlyShares, "loss should increase shares per deposited asset");
+        assertTrue(mintedShares == expectedShares, "native deposit should match loss-adjusted previewDeposit");
+
+        uint256 mintShares = 10;
+        uint256 bookOnlyAssets = mintShares;
+        uint256 expectedAssets = IERC4626VaultFacet(address(diamond)).previewMint(mintShares);
+
+        VM.prank(eve);
+        uint256 consumedAssets = IERC7535VaultFacet(address(diamond)).mintNative{value: expectedAssets}(mintShares, eve);
+
+        assertTrue(expectedAssets < bookOnlyAssets, "loss should reduce required assets per minted share");
+        assertTrue(consumedAssets == expectedAssets, "native mint should match loss-adjusted previewMint");
+    }
+
+    function testDiamondNativeDepositAndMintRevertWhenLiveStrategyQuoteReverts() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(eve, INITIAL_ASSETS);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeRevertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(STRATEGY_DEBT);
+        diamondNativeRevertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        VM.prank(eve);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 10}(eve);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        VM.prank(eve);
+        IERC7535VaultFacet(address(diamond)).mintNative{value: 10}(10, eve);
+    }
+
+    function testDiamondNativeDepositInternalCapUsesLiveStrategyPricing() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+        VM.deal(eve, INITIAL_ASSETS);
+        VM.deal(address(this), 20);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeProfitStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        diamondNativeProfitStrategy.injectProfit{value: 20}();
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setLimitConfig(125, 0, 0, 0, 0);
+
+        uint256 livePricedCap = IERC4626VaultFacet(address(diamond)).maxDeposit(eve);
+        uint256 amountAboveCap = livePricedCap + 1;
+
+        assertTrue(livePricedCap == 5, "external maxDeposit should use live strategy pricing");
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                IERC4626VaultControls.ERC4626VaultDepositLimitExceeded.selector, amountAboveCap, livePricedCap
+            )
+        );
+        VM.prank(eve);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: amountAboveCap}(eve);
     }
 
     function testDiamondNativeHostedRevertingStrategyMakesLiveSyncPricingReadsRevert() public {

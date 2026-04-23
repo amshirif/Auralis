@@ -194,6 +194,8 @@ Implications:
   `NATIVE_ASSET_SENTINEL`; there is no separate native-only initializer.
 - native funding, exact `msg.value` validation, and raw native payouts are
   documented in `docs/vault-facets.md`.
+- native `depositNative` and `mintNative` share the hosted core facet's live
+  strategy pricing boundary while strategy debt is active.
 - async request flows, settlement, and controller/operator semantics are
   documented in `docs/erc7540-vault.md`.
 - forced native transfers are a hosted-vault accounting concern, not a

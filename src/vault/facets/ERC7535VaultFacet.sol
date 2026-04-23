@@ -3,13 +3,13 @@ pragma solidity ^0.8.30;
 
 import {IERC7535VaultFacet} from "../../interfaces/IERC7535VaultFacet.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
-import {ERC4626VaultControlledCore} from "../ERC4626VaultControlLogic.sol";
+import {ERC4626VaultStrategyPricing} from "../ERC4626VaultStrategyPricing.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
 import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
 
 /// @title ERC7535VaultFacet
 /// @notice Hosted native-asset extension facet for ERC-7535-style vault entrypoints.
-contract ERC7535VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC7535VaultFacet {
+contract ERC7535VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IERC7535VaultFacet {
     /// @notice Deposits native asset and mints shares to `receiver`.
     /// @param receiver Receiver of minted shares.
     /// @return shares Minted shares.

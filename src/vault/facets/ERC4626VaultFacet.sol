@@ -4,17 +4,17 @@ pragma solidity ^0.8.30;
 import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
-import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
-import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
+import {LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
+import {ERC4626VaultStrategyPricing} from "../ERC4626VaultStrategyPricing.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
 import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
 import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
 /// @notice Hosted ERC-4626 core facet with constructor-free initialization.
-contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC4626VaultFacet {
+contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IERC4626VaultFacet {
     /// @notice Returns true when vault storage is initialized.
     /// @return True if initialized.
     function isVaultInitialized() public view virtual override(IERC4626VaultFacet, ERC4626VaultBase) returns (bool) {
@@ -188,28 +188,6 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         _payoutFee(feeAssets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
-
-    function _managedAssetsForPricing() internal view virtual override returns (uint256) {
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategyDebt == 0) {
-            return layout.totalManagedAssets;
-        }
-
-        // The base vault path is pure book pricing. Once strategy debt is active, hosted pricing
-        // intentionally trusts the bound strategy's live assets and does not fall back to stored debt.
-        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
-        uint256 liveStrategyAssets = IERC4626VaultStrategy(layout.strategy).totalAssets();
-        return idleBookAssets + liveStrategyAssets;
-    }
-
-    function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategyDebt == 0) {
-            return type(uint256).max;
-        }
-
-        return _trackedIdleAssetBalance() + _strategyWithdrawableAssets();
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {
