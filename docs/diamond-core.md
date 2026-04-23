@@ -79,6 +79,9 @@ To stay diamond-safe:
 3. Verify selector collisions are intentional and reviewed.
 4. Verify init target + calldata, including idempotency and access controls.
 5. Verify storage layout assumptions for every touched module.
+   - Treat current rehearsal and hardening coverage as proof of same-layout
+     persistence on the current namespace baseline, not as proof of storage
+     migration across renamed slot namespaces.
 6. Execute post-cut checks:
    - loupe snapshot matches expected routing.
    - critical external calls succeed.
