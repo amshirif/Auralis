@@ -59,6 +59,16 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
         );
     }
 
+    function testStandaloneFacetInitializationRemainsAvailableWithoutDiamondOwner() public {
+        _erc20Init(address(facet));
+
+        assertTrue(IERC20TokenFacet(address(facet)).isErc20Initialized(), "standalone facet should initialize");
+        assertTrue(
+            IERC20TokenFacet(address(facet)).hasRole(IERC20TokenFacet(address(facet)).DEFAULT_ADMIN_ROLE(), admin),
+            "standalone facet should seed admin role"
+        );
+    }
+
     function testInitializeRevertsWhenCalledTwice() public {
         _erc20Init(address(facet));
 

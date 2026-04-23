@@ -15,6 +15,10 @@ It covers the standalone vault modules and their math/control behavior. For the
 diamond-hosted vault platform, see `docs/vault-facets.md`. For the hosted
 ERC-7540 async request track, see `docs/erc7540-vault.md`.
 
+For hosted diamonds, bootstrap still runs through `initializeVault(...)` on the
+core facet, but the reference deployment path is an atomic cut+init flow and
+the first hosted initialization is restricted to the current diamond owner.
+
 ## Accounting Model
 
 ```mermaid
@@ -173,6 +177,8 @@ module contract described here.
 
 Implications:
 - `deposit` and `mint` remain ERC-20 entrypoints only.
+- hosted native vaults use the same `initializeVault(...)` entrypoint with
+  `NATIVE_ASSET_SENTINEL`; there is no separate native-only initializer.
 - native funding, exact `msg.value` validation, and raw native payouts are
   documented in `docs/vault-facets.md`.
 - async request flows, settlement, and controller/operator semantics are

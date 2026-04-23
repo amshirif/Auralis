@@ -28,6 +28,16 @@ contract ERC721TokenFacetCoreTest is ERC721TokenFacetFixture {
         assertTrue(IERC721TokenFacet(address(facet)).totalSupply() == 0, "initial supply mismatch");
     }
 
+    function testStandaloneFacetInitializationRemainsAvailableWithoutDiamondOwner() public {
+        _erc721Init(address(facet));
+
+        assertTrue(IERC721TokenFacet(address(facet)).isErc721Initialized(), "standalone facet should initialize");
+        assertTrue(
+            IERC721TokenFacet(address(facet)).hasRole(IERC721TokenFacet(address(facet)).DEFAULT_ADMIN_ROLE(), admin),
+            "standalone facet should seed admin role"
+        );
+    }
+
     function testInitializeSeedsRoleHierarchyAndBaseUri() public {
         _erc721Init(address(facet));
         VM.prank(admin);

@@ -202,6 +202,20 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
     /// @param initialAdmin The default admin, pauser, and initial vault manager.
     function _initializeVaultFacetControl(address initialAdmin) internal {
         if (!_isAccessControlInitialized()) {
+            address diamondOwner;
+            // This branch intentionally preserves standalone and unit-harness facet initialization when
+            // no diamond owner is present in storage.
+            assembly {
+                diamondOwner := sload(add(0xd18822d915e92c257217ed11ce402f38beb69a891f3cff0924389749c6ea4a47, 4))
+            }
+            if (diamondOwner != address(0) && msg.sender != diamondOwner) {
+                assembly {
+                    mstore(0x00, 0x3bd3ca2300000000000000000000000000000000000000000000000000000000)
+                    mstore(0x04, caller())
+                    mstore(0x24, diamondOwner)
+                    revert(0x00, 0x44)
+                }
+            }
             _initializeAccessControl(initialAdmin);
         }
         if (!_isPausableInitialized()) {

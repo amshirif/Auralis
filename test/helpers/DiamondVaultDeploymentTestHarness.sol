@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
 import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
 import {ERC4626VaultControlsFacetHarness} from "./ERC4626VaultControlsFacetTestHarness.sol";
 import {ERC4626VaultFacetHarness} from "./ERC4626VaultFacetTestHarness.sol";
@@ -129,6 +130,41 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
+    function _installNativeVaultHostFacetsAtomically() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](4);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(coreFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultCoreSelectors()
+        });
+        cut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(nativeFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultNativeSelectors()
+        });
+        cut[2] = IDiamondCut.FacetCut({
+            facetAddress: address(controlsFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
+        });
+        cut[3] = IDiamondCut.FacetCut({
+            facetAddress: address(integrationFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultIntegrationSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond))
+            .diamondCut(
+                cut,
+                address(coreFacet),
+                abi.encodeCall(
+                    IERC4626VaultFacet.initializeVault,
+                    (LibVaultAsset.NATIVE_ASSET_SENTINEL, "Native Vault Share", "nvSHARE", admin)
+                )
+            );
+    }
+
     function _installFullyAsyncVaultHostFacets() internal {
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](5);
         cut[0] = IDiamondCut.FacetCut({
@@ -159,6 +195,43 @@ abstract contract DiamondVaultDeploymentFixture is TestBase {
 
         VM.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installFullyAsyncVaultHostFacetsAtomically() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](5);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(coreFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultFullyAsyncHostCoreSelectors()
+        });
+        cut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(asyncDepositFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncDepositHostSelectors()
+        });
+        cut[2] = IDiamondCut.FacetCut({
+            facetAddress: address(asyncRedeemFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncRedeemHostSelectors()
+        });
+        cut[3] = IDiamondCut.FacetCut({
+            facetAddress: address(controlsFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultControlsSelectors()
+        });
+        cut[4] = IDiamondCut.FacetCut({
+            facetAddress: address(integrationFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibVaultFacetSelectors.vaultAsyncIntegrationSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond))
+            .diamondCut(
+                cut,
+                address(coreFacet),
+                abi.encodeCall(IERC4626VaultFacet.initializeVault, (address(asset), "Vault Share", "vSHARE", admin))
+            );
     }
 
     function _initializeVaultHost() internal {

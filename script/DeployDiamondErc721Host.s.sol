@@ -39,8 +39,12 @@ contract DeployDiamondErc721HostScript is DiamondTokenHostScriptBase {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibTokenFacetDeploymentSelectors.erc721HostSelectors()
         });
-        IDiamondCut(diamondAddress).diamondCut(tokenCut, address(0), "");
-        IERC721TokenFacet(diamondAddress).initializeErc721("Facet NFT", "FNFT", "ipfs://facet/", owner);
+        IDiamondCut(diamondAddress)
+            .diamondCut(
+                tokenCut,
+                tokenFacetAddress,
+                abi.encodeCall(IERC721TokenFacet.initializeErc721, ("Facet NFT", "FNFT", "ipfs://facet/", owner))
+            );
 
         VM.stopBroadcast();
 

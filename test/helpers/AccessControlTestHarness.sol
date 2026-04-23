@@ -17,6 +17,8 @@ interface Vm {
     function expectEmit(bool, bool, bool, bool) external;
     function expectEmit(bool, bool, bool, bool, address) external;
     function warp(uint256) external;
+    function load(address target, bytes32 slot) external view returns (bytes32);
+    function store(address target, bytes32 slot, bytes32 value) external;
 }
 
 contract TestBase {

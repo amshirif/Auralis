@@ -45,10 +45,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
             revert ERC20TokenAlreadyInitialized();
         }
 
-        if (_isAccessControlInitialized()) {
-            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        }
-
+        _enforceBootstrapInitializerAuthority();
         _initializeTokenFacetControl(admin);
         _initializeErc20Token(tokenName, tokenSymbol, tokenDecimals);
         _initializePermitDomain(tokenName);

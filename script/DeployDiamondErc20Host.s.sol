@@ -39,8 +39,12 @@ contract DeployDiamondErc20HostScript is DiamondTokenHostScriptBase {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibTokenFacetDeploymentSelectors.erc20HostSelectors()
         });
-        IDiamondCut(diamondAddress).diamondCut(tokenCut, address(0), "");
-        IERC20TokenFacet(diamondAddress).initializeErc20("Facet Token", "FTKN", 18, owner);
+        IDiamondCut(diamondAddress)
+            .diamondCut(
+                tokenCut,
+                tokenFacetAddress,
+                abi.encodeCall(IERC20TokenFacet.initializeErc20, ("Facet Token", "FTKN", 18, owner))
+            );
 
         VM.stopBroadcast();
 
