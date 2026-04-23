@@ -6,6 +6,7 @@ import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControl
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
+import {MockVaultStrategyForcedRevert} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
 import {ERC4626VaultStrategyAccountingFixture} from "./helpers/ERC4626VaultStrategyAccountingTestHarness.sol";
 
 contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountingFixture {
@@ -133,6 +134,52 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         facet.withdraw(70, bob, bob);
     }
 
+    function testDirectRevertingStrategyMakesLiveSyncPricingReadsRevert() public {
+        _initializeDirectVault();
+        _approveAsset(bob, address(facet), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        facet.deposit(DEPOSIT_ASSETS, bob);
+
+        _setDirectStrategy(directRevertingStrategy, STRATEGY_DEBT);
+        directRevertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.totalAssets();
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.previewDeposit(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.previewMint(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.previewWithdraw(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.previewRedeem(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.maxWithdraw(bob);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, directRevertingStrategy.totalAssets.selector)
+        );
+        facet.maxRedeem(bob);
+    }
+
     function testDiamondHostedVaultStrategyAccountingUsesRealLifecycleAndAutoPull() public {
         _installHostedVaultFacetsToDiamond();
         _initializeDiamondVault();
@@ -177,6 +224,91 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         );
         assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "post-withdraw totalAssets mismatch");
+    }
+
+    function testDiamondHostedRevertingStrategyMakesLiveSyncPricingReadsRevert() public {
+        _installHostedVaultFacetsToDiamond();
+        _initializeDiamondVault();
+        _approveAsset(bob, address(diamond), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).deposit(DEPOSIT_ASSETS, bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondRevertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(STRATEGY_DEBT);
+        diamondRevertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).totalAssets();
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewDeposit(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewMint(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewWithdraw(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewRedeem(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).maxWithdraw(bob);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).maxRedeem(bob);
+    }
+
+    function testDiamondHostedConfiguredRevertingStrategyWithZeroDebtKeepsBookPricingAvailable() public {
+        _installHostedVaultFacetsToDiamond();
+        _initializeDiamondVault();
+        _approveAsset(bob, address(diamond), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).deposit(DEPOSIT_ASSETS, bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondRevertingStrategy));
+        diamondRevertingStrategy.setRevertModes(true, false, false, false);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == DEPOSIT_ASSETS, "book pricing mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewDeposit(10) == 10, "previewDeposit mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewMint(10) == 10, "previewMint mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(10) == 10, "previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(10) == 10, "previewRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == DEPOSIT_ASSETS, "maxWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == DEPOSIT_ASSETS, "maxRedeem mismatch");
     }
 
     function testDiamondNativeHostedVaultStrategyAccountingUsesRealLifecycleAndAutoPull() public {
@@ -227,6 +359,70 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "post-withdraw totalAssets mismatch");
         assertTrue(address(diamond).balance == 0, "vault idle balance should be exhausted");
+    }
+
+    function testDiamondNativeHostedRevertingStrategyMakesLiveSyncPricingReadsRevert() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeRevertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(STRATEGY_DEBT);
+        diamondNativeRevertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).totalAssets();
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewDeposit(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewMint(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewWithdraw(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).previewRedeem(10);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).maxWithdraw(bob);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(
+                MockVaultStrategyForcedRevert.selector, diamondNativeRevertingStrategy.totalAssets.selector
+            )
+        );
+        IERC4626VaultFacet(address(diamond)).maxRedeem(bob);
     }
 
     function testDiamondNativeRedeemAutoPullsAndReturnsCurrentShareValue() public {

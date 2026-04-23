@@ -57,6 +57,8 @@ contract ERC4626VaultIntegrationFacet is
     }
 
     /// @notice Returns the configured strategy's live reported assets.
+    /// @dev This is the same trusted mark-to-market input used by hosted vault pricing while debt is active.
+    ///      If the bound strategy's quote reverts, callers are expected to handle the revert rather than a fallback price.
     /// @return The live strategy asset amount, or zero when no strategy is configured.
     function liveStrategyAssets() public view returns (uint256) {
         _requireInitialized();

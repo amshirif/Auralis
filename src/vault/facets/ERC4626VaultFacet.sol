@@ -196,6 +196,8 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
             return layout.totalManagedAssets;
         }
 
+        // The base vault path is pure book pricing. Once strategy debt is active, hosted pricing
+        // intentionally trusts the bound strategy's live assets and does not fall back to stored debt.
         uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
         uint256 liveStrategyAssets = IERC4626VaultStrategy(layout.strategy).totalAssets();
         return idleBookAssets + liveStrategyAssets;

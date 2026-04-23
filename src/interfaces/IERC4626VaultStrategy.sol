@@ -18,6 +18,8 @@ interface IERC4626VaultStrategy {
     function asset() external view returns (address);
 
     /// @notice Returns the strategy's total tracked assets.
+    /// @dev Hosted vault pricing treats this as a trusted mark-to-market input while strategy debt is active.
+    ///      Vault reads intentionally do not fall back to stored debt when this strategy quote reverts.
     /// @return The total tracked asset amount.
     function totalAssets() external view returns (uint256);
 

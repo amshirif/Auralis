@@ -7,6 +7,7 @@ import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../src/interfaces/IERC7540Redeem.sol";
@@ -14,6 +15,7 @@ import {IERC7540VaultSettlementFacet} from "../src/interfaces/IERC7540VaultSettl
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC7540VaultRedeemFacet} from "../src/vault/facets/ERC7540VaultRedeemFacet.sol";
 import {ERC4626VaultFacetFixture} from "./helpers/ERC4626VaultFacetTestHarness.sol";
+import {MockVaultStrategyForcedRevert, RevertingMockVaultStrategy} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
     function _initializeDiamondFullAsyncVault() internal {
@@ -113,6 +115,34 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
         assertTrue(IERC4626(address(diamond)).balanceOf(address(diamond)) == 15, "escrow share balance mismatch");
         assertTrue(IERC4626(address(diamond)).totalSupply() == 55, "share supply mismatch");
         assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 25, "receiver asset balance mismatch");
+    }
+
+    function testAsyncRedeemMaxReadsInheritStrategyPricingRevert() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 80);
+
+        RevertingMockVaultStrategy revertingStrategy = new RevertingMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(revertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(40);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(40, bob, bob);
+        _settleRedeem(bob, 25);
+
+        revertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.totalAssets.selector)
+        );
+        IERC4626(address(diamond)).maxWithdraw(bob);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.totalAssets.selector)
+        );
+        IERC4626(address(diamond)).maxRedeem(bob);
     }
 
     function testOnlyManagerCanSettleAsyncRedeemRequests() public {

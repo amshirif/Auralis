@@ -5,7 +5,6 @@ import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
-import {IERC4626VaultIntegrationFacet} from "../../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC4626VaultStrategy} from "../../src/interfaces/IERC4626VaultStrategy.sol";
 import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
 import {LibVaultAsset} from "../../src/vault/libraries/LibVaultAsset.sol";
@@ -21,7 +20,9 @@ import {
     LossShortfallMockVaultStrategy,
     NativeLossShortfallMockVaultStrategy,
     NativeProfitMockVaultStrategy,
-    ProfitMockVaultStrategy
+    NativeRevertingMockVaultStrategy,
+    ProfitMockVaultStrategy,
+    RevertingMockVaultStrategy
 } from "./ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC4626VaultStrategyAccountingInitMock {
@@ -52,9 +53,12 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     ERC4626VaultStrategyAccountingInitMock internal accountingInit;
     ProfitMockVaultStrategy internal directProfitStrategy;
     LossShortfallMockVaultStrategy internal directLossStrategy;
+    RevertingMockVaultStrategy internal directRevertingStrategy;
     ProfitMockVaultStrategy internal diamondProfitStrategy;
+    RevertingMockVaultStrategy internal diamondRevertingStrategy;
     NativeProfitMockVaultStrategy internal diamondNativeProfitStrategy;
     NativeLossShortfallMockVaultStrategy internal diamondNativeLossStrategy;
+    NativeRevertingMockVaultStrategy internal diamondNativeRevertingStrategy;
 
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
@@ -68,9 +72,12 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         accountingInit = new ERC4626VaultStrategyAccountingInitMock();
         directProfitStrategy = new ProfitMockVaultStrategy(address(facet), address(asset));
         directLossStrategy = new LossShortfallMockVaultStrategy(address(facet), address(asset));
+        directRevertingStrategy = new RevertingMockVaultStrategy(address(facet), address(asset));
         diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
+        diamondRevertingStrategy = new RevertingMockVaultStrategy(address(diamond), address(asset));
         diamondNativeProfitStrategy = new NativeProfitMockVaultStrategy(address(diamond));
         diamondNativeLossStrategy = new NativeLossShortfallMockVaultStrategy(address(diamond));
+        diamondNativeRevertingStrategy = new NativeRevertingMockVaultStrategy(address(diamond));
 
         asset.mint(bob, INITIAL_ASSETS);
         asset.mint(eve, INITIAL_ASSETS);

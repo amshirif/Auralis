@@ -218,6 +218,18 @@ reviewer needs to track.
   strategy before paying the receiver
 - `maxWithdraw` and `maxRedeem` do not promise access to full mark-to-market
   value when strategy liquidity is constrained
+- async host reads that depend on live pricing inherit the same strategy trust
+  boundary as the sync vault surface
+- in practice that means the hosted `totalAssets()` read and the async redeem
+  `maxWithdraw` / `maxRedeem` helpers revert when the bound strategy's
+  `totalAssets()` reverts while debt is active
+- async deposit claim helpers remain claimable-request views; `maxDeposit` stays
+  claimable-asset-based and `maxMint` remains claimable/book-priced rather than
+  consulting live strategy totals
+- because `maxMint` resolves through the deposit facet's book-pricing chain
+  while `convertToShares` resolves through the core facet's live-pricing
+  override, the two can disagree while strategy debt is active; integrators
+  that need a single-source share quote should prefer `convertToShares`
 
 ## Known Limitations
 
@@ -231,6 +243,9 @@ reviewer needs to track.
   settlement pricing
 - manager settlement is a trust and operations assumption that reviewers should
   evaluate alongside the role model
+- manager-controlled strategy binding is also a pricing trust assumption:
+  `VAULT_MANAGER_ROLE` decides which strategy is trusted for live mark-to-market
+  reads while debt is active
 
 ## Reviewer Entry Points
 
@@ -261,6 +276,10 @@ Use these suites to review the async request surface locally:
   claim, operator, limit, and settlement-pause behavior
 - `test/ERC7540VaultRedeemCore.t.sol`: async redeem request, settlement,
   claim, allowance/operator behavior, limit, and settlement-pause behavior
+- `testAsyncDepositClaimHelpersStayClaimableBasedWhileHostTotalAssetsStillReverts()`
+  in `test/ERC7540VaultDepositCore.t.sol`: async deposit claim-path boundary
+- `testAsyncRedeemMaxReadsInheritStrategyPricingRevert()` in
+  `test/ERC7540VaultRedeemCore.t.sol`: async redeem trust-boundary freeze
 - `test/DiamondVaultDeploymentIntegration.t.sol`: fully async host deployment,
   selector ownership, interface support, and strategy wiring
 - `test/DiamondVaultHostHardening.t.sol`: persistence across replace/remove

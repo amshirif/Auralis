@@ -165,6 +165,19 @@ vault entrypoints. This is the primary emergency stop for vault write paths.
 - `_mulDiv` uses direct `x * y` math, so unrealistic extreme values can overflow.
 - `totalManagedAssets` assumes integrators use canonical vault flows for
   accounting updates.
+- while `strategyDebt() != 0`, hosted live pricing intentionally trusts the
+  bound strategy's `totalAssets()` as a mark-to-market input.
+- trust in a strategy is established by the account holding
+  `VAULT_MANAGER_ROLE`; that role is responsible for reviewing, binding, and
+  reconciling strategies.
+- if a bound strategy's `totalAssets()` reverts, live-priced reads such as
+  `totalAssets()`, conversions, previews, `maxMint()`, `maxWithdraw()`, and
+  `maxRedeem()` are expected to revert rather than silently fall back to book
+  value.
+- the expected mark-to-market behavior is covered by
+  `testDirectStrategyProfitMakesPricingMarkToMarketAndExtendsLiquidity()` and
+  `testDirectStrategyLossMovesPricingDownwardAndCapsLiquidityByWithdrawableAssets()`
+  in `test/ERC4626VaultStrategyAccountingCore.t.sol`.
 - No native slippage parameters are present on ERC-4626 functions; integrators
   should pre-check previews and enforce client-side constraints.
 - The controls layer applies global limits, not per-user risk limits.
