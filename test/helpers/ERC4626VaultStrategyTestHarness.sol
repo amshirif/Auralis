@@ -122,6 +122,35 @@ contract LossShortfallMockVaultStrategy is MockVaultStrategyBase {
     }
 }
 
+contract LossOnWithdrawMockVaultStrategy is MockVaultStrategyBase {
+    uint256 internal _lossOnNextWithdraw;
+
+    constructor(address vault_, address asset_) MockVaultStrategyBase(vault_, asset_) {}
+
+    /// @dev Realizes this loss on the next withdrawToVault(...) call only.
+    function setLossOnNextWithdraw(uint256 lossAssets) external {
+        _lossOnNextWithdraw = lossAssets;
+    }
+
+    function withdrawToVault(uint256 assets) external override onlyVault returns (uint256 assetsReturned) {
+        uint256 realizedLoss = _min(_lossOnNextWithdraw, _trackedAssets);
+        _lossOnNextWithdraw = 0;
+
+        if (realizedLoss != 0) {
+            MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss);
+            _trackedAssets -= realizedLoss;
+            _withdrawableAssets = _min(_withdrawableAssets, _trackedAssets);
+        }
+
+        assetsReturned = _min(assets, maxWithdrawableAssets());
+        _trackedAssets -= assetsReturned;
+        _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+        }
+    }
+}
+
 contract RevertingMockVaultStrategy is MockVaultStrategyBase {
     bool internal _revertTotalAssets;
     bool internal _revertDeployFunds;
@@ -344,6 +373,35 @@ contract NativeLossShortfallMockVaultStrategy is MockNativeVaultStrategyBase {
             _trackedAssets -= realizedLoss;
         }
         _withdrawableAssets = _min(withdrawableAssets_, _trackedAssets);
+    }
+}
+
+contract NativeLossOnWithdrawMockVaultStrategy is MockNativeVaultStrategyBase {
+    uint256 internal _lossOnNextWithdraw;
+
+    constructor(address vault_) MockNativeVaultStrategyBase(vault_) {}
+
+    /// @dev Realizes this loss on the next withdrawToVault(...) call only.
+    function setLossOnNextWithdraw(uint256 lossAssets) external {
+        _lossOnNextWithdraw = lossAssets;
+    }
+
+    function withdrawToVault(uint256 assets) external override onlyVault returns (uint256 assetsReturned) {
+        uint256 realizedLoss = _min(_lossOnNextWithdraw, _trackedAssets);
+        _lossOnNextWithdraw = 0;
+
+        if (realizedLoss != 0) {
+            _transferNative(LOSS_SINK, realizedLoss);
+            _trackedAssets -= realizedLoss;
+            _withdrawableAssets = _min(_withdrawableAssets, _trackedAssets);
+        }
+
+        assetsReturned = _min(assets, maxWithdrawableAssets());
+        _trackedAssets -= assetsReturned;
+        _withdrawableAssets -= assetsReturned;
+        if (assetsReturned != 0) {
+            _transferNative(_vault, assetsReturned);
+        }
     }
 }
 

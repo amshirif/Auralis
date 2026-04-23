@@ -106,9 +106,13 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         _setDirectStrategy(directProfitStrategy, STRATEGY_DEBT);
         directProfitStrategy.injectProfit(20);
 
+        uint256 expectedAssets = facet.previewRedeem(50);
+
         VM.prank(bob);
         uint256 returnedAssets = facet.redeem(50, bob, bob);
 
+        assertTrue(expectedAssets == 60, "profit fixture should expose non-1:1 redeem pricing");
+        assertTrue(returnedAssets == expectedAssets, "redeem should match no-loss pre-call quote");
         assertTrue(returnedAssets == 60, "redeem should return current share value");
         assertTrue(facet.balanceOf(bob) == 50, "remaining shares mismatch after redeem");
         assertTrue(facet.totalManagedAssets() == 60, "book value mismatch after redeem");
@@ -116,6 +120,67 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         assertTrue(asset.balanceOf(address(facet)) == 0, "vault idle balance should be exhausted after redeem");
         assertTrue(directProfitStrategy.totalAssets() == 60, "remaining strategy assets mismatch");
         assertTrue(asset.balanceOf(bob) == INITIAL_ASSETS - 40, "underlying balance mismatch after redeem");
+    }
+
+    function testDirectRedeemRepricesAfterWithdrawalTimeLoss() public {
+        _initializeDirectVault();
+        _approveAsset(bob, address(facet), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        facet.deposit(DEPOSIT_ASSETS, bob);
+
+        _setDirectStrategy(directLossOnWithdrawStrategy, STRATEGY_DEBT);
+        directLossOnWithdrawStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        uint256 returnedAssets = facet.redeem(50, bob, bob);
+
+        assertTrue(returnedAssets == 40, "redeem should settle at post-loss share value");
+        assertTrue(facet.balanceOf(bob) == 50, "remaining shares mismatch");
+        assertTrue(facet.totalManagedAssets() == 40, "managed assets should reflect loss and exit");
+        assertTrue(facet.totalAssets() == 40, "total assets mismatch after post-loss redeem");
+        assertTrue(asset.balanceOf(bob) == INITIAL_ASSETS - 60, "receiver assets mismatch");
+    }
+
+    function testDirectWithdrawBurnsPostSourcingSharesAfterWithdrawalTimeLoss() public {
+        _initializeDirectVault();
+        _approveAsset(bob, address(facet), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        facet.deposit(DEPOSIT_ASSETS, bob);
+
+        _setDirectStrategy(directLossOnWithdrawStrategy, STRATEGY_DEBT);
+        directLossOnWithdrawStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        uint256 burnedShares = facet.withdraw(50, bob, bob);
+
+        assertTrue(burnedShares == 63, "withdraw should burn post-loss priced shares");
+        assertTrue(burnedShares > 50, "withdraw should burn more than stale pre-loss pricing");
+        assertTrue(facet.balanceOf(bob) == 37, "remaining shares mismatch");
+        assertTrue(facet.totalManagedAssets() == 30, "managed assets should reflect loss and exit");
+        assertTrue(facet.totalAssets() == 30, "total assets mismatch after post-loss withdraw");
+        assertTrue(asset.balanceOf(bob) == INITIAL_ASSETS - 50, "receiver assets mismatch");
+    }
+
+    function testDirectRedeemSucceedsWhenWithdrawalTimeLossMakesInitialGrossAssetsStale() public {
+        _initializeDirectVault();
+        _approveAsset(bob, address(facet), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        facet.deposit(DEPOSIT_ASSETS, bob);
+
+        _setDirectStrategy(directLossOnWithdrawStrategy, STRATEGY_DEBT);
+        directLossOnWithdrawStrategy.setLossOnNextWithdraw(55);
+
+        VM.prank(bob);
+        uint256 returnedAssets = facet.redeem(50, bob, bob);
+
+        assertTrue(returnedAssets == 22, "redeem should recompute below stale gross assets");
+        assertTrue(facet.balanceOf(bob) == 50, "remaining shares mismatch");
+        assertTrue(facet.totalManagedAssets() == 23, "managed assets should preserve remaining post-loss value");
+        assertTrue(facet.totalAssets() == 23, "total assets mismatch after partial-liquidity redeem");
+        assertTrue(asset.balanceOf(address(facet)) == 23, "idle assets mismatch");
     }
 
     function testDirectWithdrawRevertsWhenStrategyLiquidityCannotCoverExactAssets() public {
@@ -225,6 +290,30 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         );
         assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "post-withdraw totalAssets mismatch");
+    }
+
+    function testDiamondRedeemRepricesAfterWithdrawalTimeLoss() public {
+        _installHostedVaultFacetsToDiamond();
+        _initializeDiamondVault();
+        _approveAsset(bob, address(diamond), DEPOSIT_ASSETS);
+
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).deposit(DEPOSIT_ASSETS, bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondLossOnWithdrawStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(STRATEGY_DEBT);
+        diamondLossOnWithdrawStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        uint256 returnedAssets = IERC4626VaultFacet(address(diamond)).redeem(50, bob, bob);
+
+        assertTrue(returnedAssets == 40, "diamond redeem should settle at post-loss share value");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 50, "remaining shares mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "total assets mismatch");
+        assertTrue(asset.balanceOf(bob) == INITIAL_ASSETS - 60, "receiver assets mismatch");
     }
 
     function testDiamondHostedRevertingStrategyMakesLiveSyncPricingReadsRevert() public {
@@ -613,6 +702,31 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 60, "total assets mismatch");
         assertTrue(address(diamond).balance == 0, "vault idle balance should be exhausted after redeem");
         assertTrue(diamondNativeProfitStrategy.totalAssets() == 60, "remaining strategy assets mismatch");
+    }
+
+    function testDiamondNativeRedeemRepricesAfterWithdrawalTimeLoss() public {
+        _installHostedVaultNativeFacetsToDiamond();
+        _initializeDiamondNativeVault();
+        VM.deal(bob, INITIAL_ASSETS);
+
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: DEPOSIT_ASSETS}(bob);
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(diamondNativeLossOnWithdrawStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(STRATEGY_DEBT);
+        diamondNativeLossOnWithdrawStrategy.setLossOnNextWithdraw(20);
+
+        uint256 bobBalanceBefore = bob.balance;
+        VM.prank(bob);
+        uint256 returnedAssets = IERC4626VaultFacet(address(diamond)).redeem(50, bob, bob);
+
+        assertTrue(returnedAssets == 40, "native redeem should settle at post-loss share value");
+        assertTrue(bob.balance == bobBalanceBefore + 40, "native receiver balance mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 50, "remaining shares mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "total assets mismatch");
     }
 
     function testDiamondNativeWithdrawRevertsWhenStrategyLiquidityCannotCoverExactAssets() public {

@@ -120,7 +120,9 @@ Fully async hosts extend the model to redeem requests:
    - `redeem(shares, receiver, controller)`
 5. Claiming consumes claimable shares, burns the escrowed shares, reduces
    managed assets by the gross asset exit amount, transfers the net assets to
-   the receiver, and pays any configured withdraw fee.
+   the receiver, and pays any configured withdraw fee. Exact-share redeem
+   claims recompute the gross asset value after strategy liquidity sourcing, so
+   claim settlement uses the post-sourcing share price.
 
 Reviewer-visible implications:
 
@@ -216,6 +218,9 @@ reviewer needs to track.
 
 - async redeem claims may pull immediately withdrawable assets from the active
   strategy before paying the receiver
+- exact-share `redeem(shares, receiver, controller)` claims settle at the
+  post-sourcing asset value if strategy withdrawal reconciles gain or loss
+  during the claim transaction
 - `maxWithdraw` and `maxRedeem` do not promise access to full mark-to-market
   value when strategy liquidity is constrained
 - async host reads that depend on live pricing inherit the same strategy trust
