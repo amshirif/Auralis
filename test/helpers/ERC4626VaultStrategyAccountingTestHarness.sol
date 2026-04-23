@@ -18,7 +18,9 @@ import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 import {ERC4626VaultIntegrationFacetHarness} from "./ERC4626VaultIntegrationFacetTestHarness.sol";
 import {
     LossShortfallMockVaultStrategy,
+    LossOnWithdrawMockVaultStrategy,
     NativeLossShortfallMockVaultStrategy,
+    NativeLossOnWithdrawMockVaultStrategy,
     NativeProfitMockVaultStrategy,
     NativeRevertingMockVaultStrategy,
     ProfitMockVaultStrategy,
@@ -53,11 +55,14 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     ERC4626VaultStrategyAccountingInitMock internal accountingInit;
     ProfitMockVaultStrategy internal directProfitStrategy;
     LossShortfallMockVaultStrategy internal directLossStrategy;
+    LossOnWithdrawMockVaultStrategy internal directLossOnWithdrawStrategy;
     RevertingMockVaultStrategy internal directRevertingStrategy;
     ProfitMockVaultStrategy internal diamondProfitStrategy;
+    LossOnWithdrawMockVaultStrategy internal diamondLossOnWithdrawStrategy;
     RevertingMockVaultStrategy internal diamondRevertingStrategy;
     NativeProfitMockVaultStrategy internal diamondNativeProfitStrategy;
     NativeLossShortfallMockVaultStrategy internal diamondNativeLossStrategy;
+    NativeLossOnWithdrawMockVaultStrategy internal diamondNativeLossOnWithdrawStrategy;
     NativeRevertingMockVaultStrategy internal diamondNativeRevertingStrategy;
 
     function setUp() public virtual {
@@ -72,11 +77,14 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         accountingInit = new ERC4626VaultStrategyAccountingInitMock();
         directProfitStrategy = new ProfitMockVaultStrategy(address(facet), address(asset));
         directLossStrategy = new LossShortfallMockVaultStrategy(address(facet), address(asset));
+        directLossOnWithdrawStrategy = new LossOnWithdrawMockVaultStrategy(address(facet), address(asset));
         directRevertingStrategy = new RevertingMockVaultStrategy(address(facet), address(asset));
         diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
+        diamondLossOnWithdrawStrategy = new LossOnWithdrawMockVaultStrategy(address(diamond), address(asset));
         diamondRevertingStrategy = new RevertingMockVaultStrategy(address(diamond), address(asset));
         diamondNativeProfitStrategy = new NativeProfitMockVaultStrategy(address(diamond));
         diamondNativeLossStrategy = new NativeLossShortfallMockVaultStrategy(address(diamond));
+        diamondNativeLossOnWithdrawStrategy = new NativeLossOnWithdrawMockVaultStrategy(address(diamond));
         diamondNativeRevertingStrategy = new NativeRevertingMockVaultStrategy(address(diamond));
 
         asset.mint(bob, INITIAL_ASSETS);

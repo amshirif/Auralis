@@ -462,10 +462,13 @@ are strategy-aware.
 ### `redeem(shares)`
 
 - exact-shares semantics are preserved
-- the vault burns the requested shares and returns the current post-loss asset
-  value of those shares
 - if strategy liquidity must be sourced first, the vault pulls it before final
   asset calculation and transfer
+- the vault burns the requested shares and returns the post-sourcing asset value
+  of those shares after any strategy gain/loss reconciliation performed during
+  the call
+- `previewRedeem()` remains a pre-call quote; actual `redeem()` output can
+  differ if liquidity sourcing changes strategy accounting in the transaction
 
 ### `max*` Helpers
 

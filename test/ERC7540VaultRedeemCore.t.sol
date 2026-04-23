@@ -15,7 +15,11 @@ import {IERC7540VaultSettlementFacet} from "../src/interfaces/IERC7540VaultSettl
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC7540VaultRedeemFacet} from "../src/vault/facets/ERC7540VaultRedeemFacet.sol";
 import {ERC4626VaultFacetFixture} from "./helpers/ERC4626VaultFacetTestHarness.sol";
-import {MockVaultStrategyForcedRevert, RevertingMockVaultStrategy} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
+import {
+    LossOnWithdrawMockVaultStrategy,
+    MockVaultStrategyForcedRevert,
+    RevertingMockVaultStrategy
+} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
     function _initializeDiamondFullAsyncVault() internal {
@@ -115,6 +119,65 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
         assertTrue(IERC4626(address(diamond)).balanceOf(address(diamond)) == 15, "escrow share balance mismatch");
         assertTrue(IERC4626(address(diamond)).totalSupply() == 55, "share supply mismatch");
         assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 25, "receiver asset balance mismatch");
+    }
+
+    function testAsyncRedeemRepricesAfterWithdrawalTimeLoss() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 100);
+
+        LossOnWithdrawMockVaultStrategy lossStrategy =
+            new LossOnWithdrawMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(lossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        lossStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(50, bob, bob);
+        _settleRedeem(bob, 50);
+
+        uint256 eveAssetsBefore = asset.balanceOf(eve);
+
+        VM.prank(bob);
+        uint256 assets = IERC4626(address(diamond)).redeem(50, eve, bob);
+
+        assertTrue(assets == 40, "async redeem should settle at post-loss share value");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 0, "claimable should clear");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "total assets mismatch");
+        assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 40, "receiver asset balance mismatch");
+    }
+
+    function testAsyncWithdrawBurnsPostSourcingSharesAfterWithdrawalTimeLoss() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 100);
+
+        LossOnWithdrawMockVaultStrategy lossStrategy =
+            new LossOnWithdrawMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(lossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        lossStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(100, bob, bob);
+        _settleRedeem(bob, 100);
+
+        uint256 eveAssetsBefore = asset.balanceOf(eve);
+
+        VM.prank(bob);
+        uint256 shares = IERC4626(address(diamond)).withdraw(50, eve, bob);
+
+        assertTrue(shares == 63, "async withdraw should burn post-loss priced shares");
+        assertTrue(shares > 50, "async withdraw should burn more than stale pre-loss pricing");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 37, "claimable mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 30, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 30, "total assets mismatch");
+        assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 50, "receiver asset balance mismatch");
     }
 
     function testAsyncRedeemMaxReadsInheritStrategyPricingRevert() public {

@@ -123,7 +123,9 @@ Deposit and mint use deposit fee:
 Withdraw and redeem use withdraw fee:
 - `withdraw(assetsOut)`: requested net assets are grossed-up before share burn.
 - `redeem(shares)`: gross assets from shares are computed first, then net
-  receiver assets are derived by subtracting fee.
+  receiver assets are derived by subtracting fee. Hosted redeems recompute the
+  gross asset value after any strategy liquidity sourcing, so exact-share exits
+  settle at the post-sourcing price.
 
 Fee rounding:
 - Deposit fee on raw assets rounds down.
@@ -174,6 +176,9 @@ vault entrypoints. This is the primary emergency stop for vault write paths.
   `totalAssets()`, conversions, previews, `maxMint()`, `maxWithdraw()`, and
   `maxRedeem()` are expected to revert rather than silently fall back to book
   value.
+- `previewRedeem()` is a read-only pre-call quote; actual `redeem()` can return
+  a different asset amount when call-time strategy liquidity sourcing realizes
+  profit or loss before final settlement.
 - the expected mark-to-market behavior is covered by
   `testDirectStrategyProfitMakesPricingMarkToMarketAndExtendsLiquidity()` and
   `testDirectStrategyLossMovesPricingDownwardAndCapsLiquidityByWithdrawableAssets()`

@@ -193,6 +193,9 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
 
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
+        // Exact-share redeem claims settle at the post-sourcing price if strategy withdrawal
+        // reconciles live gains or losses into managed accounting during this call.
+        grossAssets = _convertToAssets(shares, Rounding.Down);
 
         uint256 availableIdleAssets =
             LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();

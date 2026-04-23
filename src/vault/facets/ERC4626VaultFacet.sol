@@ -165,6 +165,9 @@ contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IE
 
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
+        // Exact-share redeems settle at the post-sourcing price if strategy withdrawal reconciles
+        // live gains or losses into managed accounting during this call.
+        grossAssets = _convertToAssets(shares, Rounding.Down);
 
         uint256 availableIdleAssets =
             LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();
