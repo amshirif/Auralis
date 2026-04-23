@@ -333,6 +333,18 @@ Live pricing:
 - hosted `totalAssets()` is priced as:
   `idleAssets() + liveStrategyAssets()`
 
+Trust boundary:
+
+- while `strategyDebt() != 0`, the bound strategy is a trusted accounting
+  module for live pricing
+- that trust is established when the account with `VAULT_MANAGER_ROLE` binds or
+  keeps a strategy active
+- inflated, stale, or otherwise incorrect strategy totals intentionally affect
+  hosted pricing and previews until a manager action reconciles or removes the
+  strategy
+- if the strategy's `totalAssets()` reverts, hosted live-priced reads are
+  expected to revert rather than silently fall back to stored debt
+
 Operationally:
 
 - after deploys, book value stays constant and debt increases
@@ -344,6 +356,13 @@ Operationally:
 
 This means the hosted vault uses live strategy pricing for ERC-4626 conversions
 while still keeping explicit book accounting for deployed debt.
+
+Reference pricing coverage:
+
+- `testDirectStrategyProfitMakesPricingMarkToMarketAndExtendsLiquidity()` in
+  `test/ERC4626VaultStrategyAccountingCore.t.sol`
+- `testDirectStrategyLossMovesPricingDownwardAndCapsLiquidityByWithdrawableAssets()`
+  in `test/ERC4626VaultStrategyAccountingCore.t.sol`
 
 ## Async Request Model
 
@@ -447,8 +466,14 @@ are strategy-aware.
 
 - `maxDeposit()` and `maxMint()` remain strategy-aware through live `totalAssets()`
   pricing and limit shaping
-- `maxWithdraw()` and `maxRedeem()` are bounded by immediate liquidity, not by
-  total mark-to-market assets alone
+- on the sync ERC-4626 surface, `maxWithdraw()` and `maxRedeem()` remain
+  live-priced entitlement views, then cap that entitlement by
+  `_withdrawLiquidityCapAssets()`
+- when strategy debt is active, that view-layer cap consults live strategy
+  withdrawable assets and can revert if the strategy's `totalAssets()` quote
+  reverts
+- the same immediate-liquidity sourcing boundary is enforced during actual sync
+  `withdraw()` / `redeem()` execution
 - in native mode, immediate liquidity excludes untracked force-sent ETH above
   tracked idle assets
 - `maxWithdraw()` and `maxRedeem()` are zero when `totalAssets() == 0`, even if
