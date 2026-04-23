@@ -31,6 +31,31 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         assertFalse(facet.reentrancyGuardEntered(), "reentrancy guard should be idle");
     }
 
+    function testVaultStorageSlotAndPackedLayoutRemainFrozen() public {
+        assertTrue(
+            LibERC4626VaultStorage.STORAGE_SLOT == keccak256("auralis.erc4626-vault.storage"),
+            "vault storage slot mismatch"
+        );
+
+        _initializeHostedVault(address(facet));
+
+        uint256 packedSlot0 = uint256(VM.load(address(facet), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT))));
+        uint256 expectedPackedSlot0 =
+            1 | (uint256(1) << 8) | (uint256(uint160(address(asset))) << 16) | (uint256(facet.decimals()) << 176);
+
+        assertTrue(packedSlot0 == expectedPackedSlot0, "packed vault slot 0 mismatch");
+
+        _approveAsset(bob, address(facet), 100);
+        VM.prank(bob);
+        facet.deposit(40, bob);
+
+        assertTrue(
+            VM.load(address(facet), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT) + 6))
+                == bytes32(facet.totalManagedAssets()),
+            "totalManagedAssets slot mismatch"
+        );
+    }
+
     function testStandaloneFacetInitializationRemainsAvailableWithoutDiamondOwner() public {
         _initializeHostedVault(address(facet));
 

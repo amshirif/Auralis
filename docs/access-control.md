@@ -29,6 +29,17 @@ function init(address admin) external {
 }
 ```
 
+## Upgrade Compatibility Boundary
+
+The current hosted-vault upgrade story only claims compatibility for
+access-control state created on the current
+`keccak256("auralis.access-control.storage")` namespace.
+
+Older pre-public deployments created before the namespace rename from
+`smart-contracts.access-control.storage` are not claimed as in-place upgrade
+compatible. If those deployments ever matter, they require a redeploy or an
+explicit migration plan rather than a same-address facet replacement.
+
 ## Time Window Semantics
 
 - Time windows are optional and stored per `(role, account)`.

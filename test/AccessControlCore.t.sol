@@ -5,6 +5,7 @@ import {AccessControlHarness, AccessControlFixture} from "./helpers/AccessContro
 import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
+import {LibAccessControlStorage} from "../src/access/storage/LibAccessControlStorage.sol";
 
 contract AccessControlCoreTest is AccessControlFixture {
     event RoleAdminChanged(bytes32 indexed role, bytes32 indexed previousAdminRole, bytes32 indexed newAdminRole);
@@ -36,6 +37,39 @@ contract AccessControlCoreTest is AccessControlFixture {
         assertTrue(ac.supportsInterface(type(IAccessControl).interfaceId), "access control not supported");
         assertTrue(ac.supportsInterface(type(IAccessControlTime).interfaceId), "access control time not supported");
         assertTrue(!ac.supportsInterface(0xffffffff), "unexpected interface supported");
+    }
+
+    function testAccessControlStorageSlotAndLayoutRemainFrozen() public {
+        assertTrue(
+            LibAccessControlStorage.STORAGE_SLOT == keccak256("auralis.access-control.storage"),
+            "access-control storage slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(ac), LibAccessControlStorage.STORAGE_SLOT) == bytes32(uint256(1)),
+            "initialized flag slot mismatch"
+        );
+
+        bytes32 roleDataBase = keccak256(abi.encode(WRITER_ROLE, uint256(LibAccessControlStorage.STORAGE_SLOT) + 1));
+
+        VM.prank(admin);
+        ac.grantRole(WRITER_ROLE, bob);
+
+        bytes32 memberMappingSlot = keccak256(abi.encode(bob, uint256(roleDataBase)));
+        assertTrue(VM.load(address(ac), memberMappingSlot) == bytes32(uint256(1)), "member mapping slot mismatch");
+
+        bytes32 memberListLengthSlot = bytes32(uint256(roleDataBase) + 2);
+        assertTrue(
+            VM.load(address(ac), memberListLengthSlot) == bytes32(uint256(1)), "member list length slot mismatch"
+        );
+
+        bytes32 memberIndexSlot = keccak256(abi.encode(bob, uint256(roleDataBase) + 3));
+        assertTrue(VM.load(address(ac), memberIndexSlot) == bytes32(uint256(1)), "member index slot mismatch");
+
+        VM.prank(admin);
+        ac.setRoleAdmin(WRITER_ROLE, SPECIAL_ADMIN_ROLE);
+        assertTrue(
+            VM.load(address(ac), bytes32(uint256(roleDataBase) + 1)) == SPECIAL_ADMIN_ROLE, "role admin slot mismatch"
+        );
     }
 
     function testNonAdminCannotGrant() public {

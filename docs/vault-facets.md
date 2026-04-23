@@ -480,11 +480,22 @@ One important implication:
 
 Hosted vault state lives in the diamond, not in facet bytecode.
 
-Supported replace/remove/re-add flows assume:
+Supported replace/remove/re-add flows are limited to vaults created on the
+current `auralis.*` storage namespace baseline:
 
-- replacement facets preserve the same storage layout
+- `LibERC4626VaultStorage` remains on
+  `keccak256("auralis.erc4626-vault.storage")`
+- `LibAccessControlStorage` remains on
+  `keccak256("auralis.access-control.storage")`
+- replacement facets preserve that same namespace and an append-only storage
+  layout
 - selectors are restored before the corresponding surface is expected to route
 - no re-initialization is performed during upgrades
+
+Older pre-public deployments created before the namespace rename from
+`smart-contracts.*` to `auralis.*` are not claimed as in-place upgrade
+compatible. If they ever matter, they require redeploy or explicit migration
+work rather than a same-address facet replacement.
 
 Current hardening coverage explicitly validates persistence for:
 
@@ -492,6 +503,14 @@ Current hardening coverage explicitly validates persistence for:
 - fee config, limit config, roles, role windows, and pause state
 - oracle adapter, strategy address, strategy debt, live strategy assets, and
   emergency-exit state
+
+Those persistence checks validate same-namespace replace/remove/re-add flows on
+the current baseline. They do not validate storage migration across renamed
+slot namespaces.
+
+This compatibility statement is only being frozen here for vault and
+access-control storage. Other renamed storage libraries remain separate
+follow-up work.
 
 ## Deployment References
 

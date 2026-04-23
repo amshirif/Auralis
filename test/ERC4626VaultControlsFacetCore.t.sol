@@ -15,6 +15,7 @@ import {IPausable} from "../src/interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../src/interfaces/IReentrancyGuard.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
+import {LibERC4626VaultStorage} from "../src/vault/storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultControlsFacetFixture} from "./helpers/ERC4626VaultControlsFacetTestHarness.sol";
 
 contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
@@ -68,6 +69,34 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         assertTrue(maxMint == 300, "max mint not updated");
         assertTrue(maxWithdraw == 200, "max withdraw not updated");
         assertTrue(maxRedeem == 100, "max redeem not updated");
+    }
+
+    function testDirectControlsFacetStorageLayoutRemainsFrozenForFeesAndLimits() public {
+        _initializeDirectControlsFacet();
+
+        VM.prank(admin);
+        controlsFacet.setFeeConfig(500, 250, eve);
+        VM.prank(admin);
+        controlsFacet.setLimitConfig(1_000, 500, 300, 200, 100);
+
+        bytes32 baseSlot = LibERC4626VaultStorage.STORAGE_SLOT;
+
+        uint256 feeSlot = uint256(VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 7)));
+        uint256 expectedFeeSlot = uint256(500) | (uint256(250) << 16) | (uint256(uint160(eve)) << 32);
+        assertTrue(feeSlot == expectedFeeSlot, "fee config slot mismatch");
+
+        uint256 limitSlot0 = uint256(VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 8)));
+        uint256 expectedLimitSlot0 = uint256(uint128(1_000)) | (uint256(uint128(500)) << 128);
+        assertTrue(limitSlot0 == expectedLimitSlot0, "limit config slot 0 mismatch");
+
+        uint256 limitSlot1 = uint256(VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 9)));
+        uint256 expectedLimitSlot1 = uint256(uint128(300)) | (uint256(uint128(200)) << 128);
+        assertTrue(limitSlot1 == expectedLimitSlot1, "limit config slot 1 mismatch");
+
+        assertTrue(
+            VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 10)) == bytes32(uint256(100)),
+            "limit config slot 2 mismatch"
+        );
     }
 
     function testDirectControlsFacetRejectsInvalidFeeConfigAndNonManagerCalls() public {
