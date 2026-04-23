@@ -7,6 +7,7 @@ import {IERC721} from "../src/interfaces/IERC721.sol";
 import {IERC721Metadata} from "../src/interfaces/IERC721Metadata.sol";
 import {IERC721Receiver} from "../src/interfaces/IERC721Receiver.sol";
 import {IERC721TokenBase} from "../src/interfaces/IERC721TokenBase.sol";
+import {LibERC20TokenStorage} from "../src/token/storage/LibERC20TokenStorage.sol";
 import {TokenFacetFoundationFixture} from "./helpers/TokenFacetFoundationTestHarness.sol";
 
 contract TokenFacetFoundationCoreTest is TokenFacetFoundationFixture {
@@ -18,6 +19,40 @@ contract TokenFacetFoundationCoreTest is TokenFacetFoundationFixture {
         assertTrue(erc20StorageSlot() != erc721StorageSlot(), "token storage slots should differ");
         assertTrue(tokenAdminRole() != erc20MinterRole(), "token roles should differ");
         assertTrue(erc20TransferScope() != erc721ApprovalScope(), "token pause scopes should differ");
+    }
+
+    function testErc20StorageSlotAndLayoutRemainFrozen() public {
+        bytes32 baseSlot = LibERC20TokenStorage.STORAGE_SLOT;
+        assertTrue(baseSlot == keccak256("auralis.token.erc20.storage"), "erc20 storage slot mismatch");
+
+        erc20.initialize("Facet Token", "FTKN", 18);
+        erc20.mint(admin, 100);
+        erc20.approveTokens(admin, bob, 40);
+
+        bytes32 packedSlot0 = VM.load(address(erc20), baseSlot);
+        assertTrue(uint8(uint256(packedSlot0)) == 1, "erc20 initialized offset mismatch");
+        // Decimals intentionally uses 18 here so a bool<uint8 field swap cannot pass accidentally.
+        assertTrue(uint8(uint256(packedSlot0 >> 8)) == 18, "erc20 decimals offset mismatch");
+
+        assertTrue(
+            VM.load(address(erc20), bytes32(uint256(baseSlot) + 1)) == _shortStringSlot("Facet Token"),
+            "erc20 name slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(erc20), bytes32(uint256(baseSlot) + 2)) == _shortStringSlot("FTKN"),
+            "erc20 symbol slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(erc20), bytes32(uint256(baseSlot) + 4)) == bytes32(uint256(100)),
+            "erc20 total supply slot mismatch"
+        );
+
+        bytes32 balanceSlot = keccak256(abi.encode(admin, uint256(baseSlot) + 7));
+        assertTrue(VM.load(address(erc20), balanceSlot) == bytes32(uint256(100)), "erc20 balance slot mismatch");
+
+        bytes32 allowanceOwnerBase = keccak256(abi.encode(admin, uint256(baseSlot) + 8));
+        bytes32 allowanceSlot = keccak256(abi.encode(bob, uint256(allowanceOwnerBase)));
+        assertTrue(VM.load(address(erc20), allowanceSlot) == bytes32(uint256(40)), "erc20 allowance slot mismatch");
     }
 
     function testErc20InitializerSetsMetadata() public {
@@ -197,5 +232,16 @@ contract TokenFacetFoundationCoreTest is TokenFacetFoundationFixture {
 
         VM.expectRevert(abi.encodeWithSelector(IERC721TokenBase.ERC721TokenInvalidOperator.selector, admin, admin));
         erc721.setApprovalForAll(admin, admin, true);
+    }
+
+    function _shortStringSlot(string memory value) internal pure returns (bytes32 slotValue) {
+        bytes memory data = bytes(value);
+        assertTrue(data.length <= 31, "short string expected");
+
+        assembly {
+            slotValue := mload(add(data, 32))
+        }
+
+        return bytes32((uint256(slotValue) & ~uint256(0xff)) | uint256(data.length * 2));
     }
 }

@@ -7,6 +7,7 @@ import {IERC20TokenBase} from "../src/interfaces/IERC20TokenBase.sol";
 import {IERC20TokenFacet} from "../src/interfaces/IERC20TokenFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {IERC165} from "../src/interfaces/IERC165.sol";
+import {LibERC20TokenStorage} from "../src/token/storage/LibERC20TokenStorage.sol";
 import {ERC20TokenFacetFixture} from "./helpers/ERC20TokenFacetTestHarness.sol";
 
 contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
@@ -338,6 +339,53 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
         assertTrue(
             IERC20TokenFacet(address(facet)).DOMAIN_SEPARATOR() == expectedSeparator, "domain separator mismatch"
         );
+    }
+
+    function testErc20PermitStorageLayoutRemainsFrozen() public {
+        _erc20Init(address(facet));
+
+        VM.prank(admin);
+        IERC20TokenFacet(address(facet)).mint(bob, 100);
+
+        VM.prank(bob);
+        IERC20TokenFacet(address(facet)).approve(eve, 45);
+
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(BOB_PK, address(facet), bob, dave, 77, 0, deadline);
+        IERC20TokenFacet(address(facet)).permit(bob, dave, 77, deadline, v, r, s);
+
+        bytes32 baseSlot = LibERC20TokenStorage.STORAGE_SLOT;
+        assertTrue(baseSlot == keccak256("auralis.token.erc20.storage"), "erc20 storage slot mismatch");
+        assertTrue(
+            VM.load(address(facet), bytes32(uint256(baseSlot) + 3)) == keccak256(bytes("Facet Token")),
+            "erc20 hashed name slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(facet), bytes32(uint256(baseSlot) + 5)) == bytes32(uint256(block.chainid)),
+            "erc20 cached chain id slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(facet), bytes32(uint256(baseSlot) + 6))
+                == IERC20TokenFacet(address(facet)).DOMAIN_SEPARATOR(),
+            "erc20 cached domain separator slot mismatch"
+        );
+
+        bytes32 balanceSlot = keccak256(abi.encode(bob, uint256(baseSlot) + 7));
+        assertTrue(VM.load(address(facet), balanceSlot) == bytes32(uint256(100)), "erc20 facet balance slot mismatch");
+
+        bytes32 allowanceOwnerBase = keccak256(abi.encode(bob, uint256(baseSlot) + 8));
+        bytes32 approvalSlot = keccak256(abi.encode(eve, uint256(allowanceOwnerBase)));
+        assertTrue(
+            VM.load(address(facet), approvalSlot) == bytes32(uint256(45)), "erc20 approval allowance slot mismatch"
+        );
+
+        bytes32 permitAllowanceSlot = keccak256(abi.encode(dave, uint256(allowanceOwnerBase)));
+        assertTrue(
+            VM.load(address(facet), permitAllowanceSlot) == bytes32(uint256(77)), "erc20 permit allowance slot mismatch"
+        );
+
+        bytes32 nonceSlot = keccak256(abi.encode(bob, uint256(baseSlot) + 9));
+        assertTrue(VM.load(address(facet), nonceSlot) == bytes32(uint256(1)), "erc20 nonce slot mismatch");
     }
 
     function testPermitRespectsApprovalPauseScope() public {

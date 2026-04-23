@@ -172,17 +172,33 @@ storage level. The repo still deploys them as separate hosts because the raw
 selector surfaces collide.
 
 Hosted token state lives in the diamond, not in the facet contract bytecode.
-That means the supported replace/remove/re-add flows preserve state as long as:
+For ERC20, the supported replace/remove/re-add flows are only claimed for
+deployments already created on the current
+`keccak256("auralis.token.erc20.storage")` namespace baseline. Older pre-public
+deployments created before the Permit/domain layout expansion or before the
+`smart-contracts.token.erc20.storage` to `auralis.token.erc20.storage`
+namespace rename are not claimed as in-place upgrade compatible and should be
+treated as redeploy-or-migrate surfaces if they ever matter.
+
+That means the supported ERC20 replace/remove/re-add flows preserve state as
+long as:
 
 - the replacement facet preserves the same storage layout
 - the relevant selectors are reinstalled
 - the upgrade does not rely on re-initialization
 
-Current hardening coverage explicitly validates persistence for:
+Current hardening coverage explicitly validates same-namespace ERC20
+persistence in `test/DiamondTokenHostHardening.t.sol` for:
 
 - ERC20 balances, allowances, Permit nonces, roles, and pause state
+
+The same hardening suite also validates ERC721 non-layout persistence for:
+
 - ERC721 ownership, approvals, operator approvals, metadata, roles, and pause
   state
+
+ERC721 storage-layout freezing is tracked separately. The narrowed storage
+compatibility claim in this section applies to ERC20 only.
 
 ## Selector Ownership Model
 
@@ -236,6 +252,9 @@ The ERC721 host exposes:
 - No selector namespacing is used.
 - Re-initialization is not part of replace/remove/re-add flows.
 - Facet upgrades must preserve storage layout and hosted selector intent.
+- ERC20 storage-layout compatibility claims in this document are limited to the
+  current `auralis.token.erc20.storage` baseline.
+- ERC721 storage-layout compatibility is separate follow-up work.
 - Shared control selectors are treated as part of the token host surface, not as
   independent infrastructure selectors.
 
