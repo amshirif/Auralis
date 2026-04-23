@@ -73,10 +73,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
 
         (state.diamondAddress, state.cutFacetAddress, state.loupeFacetAddress) = _deployDiamondCore(owner);
         state = _deployVaultSupportContracts(state, owner);
-        _installVaultHostFacets(state);
-
-        IERC4626VaultFacet(state.diamondAddress)
-            .initializeVault(state.vaultAssetAddress, VAULT_NAME, VAULT_SYMBOL, owner);
+        _installVaultHostFacets(state, owner);
         IERC4626VaultIntegrationFacet(state.diamondAddress).setOracleAdapter(state.oracleAdapterAddress);
         IERC4626VaultIntegrationFacet(state.diamondAddress).setStrategy(state.strategyAddress);
 
@@ -134,7 +131,7 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
         return state;
     }
 
-    function _installVaultHostFacets(VaultHostDeploymentState memory state) internal {
+    function _installVaultHostFacets(VaultHostDeploymentState memory state, address owner) internal {
         IDiamondCut.FacetCut[] memory vaultCut = new IDiamondCut.FacetCut[](5);
         vaultCut[0] = IDiamondCut.FacetCut({
             facetAddress: state.vaultCoreFacetAddress,
@@ -161,7 +158,14 @@ contract DeployDiamondVaultHostScript is DiamondVaultHostScriptBase {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: LibVaultFacetSelectors.vaultIntegrationSelectors()
         });
-        IDiamondCut(state.diamondAddress).diamondCut(vaultCut, address(0), "");
+        IDiamondCut(state.diamondAddress)
+            .diamondCut(
+                vaultCut,
+                state.vaultCoreFacetAddress,
+                abi.encodeCall(
+                    IERC4626VaultFacet.initializeVault, (state.vaultAssetAddress, VAULT_NAME, VAULT_SYMBOL, owner)
+                )
+            );
     }
 
     function _validateVaultHost(VaultHostDeploymentState memory state, address owner) internal view {

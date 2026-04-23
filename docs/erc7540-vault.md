@@ -23,6 +23,11 @@ The async ERC-20 track uses two deployment shapes:
 
 The native hosted vault does not currently expose the async request surface.
 
+Async hosts still bootstrap through `initializeVault(...)` on the core facet.
+The reference deployment path uses atomic cut+init, and the first hosted
+initialization on an uninitialized diamond is restricted to the current
+diamond owner.
+
 ## Selector Ownership
 
 The async request model is implemented by splitting the hosted selector groups

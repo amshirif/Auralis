@@ -57,8 +57,21 @@ Reference artifact:
 
 ## Initialization Model
 
-Each token standard owns its own one-time initializer and is initialized through
-the diamond after the facet selectors are installed.
+Each token standard owns its own one-time initializer.
+
+Hosted bootstrap authority is split into two phases:
+
+- on an uninitialized hosted diamond, first initialization is restricted to the
+  current diamond owner
+- once the shared control plane exists, bootstrap-authority checks resolve
+  through `DEFAULT_ADMIN_ROLE`
+
+The reference host deployment uses atomic cut+init through
+`diamondCut(..., init, initCalldata)` rather than a two-step "install selectors
+and then initialize" flow. Standalone and unit-harness facet deployment remains
+supported when no diamond owner is present in storage.
+Under atomic cut+init, the initializer runs via delegatecall with `msg.sender`
+preserved as the `diamondCut` caller, which is already the diamond owner.
 
 ### ERC20
 
@@ -77,6 +90,7 @@ Initialization expectations:
 
 - idempotent per ERC20 host
 - second initialization reverts
+- first hosted initialization on an uninitialized diamond is owner-only
 - Permit uses the token name, version `"1"`, current `chainid`, and diamond
   address for the domain separator
 
@@ -96,6 +110,7 @@ Initialization expectations:
 
 - idempotent per ERC721 host
 - second initialization reverts
+- first hosted initialization on an uninitialized diamond is owner-only
 
 ## Role Model And Pause Scopes
 

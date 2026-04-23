@@ -41,12 +41,8 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
     function initializeVault(address vaultAsset, string calldata vaultName, string calldata vaultSymbol, address admin)
         external
     {
-        if (isVaultInitialized()) {
+        if (ERC4626VaultBase.isVaultInitialized()) {
             revert ERC4626VaultAlreadyInitialized();
-        }
-
-        if (_isAccessControlInitialized()) {
-            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
         }
 
         _initializeVaultFacetControl(admin);

@@ -147,18 +147,25 @@ The hosted vault uses one initializer on the core facet only.
 Initialization sequence:
 
 1. Install loupe selectors.
-2. Install the core, controls, and integration selector groups.
-3. For async ERC-20 hosts, also install the async request selector groups.
-4. For native mode, also install the native selector group.
-5. Call
+2. Build the hosted selector cut for the core, controls, and integration
+   groups.
+3. For async ERC-20 hosts, also include the async request selector groups in
+   the same cut.
+4. For native mode, also include the native selector group in the same cut.
+5. Execute the cut with the core facet as the init target so
    `initializeVault(address vaultAsset, string vaultName, string vaultSymbol, address admin)`
-   through the diamond.
+   runs atomically during `diamondCut(..., init, initCalldata)`.
 6. Call `setOracleAdapter(address newAdapter)` through the integration facet.
 7. Call `setStrategy(address newStrategy)` through the integration facet.
+
+Under atomic cut+init, the initializer runs via delegatecall with `msg.sender`
+preserved as the `diamondCut` caller, which is already the diamond owner.
 
 Initialization behavior:
 
 - `initializeVault(...)` initializes vault storage and shared control storage.
+- first hosted initialization on an uninitialized diamond is restricted to the
+  current diamond owner.
 - `DEFAULT_ADMIN_ROLE`, `PAUSER_ROLE`, and `VAULT_MANAGER_ROLE` are granted to
   `admin`.
 - `feeRecipient` defaults to `admin` at initialization.
@@ -177,9 +184,10 @@ state with:
 
 No funds are deployed to strategy during deployment.
 
-The native local reference deployment in `script/DeployDiamondNativeVaultHost.s.sol`
-uses the same init model, but passes the native asset sentinel as
-`vaultAsset` and installs the native selector group.
+The native local reference deployment in
+`script/DeployDiamondNativeVaultHost.s.sol` uses the same
+`initializeVault(...)` entrypoint, passes the native asset sentinel as
+`vaultAsset`, and installs the native selector group in the same atomic cut.
 
 ## Role Model And Pause Behavior
 

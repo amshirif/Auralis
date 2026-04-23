@@ -11,11 +11,8 @@ import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC4626Vault} from "../src/vault/ERC4626Vault.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
-import {
-    ERC4626VaultFacetFixture,
-    ERC4626VaultFacetHarness,
-    RejectingNativeReceiver
-} from "./helpers/ERC4626VaultFacetTestHarness.sol";
+import {LibERC4626VaultStorage} from "../src/vault/storage/LibERC4626VaultStorage.sol";
+import {ERC4626VaultFacetFixture, RejectingNativeReceiver} from "./helpers/ERC4626VaultFacetTestHarness.sol";
 
 contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
     function testInitializeVaultSeedsMetadataAndControlPlane() public {
@@ -26,11 +23,19 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         assertTrue(keccak256(bytes(facet.name())) == keccak256(bytes("Vault Share")), "name mismatch");
         assertTrue(keccak256(bytes(facet.symbol())) == keccak256(bytes("vSHARE")), "symbol mismatch");
         assertTrue(facet.decimals() == 6, "decimals mismatch");
-        assertTrue(facet.feeRecipient() == admin, "fee recipient mismatch");
+        bytes32 feeWord = VM.load(address(facet), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT) + 7));
+        assertTrue(address(uint160(uint256(feeWord >> 32))) == admin, "fee recipient mismatch");
         assertTrue(facet.hasRole(facet.DEFAULT_ADMIN_ROLE(), admin), "missing default admin role");
         assertTrue(facet.hasRole(facet.PAUSER_ROLE(), admin), "missing pauser role");
         assertTrue(facet.hasRole(facet.VAULT_MANAGER_ROLE(), admin), "missing vault manager role");
         assertFalse(facet.reentrancyGuardEntered(), "reentrancy guard should be idle");
+    }
+
+    function testStandaloneFacetInitializationRemainsAvailableWithoutDiamondOwner() public {
+        _initializeHostedVault(address(facet));
+
+        assertTrue(facet.isVaultInitialized(), "standalone vault facet should initialize");
+        assertTrue(facet.hasRole(facet.DEFAULT_ADMIN_ROLE(), admin), "standalone vault facet should seed admin role");
     }
 
     function testInitializeVaultRevertsOnZeroAsset() public {
@@ -136,7 +141,7 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
 
     function testReentrantAttemptDuringDepositIsBlocked() public {
         _initializeHostedVault(address(facet));
-        bytes memory payload = abi.encodeCall(ERC4626VaultFacetHarness.probeNonReentrant, ());
+        bytes memory payload = abi.encodeCall(ERC4626Vault.withdraw, (1, bob, bob));
         asset.configureReentry(address(facet), payload, true);
 
         _approveAsset(bob, address(facet), 100);

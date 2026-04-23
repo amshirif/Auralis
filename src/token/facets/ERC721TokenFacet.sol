@@ -39,10 +39,7 @@ contract ERC721TokenFacet is ERC721TokenBase, TokenFacetControl, IERC721TokenFac
             revert ERC721TokenAlreadyInitialized();
         }
 
-        if (_isAccessControlInitialized()) {
-            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        }
-
+        _enforceBootstrapInitializerAuthority();
         _initializeTokenFacetControl(admin);
         _initializeErc721Token(tokenName, tokenSymbol, baseURI);
 

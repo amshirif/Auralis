@@ -117,10 +117,12 @@ abstract contract DiamondTokenHostHardeningFixture is TestBase {
     }
 
     function _erc20InitDiamond() internal {
+        VM.prank(admin);
         IERC20TokenFacet(address(diamond)).initializeErc20("Facet Token", "FTKN", 18, admin);
     }
 
     function _erc721InitDiamond() internal {
+        VM.prank(admin);
         IERC721TokenFacet(address(diamond)).initializeErc721("Facet NFT", "FNFT", "ipfs://facet/", admin);
     }
 

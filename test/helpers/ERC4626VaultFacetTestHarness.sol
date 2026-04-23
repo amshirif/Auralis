@@ -10,20 +10,13 @@ import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {ERC4626VaultIntegrationFacet} from "../../src/vault/facets/ERC4626VaultIntegrationFacet.sol";
 import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
-import {LibERC4626VaultStorage} from "../../src/vault/storage/LibERC4626VaultStorage.sol";
 import {DiamondProxyHarness} from "./DiamondTestHarness.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 import {ERC7540VaultDepositFacetHarness} from "./ERC7540VaultDepositFacetTestHarness.sol";
 import {ERC7540VaultRedeemFacetHarness} from "./ERC7540VaultRedeemFacetTestHarness.sol";
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 
-contract ERC4626VaultFacetHarness is ERC4626VaultFacet {
-    function feeRecipient() external view returns (address) {
-        return LibERC4626VaultStorage.layout().fees.feeRecipient;
-    }
-
-    function probeNonReentrant() external nonReentrant {}
-}
+contract ERC4626VaultFacetHarness is ERC4626VaultFacet {}
 
 contract RejectingNativeReceiver {
     receive() external payable {
@@ -39,7 +32,7 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
     address internal eve = address(0xE11E);
 
     ReentrantMockVaultAsset internal asset;
-    ERC4626VaultFacetHarness internal facet;
+    ERC4626VaultFacet internal facet;
     ERC7540VaultDepositFacetHarness internal asyncDepositFacet;
     ERC7540VaultRedeemFacetHarness internal asyncRedeemFacet;
     ERC7535VaultFacet internal nativeFacet;
@@ -51,7 +44,7 @@ abstract contract ERC4626VaultFacetFixture is TestBase {
 
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
-        facet = new ERC4626VaultFacetHarness();
+        facet = new ERC4626VaultFacet();
         asyncDepositFacet = new ERC7540VaultDepositFacetHarness();
         asyncRedeemFacet = new ERC7540VaultRedeemFacetHarness();
         nativeFacet = new ERC7535VaultFacet();

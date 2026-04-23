@@ -62,6 +62,23 @@ abstract contract DiamondTokenDeploymentFixture is TestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
+    function _installErc20HostFacetAtomically() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(erc20Facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibTokenFacetDeploymentSelectors.erc20HostSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond))
+            .diamondCut(
+                cut,
+                address(erc20Facet),
+                abi.encodeCall(IERC20TokenFacet.initializeErc20, ("Facet Token", "FTKN", 18, admin))
+            );
+    }
+
     function _installErc721HostFacet() internal {
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
@@ -72,6 +89,23 @@ abstract contract DiamondTokenDeploymentFixture is TestBase {
 
         VM.prank(admin);
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _installErc721HostFacetAtomically() internal {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(erc721Facet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: LibTokenFacetDeploymentSelectors.erc721HostSelectors()
+        });
+
+        VM.prank(admin);
+        IDiamondCut(address(diamond))
+            .diamondCut(
+                cut,
+                address(erc721Facet),
+                abi.encodeCall(IERC721TokenFacet.initializeErc721, ("Facet NFT", "FNFT", "ipfs://facet/", admin))
+            );
     }
 
     function _containsAddress(address[] memory addresses, address expected) internal pure returns (bool) {

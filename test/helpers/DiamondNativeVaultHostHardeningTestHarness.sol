@@ -3,13 +3,14 @@ pragma solidity ^0.8.30;
 
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC7535VaultFacet} from "../../src/interfaces/IERC7535VaultFacet.sol";
+import {ERC4626VaultFacet} from "../../src/vault/facets/ERC4626VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondVaultDeploymentFixture} from "./DiamondVaultDeploymentTestHarness.sol";
 import {
     ERC4626VaultControlsFacetReplacement,
-    ERC4626VaultFacetReplacement,
     ERC4626VaultIntegrationFacetReplacement,
     ERC7535VaultFacetReplacement,
+    FacetVersionMarkerV2,
     IFacetVersionMarker
 } from "./DiamondVaultHostHardeningTestHarness.sol";
 import {MutableNativeMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
@@ -75,7 +76,8 @@ abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeployme
     MutableNativeMockVaultStrategy internal strategyContract;
     MutableNativeMockVaultStrategy internal replacementStrategyContract;
 
-    ERC4626VaultFacetReplacement internal coreReplacement;
+    ERC4626VaultFacet internal coreReplacement;
+    FacetVersionMarkerV2 internal coreMarker;
     ERC7535VaultFacetReplacement internal nativeReplacement;
     ERC4626VaultControlsFacetReplacement internal controlsReplacement;
     ERC4626VaultIntegrationFacetReplacement internal integrationReplacement;
@@ -83,7 +85,8 @@ abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeployme
     function setUp() public virtual override {
         super.setUp();
 
-        coreReplacement = new ERC4626VaultFacetReplacement();
+        coreReplacement = new ERC4626VaultFacet();
+        coreMarker = new FacetVersionMarkerV2();
         nativeReplacement = new ERC7535VaultFacetReplacement();
         controlsReplacement = new ERC4626VaultControlsFacetReplacement();
         integrationReplacement = new ERC4626VaultIntegrationFacetReplacement();
@@ -178,8 +181,8 @@ abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeployme
         _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultIntegrationSelectors());
     }
 
-    function _addCoreReplacementMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _markerSelectors());
+    function _addCoreReplacementMarker() internal {
+        _addFacet(address(coreMarker), _markerSelectors());
     }
 
     function _addNativeReplacementMarker(address facetAddress_) internal {
@@ -211,7 +214,8 @@ abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeployme
     }
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultCoreSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, LibVaultFacetSelectors.vaultCoreSelectors());
+        _addFacet(address(coreMarker), _markerSelectors());
     }
 
     function _reAddNativeFacetWithMarker(address facetAddress_) internal {

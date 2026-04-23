@@ -24,14 +24,6 @@ import {
     ProfitMockVaultStrategy
 } from "./ERC4626VaultStrategyTestHarness.sol";
 
-contract ERC4626VaultStrategyAccountingFacetHarness is ERC4626VaultFacet {
-    function setStrategyStateForTest(address strategy_, uint256 strategyDebt_) external {
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        layout.strategy = strategy_;
-        layout.strategyDebt = strategyDebt_;
-    }
-}
-
 contract ERC4626VaultStrategyAccountingInitMock {
     function seedStrategyState(address strategy_, uint256 strategyDebt_) external {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
@@ -50,7 +42,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     address internal eve = address(0xE11E);
 
     ReentrantMockVaultAsset internal asset;
-    ERC4626VaultStrategyAccountingFacetHarness internal facet;
+    ERC4626VaultFacet internal facet;
     ERC7535VaultFacet internal nativeFacet;
     ERC4626VaultControlsFacetHarness internal controlsFacet;
     ERC4626VaultIntegrationFacetHarness internal integrationFacet;
@@ -66,7 +58,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
 
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
-        facet = new ERC4626VaultStrategyAccountingFacetHarness();
+        facet = new ERC4626VaultFacet();
         nativeFacet = new ERC7535VaultFacet();
         controlsFacet = new ERC4626VaultControlsFacetHarness();
         integrationFacet = new ERC4626VaultIntegrationFacetHarness();
@@ -99,6 +91,13 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         VM.prank(admin);
         IERC4626VaultFacet(address(diamond))
             .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+    }
+
+    function _setDirectStrategy(IERC4626VaultStrategy strategy_, uint256 strategyDebt_) internal {
+        bytes32 baseSlot = LibERC4626VaultStorage.STORAGE_SLOT;
+        VM.store(address(facet), bytes32(uint256(baseSlot) + 12), bytes32(uint256(uint160(address(strategy_)))));
+        VM.store(address(facet), bytes32(uint256(baseSlot) + 14), bytes32(strategyDebt_));
+        _simulateStrategyDeployment(address(facet), strategy_, strategyDebt_);
     }
 
     function _approveAsset(address owner, address spender, uint256 amount) internal {

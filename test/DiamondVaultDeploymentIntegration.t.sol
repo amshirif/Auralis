@@ -24,8 +24,8 @@ import {DiamondVaultDeploymentFixture} from "./helpers/DiamondVaultDeploymentTes
 
 contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture {
     function testVaultHostDeployInstallInitOracleAndStrategyWiring() public {
-        _installFullyAsyncVaultHostFacets();
-        _initializeVaultHost();
+        _installFullyAsyncVaultHostFacetsAtomically();
+        assertTrue(coreFacetInterface().isVaultInitialized(), "vault host should initialize inside cut");
         _wireOracleAdapter();
         _wireStrategy();
 
@@ -244,8 +244,8 @@ contract DiamondVaultDeploymentIntegrationTest is DiamondVaultDeploymentFixture 
     }
 
     function testNativeVaultHostDeployInstallInitOracleAndStrategyWiring() public {
-        _installNativeVaultHostFacets();
-        _initializeNativeVaultHost();
+        _installNativeVaultHostFacetsAtomically();
+        assertTrue(coreFacetInterface().isVaultInitialized(), "native vault host should initialize inside cut");
         _wireOracleAdapter();
         _wireNativeStrategy();
 

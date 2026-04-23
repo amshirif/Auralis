@@ -34,8 +34,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         VM.prank(bob);
         facet.deposit(DEPOSIT_ASSETS, bob);
 
-        facet.setStrategyStateForTest(address(directProfitStrategy), STRATEGY_DEBT);
-        _simulateStrategyDeployment(address(facet), directProfitStrategy, STRATEGY_DEBT);
+        _setDirectStrategy(directProfitStrategy, STRATEGY_DEBT);
         directProfitStrategy.injectProfit(20);
 
         assertTrue(facet.totalManagedAssets() == DEPOSIT_ASSETS, "book value should remain unchanged");
@@ -57,8 +56,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         VM.prank(bob);
         facet.deposit(DEPOSIT_ASSETS, bob);
 
-        facet.setStrategyStateForTest(address(directLossStrategy), STRATEGY_DEBT);
-        _simulateStrategyDeployment(address(facet), directLossStrategy, STRATEGY_DEBT);
+        _setDirectStrategy(directLossStrategy, STRATEGY_DEBT);
         directLossStrategy.applyLoss(30, 10);
 
         assertTrue(facet.totalManagedAssets() == DEPOSIT_ASSETS, "book value should remain unchanged");
@@ -80,8 +78,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         VM.prank(bob);
         facet.deposit(DEPOSIT_ASSETS, bob);
 
-        facet.setStrategyStateForTest(address(directProfitStrategy), STRATEGY_DEBT);
-        _simulateStrategyDeployment(address(facet), directProfitStrategy, STRATEGY_DEBT);
+        _setDirectStrategy(directProfitStrategy, STRATEGY_DEBT);
 
         VM.prank(bob);
         uint256 burnedShares = facet.withdraw(80, bob, bob);
@@ -104,8 +101,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         VM.prank(bob);
         facet.deposit(DEPOSIT_ASSETS, bob);
 
-        facet.setStrategyStateForTest(address(directProfitStrategy), STRATEGY_DEBT);
-        _simulateStrategyDeployment(address(facet), directProfitStrategy, STRATEGY_DEBT);
+        _setDirectStrategy(directProfitStrategy, STRATEGY_DEBT);
         directProfitStrategy.injectProfit(20);
 
         VM.prank(bob);
@@ -127,8 +123,7 @@ contract ERC4626VaultStrategyAccountingCoreTest is ERC4626VaultStrategyAccountin
         VM.prank(bob);
         facet.deposit(DEPOSIT_ASSETS, bob);
 
-        facet.setStrategyStateForTest(address(directLossStrategy), STRATEGY_DEBT);
-        _simulateStrategyDeployment(address(facet), directLossStrategy, STRATEGY_DEBT);
+        _setDirectStrategy(directLossStrategy, STRATEGY_DEBT);
         directLossStrategy.applyLoss(20, 10);
 
         VM.expectRevert(
