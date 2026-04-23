@@ -69,6 +69,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
 
     // slither-disable-next-line reentrancy-events
     function executeTransaction(address to, uint256 value, bytes calldata data, bytes calldata signatures) external {
+        _requireOperational();
         if (to == address(0)) {
             revert MultisigWalletZeroTarget();
         }
@@ -92,6 +93,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
 
     // slither-disable-next-line reentrancy-events
     function executeBatch(bytes calldata transactions, bytes calldata signatures) external {
+        _requireOperational();
         uint256 currentNonce = _nonce;
         bytes32 digest = _getBatchHash(transactions, currentNonce);
 
@@ -139,6 +141,9 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         override(IERC1271, IMultisigWallet)
         returns (bytes4)
     {
+        if (_threshold == 0) {
+            return ERC1271_INVALID_SIGNATURE;
+        }
         if (_hasValidSignatures(digest, signatures)) {
             return ERC1271_MAGIC_VALUE;
         }
@@ -172,6 +177,12 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
     function _requireSelfCall() internal view {
         if (msg.sender != address(this)) {
             revert MultisigWalletCallerNotSelf();
+        }
+    }
+
+    function _requireOperational() internal view {
+        if (_threshold == 0) {
+            revert MultisigWalletNotOperational();
         }
     }
 

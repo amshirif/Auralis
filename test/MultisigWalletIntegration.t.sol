@@ -137,6 +137,25 @@ contract MultisigWalletIntegrationTest is MultisigWalletFixture {
         assertTrue(deployedWallet.multiSendCallOnly() == defaultMultiSend, "helper mismatch");
     }
 
+    function testFactoryDeployReturnsOperationalWalletImmediately() public {
+        bytes32 salt = keccak256("auralis.multisig.factory-operational");
+        IMultisigWallet deployedWallet =
+            IMultisigWallet(factory.deployWallet(salt, _initialOwners(), 2, defaultMultiSend));
+
+        assertTrue(deployedWallet.threshold() > 0, "wallet should be operational");
+        assertTrue(deployedWallet.ownerCount() > 0, "wallet should have owners");
+        assertTrue(deployedWallet.multiSendCallOnly() != address(0), "wallet should have helper");
+
+        bytes memory data = abi.encodeCall(BatchExecutionTarget.setNumber, (66));
+        bytes memory signatures =
+            _packedSignaturesForTransactionAtWallet(address(deployedWallet), address(firstTarget), 0, data, 0, 2);
+
+        deployedWallet.executeTransaction(address(firstTarget), 0, data, signatures);
+
+        assertTrue(firstTarget.storedNumber() == 66, "deployed wallet should execute immediately");
+        assertTrue(deployedWallet.nonce() == 1, "nonce should advance after immediate execution");
+    }
+
     function testFactoryDeployedWalletExecutesSignedSingleCall() public {
         bytes32 salt = keccak256("auralis.multisig.factory-single-call");
         IMultisigWallet deployedWallet =
