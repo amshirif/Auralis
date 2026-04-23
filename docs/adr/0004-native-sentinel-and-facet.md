@@ -26,6 +26,8 @@ entrypoints such as `depositNative` and `mintNative` live on the native facet.
 - Native mode remains explicit in routing, selector ownership, and review.
 - Native-specific semantics such as exact `msg.value` handling do not leak into
   the standard selector surface.
+- Native selector ownership is separate, but native deposit/mint share pricing
+  stays aligned with the hosted core facet's live strategy pricing.
 - Hosted native deployments must install and validate one additional facet.
 
 ## Related Docs/Tests
