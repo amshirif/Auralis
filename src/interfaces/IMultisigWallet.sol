@@ -5,6 +5,7 @@ pragma solidity ^0.8.30;
 /// @notice Foundation interface for the standalone multisig wallet.
 interface IMultisigWallet {
     error MultisigWalletAlreadyInitialized();
+    error MultisigWalletNotOperational();
     error MultisigWalletCallerNotSelf();
     error MultisigWalletInvalidThreshold(uint256 threshold, uint256 ownerCount);
     error MultisigWalletZeroOwner();
