@@ -168,7 +168,7 @@ contract AMMInvariantTest is AMMHardeningFixture {
         }
 
         VM.prank(actor);
-        pairToken.transfer(address(trackedPair), amount);
+        assertTrue(pairToken.transfer(address(trackedPair), amount), "pair donation transfer should succeed");
     }
 
     function actionSkim(uint8 pairSeed, uint8 recipientSeed) external {

@@ -37,7 +37,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
     /// @notice Queues an upgrade intent.
     /// @dev Caller must have `UPGRADER_ROLE`.
     /// @param implementation The new implementation address.
-    function queueUpgradeIntent(address implementation) public onlyRole(UPGRADER_ROLE) {
+    function queueUpgradeIntent(address implementation) external onlyRole(UPGRADER_ROLE) {
         _requireNonZeroImplementation(implementation);
         uint64 executeAfter = uint64(block.timestamp) + minUpgradeDelay();
 
@@ -51,7 +51,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
 
     /// @notice Cancels the currently queued upgrade intent.
     /// @dev Caller must have `UPGRADER_ROLE`.
-    function cancelUpgradeIntent() public onlyRole(UPGRADER_ROLE) {
+    function cancelUpgradeIntent() external onlyRole(UPGRADER_ROLE) {
         LibUpgradeGuardrailsStorage.UpgradeIntent storage intent = LibUpgradeGuardrailsStorage.layout().intent;
         if (!intent.exists) {
             revert UpgradeGuardrailsNoUpgradeIntent();
@@ -65,7 +65,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
     /// @notice Executes a queued upgrade after guardrail checks.
     /// @dev Caller must have `UPGRADER_ROLE`.
     /// @param implementation The queued implementation address.
-    function executeUpgrade(address implementation) public onlyRole(UPGRADER_ROLE) {
+    function executeUpgrade(address implementation) external onlyRole(UPGRADER_ROLE) {
         _requireNonZeroImplementation(implementation);
         LibUpgradeGuardrailsStorage.UpgradeIntent storage intent = LibUpgradeGuardrailsStorage.layout().intent;
         if (!intent.exists) {

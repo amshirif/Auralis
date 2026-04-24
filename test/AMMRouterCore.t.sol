@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {AMMRouter} from "../src/amm/AMMRouter.sol";
 import {AMMPair} from "../src/amm/AMMPair.sol";
-import {AMMRouterFixture, MockWrappedNative, RejectingNativeReceiver} from "./helpers/AMMRouterTestHarness.sol";
+import {AMMRouterFixture, RejectingNativeReceiver} from "./helpers/AMMRouterTestHarness.sol";
 import {FalseReturningAMMToken, MockAMMToken} from "./helpers/AMMPairTestHarness.sol";
 
 contract AMMRouterCoreTest is AMMRouterFixture {

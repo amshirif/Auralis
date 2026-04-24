@@ -5,6 +5,7 @@ import {IERC165} from "../interfaces/IERC165.sol";
 import {IERC1271} from "../interfaces/IERC1271.sol";
 import {IMultiSendCallOnly} from "../interfaces/IMultiSendCallOnly.sol";
 import {IMultisigWallet} from "../interfaces/IMultisigWallet.sol";
+import {LibECDSA} from "../libraries/LibECDSA.sol";
 
 /// @title MultisigWallet
 /// @notice Standalone multisig wallet foundation with initializer-based owner/threshold state.
@@ -25,9 +26,6 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
     bytes32 internal constant NAME_HASH = keccak256("Auralis Multisig Wallet");
     /// @notice EIP-712 hashed wallet version.
     bytes32 internal constant VERSION_HASH = keccak256("1");
-    /// @notice Lower-half secp256k1 scalar bound used to reject malleable signatures.
-    uint256 internal constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
-
     bool internal _initialized;
     uint256 internal _nonce;
     uint256 internal _threshold;
@@ -388,7 +386,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         if (v != 27 && v != 28) {
             return address(0);
         }
-        if (uint256(s) > SECP256K1N_DIV_2) {
+        if (uint256(s) > LibECDSA.SECP256K1N_DIV_2) {
             return address(0);
         }
         return ecrecover(digest, v, r, s);

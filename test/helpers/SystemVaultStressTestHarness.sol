@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IPausable} from "../../src/interfaces/IPausable.sol";
 import {ReentrantMockVaultAsset, ERC4626VaultControlsHarness} from "./ERC4626VaultControlsTestHarness.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 

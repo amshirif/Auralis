@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IAccessControl} from "../src/interfaces/IAccessControl.sol";
 import {IERC20TokenFacet} from "../src/interfaces/IERC20TokenFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC20TokenFacetFixture} from "./helpers/ERC20TokenFacetTestHarness.sol";
@@ -49,7 +48,7 @@ contract ERC20TokenFacetFuzzTest is ERC20TokenFacetFixture {
         IERC20TokenFacet(address(facet)).permit(bob, eve, allowance, deadline, v, r, s);
 
         VM.prank(eve);
-        IERC20TokenFacet(address(facet)).transferFrom(bob, admin, spend);
+        assertTrue(IERC20TokenFacet(address(facet)).transferFrom(bob, admin, spend), "transferFrom should succeed");
 
         assertTrue(
             IERC20TokenFacet(address(facet)).allowance(bob, eve) == allowance - spend,
@@ -99,6 +98,7 @@ contract ERC20TokenFacetFuzzTest is ERC20TokenFacetFixture {
         uint256 transferAmount = _boundAmount(transferRaw, initialMint);
         VM.startPrank(bob);
         VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, transferScope));
+        // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
         IERC20TokenFacet(address(facet)).transfer(eve, transferAmount);
         VM.stopPrank();
 

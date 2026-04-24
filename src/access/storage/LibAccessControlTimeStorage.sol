@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibAccessControlTimeStorage
 /// @notice Time-window storage layout for AccessControl modules (diamond-ready).
 library LibAccessControlTimeStorage {
-    /// @dev Storage slot for time-window layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.access-control.time.storage");
 
     /// @notice Per-account role activation window.

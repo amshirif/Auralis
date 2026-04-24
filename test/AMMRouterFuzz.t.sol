@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {AMMPair} from "../src/amm/AMMPair.sol";
 import {AMMHardeningFixture} from "./helpers/AMMHardeningTestHarness.sol";
 import {MockAMMToken} from "./helpers/AMMPairTestHarness.sol";
 

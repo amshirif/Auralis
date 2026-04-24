@@ -155,9 +155,9 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         VM.prank(bob);
         facet.approve(eve, 15);
         VM.prank(eve);
-        facet.transferFrom(bob, admin, 10);
+        assertTrue(facet.transferFrom(bob, admin, 10), "transferFrom should succeed");
         VM.prank(bob);
-        facet.transfer(admin, 5);
+        assertTrue(facet.transfer(admin, 5), "transfer should succeed");
 
         assertTrue(facet.allowance(bob, eve) == 5, "allowance mismatch");
         assertTrue(facet.balanceOf(bob) == 25, "bob share balance mismatch");

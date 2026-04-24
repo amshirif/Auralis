@@ -90,14 +90,14 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     /// @notice Updates the oracle source.
     /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newSource The new oracle source contract.
-    function setOracleSource(address newSource) public onlyRole(ORACLE_ADMIN_ROLE) {
+    function setOracleSource(address newSource) external onlyRole(ORACLE_ADMIN_ROLE) {
         _setOracleSource(newSource);
     }
 
     /// @notice Updates the max staleness window.
     /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newMaxStaleness New staleness threshold in seconds.
-    function setMaxStaleness(uint64 newMaxStaleness) public onlyRole(ORACLE_ADMIN_ROLE) {
+    function setMaxStaleness(uint64 newMaxStaleness) external onlyRole(ORACLE_ADMIN_ROLE) {
         _setMaxStaleness(newMaxStaleness);
     }
 
@@ -107,7 +107,7 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     /// @param newMaxAnswer The inclusive maximum answer.
     /// @param newBoundsEnabled True to enforce bounds during reads.
     function setValidationBounds(int256 newMinAnswer, int256 newMaxAnswer, bool newBoundsEnabled)
-        public
+        external
         onlyRole(ORACLE_ADMIN_ROLE)
     {
         _setValidationBounds(newMinAnswer, newMaxAnswer, newBoundsEnabled);
@@ -115,7 +115,7 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
 
     /// @notice Trips the oracle circuit breaker.
     /// @dev Caller must have ORACLE_GUARDIAN_ROLE.
-    function tripCircuitBreaker() public onlyRole(ORACLE_GUARDIAN_ROLE) {
+    function tripCircuitBreaker() external onlyRole(ORACLE_GUARDIAN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         if (layout.breakerActive) {
             revert OracleAdapterBreakerAlreadyActive();
@@ -126,7 +126,7 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
 
     /// @notice Resets the oracle circuit breaker.
     /// @dev Caller must have ORACLE_ADMIN_ROLE.
-    function resetCircuitBreaker() public onlyRole(ORACLE_ADMIN_ROLE) {
+    function resetCircuitBreaker() external onlyRole(ORACLE_ADMIN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         if (!layout.breakerActive) {
             revert OracleAdapterBreakerAlreadyInactive();
@@ -138,7 +138,7 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     /// @notice Updates fallback behavior used under unhealthy oracle conditions.
     /// @dev Caller must have ORACLE_ADMIN_ROLE.
     /// @param newMode The new fallback mode.
-    function setFallbackMode(FallbackMode newMode) public onlyRole(ORACLE_ADMIN_ROLE) {
+    function setFallbackMode(FallbackMode newMode) external onlyRole(ORACLE_ADMIN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         FallbackMode previousMode = FallbackMode(layout.fallbackMode);
         layout.fallbackMode = uint8(newMode);
@@ -150,13 +150,13 @@ abstract contract OracleAdapter is AccessControl, IOracleAdapter {
     /// @param value Fallback quote value.
     /// @param updatedAt Fallback quote timestamp.
     /// @param decimals Fallback quote decimals.
-    function setFallbackQuote(int256 value, uint64 updatedAt, uint8 decimals) public onlyRole(ORACLE_ADMIN_ROLE) {
+    function setFallbackQuote(int256 value, uint64 updatedAt, uint8 decimals) external onlyRole(ORACLE_ADMIN_ROLE) {
         _setFallbackQuote(value, updatedAt, decimals);
     }
 
     /// @notice Clears configured fallback quote.
     /// @dev Caller must have ORACLE_ADMIN_ROLE.
-    function clearFallbackQuote() public onlyRole(ORACLE_ADMIN_ROLE) {
+    function clearFallbackQuote() external onlyRole(ORACLE_ADMIN_ROLE) {
         LibOracleAdapterStorage.Layout storage layout = LibOracleAdapterStorage.layout();
         layout.hasFallbackQuote = false;
         layout.fallbackValue = 0;

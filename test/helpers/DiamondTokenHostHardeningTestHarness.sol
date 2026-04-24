@@ -4,7 +4,6 @@ pragma solidity ^0.8.30;
 import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
-import {IERC20Metadata} from "../../src/interfaces/IERC20Metadata.sol";
 import {IERC20Permit} from "../../src/interfaces/IERC20Permit.sol";
 import {IERC20TokenFacet} from "../../src/interfaces/IERC20TokenFacet.sol";
 import {IERC721TokenBase} from "../../src/interfaces/IERC721TokenBase.sol";
