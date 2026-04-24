@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC4626VaultStrategy} from "../interfaces/IERC4626VaultStrategy.sol";
 import {LibVaultAsset} from "./libraries/LibVaultAsset.sol";
@@ -76,24 +75,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param assets Asset amount.
     /// @param receiver Receiver of minted shares.
     /// @return shares Minted shares.
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        shares = previewDeposit(assets);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        _safeTransferFromAsset(msg.sender, address(this), assets);
-        _increaseManagedAssets(assets);
-        _mintShares(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-    }
+    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares);
 
     /// @notice Returns max shares `receiver` can mint.
     /// @param receiver Target receiver.
@@ -113,24 +95,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param shares Share amount.
     /// @param receiver Receiver of minted shares.
     /// @return assets Deposited assets.
-    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        assets = previewMint(shares);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        _safeTransferFromAsset(msg.sender, address(this), assets);
-        _increaseManagedAssets(assets);
-        _mintShares(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-    }
+    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets);
 
     /// @notice Returns max assets `owner` can withdraw.
     /// @param owner Share owner.
@@ -154,29 +119,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param receiver Asset receiver.
     /// @param owner Share owner.
     /// @return shares Burned shares.
-    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        _requireNonZeroAddress(owner);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        shares = previewWithdraw(assets);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        if (msg.sender != owner) {
-            _spendAllowance(owner, msg.sender, shares);
-        }
-
-        _burnShares(owner, shares);
-        _decreaseManagedAssetsForAssetExit(assets);
-        _safeTransferAsset(receiver, assets);
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
+    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares);
 
     /// @notice Returns max shares `owner` can redeem.
     /// @param owner Share owner.
@@ -200,29 +143,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param receiver Asset receiver.
     /// @param owner Share owner.
     /// @return assets Returned assets.
-    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        _requireNonZeroAddress(owner);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        assets = previewRedeem(shares);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        if (msg.sender != owner) {
-            _spendAllowance(owner, msg.sender, shares);
-        }
-
-        _burnShares(owner, shares);
-        _decreaseManagedAssetsForAssetExit(assets);
-        _safeTransferAsset(receiver, assets);
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
+    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets);
 
     /// @notice Transfers shares from caller to `to`.
     /// @param to Recipient account.

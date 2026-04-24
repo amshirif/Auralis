@@ -94,7 +94,7 @@ contract ERC7540VaultDepositFacet is ERC4626VaultControlledCore, VaultFacetContr
     function deposit(uint256 assets, address receiver)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -109,7 +109,7 @@ contract ERC7540VaultDepositFacet is ERC4626VaultControlledCore, VaultFacetContr
     function mint(uint256 shares, address receiver)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)

@@ -72,6 +72,7 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
 
     /// @notice Role that can manage vault fees and limits.
     /// @return The vault manager role identifier.
+    // forge-lint: disable-next-line(mixed-case-function) -- public role getter name is selector-stable.
     function VAULT_MANAGER_ROLE() public pure virtual returns (bytes32) {
         return VAULT_MANAGER_ROLE_VALUE;
     }

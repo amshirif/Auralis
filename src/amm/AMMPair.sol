@@ -31,6 +31,7 @@ contract AMMPair is AMMLpToken, IAMMPair {
     error AMMPairTransferFailed(address token, address to, uint256 value);
     error AMMPairKInvariant();
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the IAMMPair getter name.
     address public immutable override factory;
 
     address public override token0;
@@ -49,12 +50,20 @@ contract AMMPair is AMMLpToken, IAMMPair {
     }
 
     modifier lock() {
+        _lockBefore();
+        _;
+        _lockAfter();
+    }
+
+    function _lockBefore() internal {
         if (_unlocked != 1) {
             revert AMMPairLocked();
         }
 
         _unlocked = 0;
-        _;
+    }
+
+    function _lockAfter() internal {
         _unlocked = 1;
     }
 

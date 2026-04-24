@@ -150,7 +150,8 @@ library LibDiamond {
 
         uint256 selectorPosition = diamondStorage.facetData[facetAddress_].selectors.length;
         diamondStorage.selectorData[selector] =
-            LibDiamondStorage.SelectorData({facetAddress: facetAddress_, selectorPosition: uint96(selectorPosition)});
+        // forge-lint: disable-next-line(unsafe-typecast) -- selector arrays cannot approach uint96 length in deployable bytecode.
+        LibDiamondStorage.SelectorData({facetAddress: facetAddress_, selectorPosition: uint96(selectorPosition)});
         diamondStorage.facetData[facetAddress_].selectors.push(selector);
     }
 
@@ -193,6 +194,7 @@ library LibDiamond {
             // position must be rewritten to keep future replace/remove operations sound.
             bytes4 lastSelector = selectors[lastSelectorPosition];
             selectors[selectorPosition] = lastSelector;
+            // forge-lint: disable-next-line(unsafe-typecast) -- selectorPosition was read from a uint96-backed stored position.
             diamondStorage.selectorData[lastSelector].selectorPosition = uint96(selectorPosition);
         }
 

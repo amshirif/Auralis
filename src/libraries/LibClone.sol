@@ -22,6 +22,7 @@ library LibClone {
         pure
         returns (address predicted)
     {
+        // forge-lint: disable-next-line(asm-keccak256) -- CREATE2 address derivation is kept in canonical high-level form.
         bytes32 bytecodeHash = keccak256(_minimalProxyInitCode(implementation));
         predicted = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, bytecodeHash)))));
     }

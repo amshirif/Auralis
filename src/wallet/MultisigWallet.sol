@@ -280,6 +280,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
     }
 
     function _domainSeparator() internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 domain hashing is clearer in canonical Solidity form.
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 
@@ -288,12 +289,16 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         view
         returns (bytes32)
     {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 struct hashing stays high-level for auditability.
         bytes32 structHash = keccak256(abi.encode(TRANSACTION_TYPEHASH, to, value, keccak256(data), nonce_));
+        // forge-lint: disable-next-line(asm-keccak256) -- standard EIP-712 digest construction is intentionally explicit.
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 
     function _getBatchHash(bytes calldata transactions, uint256 nonce_) internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 struct hashing stays high-level for auditability.
         bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(transactions), nonce_));
+        // forge-lint: disable-next-line(asm-keccak256) -- standard EIP-712 digest construction is intentionally explicit.
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 

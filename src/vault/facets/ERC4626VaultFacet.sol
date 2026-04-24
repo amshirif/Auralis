@@ -6,7 +6,7 @@ import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol"
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
-import {LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
+import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
 import {ERC4626VaultStrategyPricing} from "../ERC4626VaultStrategyPricing.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
 import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
@@ -56,7 +56,7 @@ contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IE
     function deposit(uint256 assets, address receiver)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -75,7 +75,7 @@ contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IE
     function mint(uint256 shares, address receiver)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)
@@ -95,7 +95,7 @@ contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IE
     function withdraw(uint256 assets, address receiver, address owner)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -146,7 +146,7 @@ contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IE
     function redeem(uint256 shares, address receiver, address owner)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)

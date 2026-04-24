@@ -19,8 +19,29 @@ contract ERC4626VaultIntegrationFacet is
     IERC4626VaultIntegrationFacet,
     IERC7540VaultSettlementFacet
 {
+    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    function deposit(uint256, address) public virtual override returns (uint256) {
+        revert();
+    }
+
+    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    function mint(uint256, address) public virtual override returns (uint256) {
+        revert();
+    }
+
+    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    function withdraw(uint256, address, address) public virtual override returns (uint256) {
+        revert();
+    }
+
+    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    function redeem(uint256, address, address) public virtual override returns (uint256) {
+        revert();
+    }
+
     /// @notice Returns the pause scope that gates manager settlement entrypoints.
     /// @return The settlement pause scope identifier.
+    // forge-lint: disable-next-line(mixed-case-function) -- public scope getter name is selector-stable.
     function ASYNC_SETTLEMENT_SCOPE() public pure returns (bytes32) {
         return LibVaultFacetConstants.ASYNC_SETTLEMENT_SCOPE;
     }

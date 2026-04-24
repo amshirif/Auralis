@@ -107,6 +107,30 @@ library LibERC4626VaultControlLogic {
 /// @title ERC4626VaultControlledCore
 /// @notice Shared fee-aware and limit-aware ERC-4626 core behavior.
 abstract contract ERC4626VaultControlledCore is ERC4626Vault {
+    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
+    ///      Leaf facets override the selectors they expose through the diamond.
+    function deposit(uint256, address) public virtual override returns (uint256) {
+        revert();
+    }
+
+    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
+    ///      Leaf facets override the selectors they expose through the diamond.
+    function mint(uint256, address) public virtual override returns (uint256) {
+        revert();
+    }
+
+    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
+    ///      Leaf facets override the selectors they expose through the diamond.
+    function withdraw(uint256, address, address) public virtual override returns (uint256) {
+        revert();
+    }
+
+    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
+    ///      Leaf facets override the selectors they expose through the diamond.
+    function redeem(uint256, address, address) public virtual override returns (uint256) {
+        revert();
+    }
+
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         if (receiver == address(0) || _vaultOperationsPaused()) {
             return 0;
@@ -450,6 +474,7 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
 /// @title ERC4626VaultControlSurface
 /// @notice Shared hosted and standalone control-plane surface for vault config and governance.
 abstract contract ERC4626VaultControlSurface is VaultFacetControl, IERC4626VaultControls {
+    // forge-lint: disable-next-line(mixed-case-function) -- interface role getter name is selector-stable.
     function VAULT_MANAGER_ROLE()
         public
         pure

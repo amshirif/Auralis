@@ -119,6 +119,10 @@ reviewable engineering system.
 
 ## Validation Path
 
+Foundry uses the Solidity compiler pinned in `foundry.toml` (currently
+`0.8.34`); Foundry `1.4.3` will fetch that compiler version on first build if
+it is not already installed locally.
+
 Run a bounded reviewer-facing path with:
 
 ```shell

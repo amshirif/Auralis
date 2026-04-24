@@ -133,7 +133,9 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
 
         LibERC20TokenStorage.Layout storage layout = LibERC20TokenStorage.layout();
         uint256 nonce = layout.nonces[owner];
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 struct hashing stays high-level for auditability.
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        // forge-lint: disable-next-line(asm-keccak256) -- standard EIP-712 digest construction is intentionally explicit.
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), structHash));
         address signer = _recoverSigner(digest, v, r, s);
         if (signer != owner) {
@@ -153,6 +155,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
 
     /// @notice Returns the EIP-712 domain separator for Permit signatures.
     /// @return The domain separator.
+    // forge-lint: disable-next-line(mixed-case-function) -- ERC-2612 requires this canonical getter name.
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         LibERC20TokenStorage.Layout storage layout = LibERC20TokenStorage.layout();
         if (layout.cachedChainId == block.chainid) {
@@ -177,6 +180,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
     }
 
     function _buildDomainSeparator(bytes32 hashedName, uint256 chainId) internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 domain hashing is clearer in canonical Solidity form.
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, hashedName, VERSION_HASH, chainId, address(this)));
     }
 
