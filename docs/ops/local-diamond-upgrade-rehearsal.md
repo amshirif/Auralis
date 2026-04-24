@@ -13,6 +13,11 @@ cut behavior before production-style operator changes.
 - executes deliberate selector-collision and init-failure cuts
 - confirms failed cuts do not leave partial selector routing behind
 
+The rehearsal validates cut mechanics and state persistence on the current
+storage-layout baseline. It does not validate storage migration across renamed
+slot namespaces from older pre-public deployments, and it does not exercise
+`UpgradeGuardrails` queue/timelock checks.
+
 ## Run
 
 ```shell

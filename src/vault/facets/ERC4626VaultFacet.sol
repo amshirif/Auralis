@@ -4,17 +4,17 @@ pragma solidity ^0.8.30;
 import {IERC4626} from "../../interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../../interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultFacet} from "../../interfaces/IERC4626VaultFacet.sol";
-import {IERC4626VaultStrategy} from "../../interfaces/IERC4626VaultStrategy.sol";
 import {ERC4626Vault} from "../ERC4626Vault.sol";
 import {ERC4626VaultBase} from "../ERC4626VaultBase.sol";
 import {ERC4626VaultControlledCore, LibERC4626VaultControlLogic} from "../ERC4626VaultControlLogic.sol";
+import {ERC4626VaultStrategyPricing} from "../ERC4626VaultStrategyPricing.sol";
 import {VaultFacetControl} from "../VaultFacetControl.sol";
 import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
 import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 
 /// @title ERC4626VaultFacet
 /// @notice Hosted ERC-4626 core facet with constructor-free initialization.
-contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC4626VaultFacet {
+contract ERC4626VaultFacet is ERC4626VaultStrategyPricing, VaultFacetControl, IERC4626VaultFacet {
     /// @notice Returns true when vault storage is initialized.
     /// @return True if initialized.
     function isVaultInitialized() public view virtual override(IERC4626VaultFacet, ERC4626VaultBase) returns (bool) {
@@ -41,12 +41,8 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
     function initializeVault(address vaultAsset, string calldata vaultName, string calldata vaultSymbol, address admin)
         external
     {
-        if (isVaultInitialized()) {
+        if (ERC4626VaultBase.isVaultInitialized()) {
             revert ERC4626VaultAlreadyInitialized();
-        }
-
-        if (_isAccessControlInitialized()) {
-            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
         }
 
         _initializeVaultFacetControl(admin);
@@ -60,7 +56,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
     function deposit(uint256 assets, address receiver)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -79,7 +75,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
     function mint(uint256 shares, address receiver)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)
@@ -99,7 +95,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
     function withdraw(uint256 assets, address receiver, address owner)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -150,7 +146,7 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
     function redeem(uint256 shares, address receiver, address owner)
         public
         virtual
-        override(ERC4626Vault, IERC4626)
+        override(ERC4626VaultControlledCore, IERC4626)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)
@@ -169,6 +165,9 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
 
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
+        // Exact-share redeems settle at the post-sourcing price if strategy withdrawal reconciles
+        // live gains or losses into managed accounting during this call.
+        grossAssets = _convertToAssets(shares, Rounding.Down);
 
         uint256 availableIdleAssets =
             LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();
@@ -192,26 +191,6 @@ contract ERC4626VaultFacet is ERC4626VaultControlledCore, VaultFacetControl, IER
         _payoutFee(feeAssets);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
-
-    function _managedAssetsForPricing() internal view virtual override returns (uint256) {
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategyDebt == 0) {
-            return layout.totalManagedAssets;
-        }
-
-        uint256 idleBookAssets = layout.totalManagedAssets - layout.strategyDebt;
-        uint256 liveStrategyAssets = IERC4626VaultStrategy(layout.strategy).totalAssets();
-        return idleBookAssets + liveStrategyAssets;
-    }
-
-    function _withdrawLiquidityCapAssets() internal view virtual override returns (uint256) {
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        if (layout.strategyDebt == 0) {
-            return type(uint256).max;
-        }
-
-        return _trackedIdleAssetBalance() + _strategyWithdrawableAssets();
     }
 
     function _vaultOperationsPaused() internal view virtual override returns (bool) {

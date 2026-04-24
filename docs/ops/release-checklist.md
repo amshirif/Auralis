@@ -13,13 +13,15 @@ Use this checklist before tagging and publishing a new release.
 
 ## 2. Changelog and Notes
 
-- Draft release notes using `docs/ops/release-notes-template.md`.
+- Update `CHANGELOG.md` with the public release summary.
+- Draft GitHub release notes using `docs/ops/release-notes-template.md`.
 - Include:
   - highlights
   - security-impacting changes
   - migration notes
   - linked PRs/issues
-- Confirm closed issues and milestone status match release notes.
+- Confirm closed issues, milestone status, `CHANGELOG.md`, and release notes
+  all match.
 
 ## 3. Validation Gates
 
@@ -55,6 +57,7 @@ Required outcomes:
 - Create and push tag.
 - Publish GitHub release with finalized notes.
 - Attach milestone and key issue links.
+- Confirm `CHANGELOG.md` points readers to the published release context.
 
 ## 6. Post-Release
 

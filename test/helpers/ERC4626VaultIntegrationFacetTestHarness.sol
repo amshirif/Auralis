@@ -32,6 +32,92 @@ contract InitializedERC4626VaultIntegrationFacetHarness is ERC4626VaultIntegrati
         _initializeVaultFacetControl(admin);
         _initializeErc4626Vault(vaultAsset, vaultName, vaultSymbol);
     }
+
+    function deposit(uint256 assets, address receiver) public override returns (uint256 shares) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        shares = previewDeposit(assets);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        _safeTransferFromAsset(msg.sender, address(this), assets);
+        _increaseManagedAssets(assets);
+        _mintShares(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
+    function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        assets = previewMint(shares);
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        _safeTransferFromAsset(msg.sender, address(this), assets);
+        _increaseManagedAssets(assets);
+        _mintShares(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256 shares) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        _requireNonZeroAddress(owner);
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        shares = previewWithdraw(assets);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        if (msg.sender != owner) {
+            _spendAllowance(owner, msg.sender, shares);
+        }
+
+        _burnShares(owner, shares);
+        _decreaseManagedAssetsForAssetExit(assets);
+        _safeTransferAsset(receiver, assets);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    }
+
+    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256 assets) {
+        _requireInitialized();
+        _requireNonZeroAddress(receiver);
+        _requireNonZeroAddress(owner);
+        if (shares == 0) {
+            revert ERC4626VaultZeroShares();
+        }
+
+        assets = previewRedeem(shares);
+        if (assets == 0) {
+            revert ERC4626VaultZeroAssets();
+        }
+
+        if (msg.sender != owner) {
+            _spendAllowance(owner, msg.sender, shares);
+        }
+
+        _burnShares(owner, shares);
+        _decreaseManagedAssetsForAssetExit(assets);
+        _safeTransferAsset(receiver, assets);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    }
 }
 
 abstract contract ERC4626VaultIntegrationFacetFixture is TestBase {

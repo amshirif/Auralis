@@ -7,12 +7,23 @@ import {IERC165} from "./IERC165.sol";
 /// @notice Interface for minimal role-based access control with admin hierarchy.
 interface IAccessControl is IERC165 {
     /// @notice Emitted when a role's admin is changed.
+    /// @param role Role whose admin changed.
+    /// @param previousAdminRole Previous admin role.
+    /// @param newAdminRole New admin role.
     event RoleAdminChanged(bytes32 indexed role, bytes32 indexed previousAdminRole, bytes32 indexed newAdminRole);
     /// @notice Emitted when a role is granted.
+    /// @param role Role that was granted.
+    /// @param account Account receiving the role.
+    /// @param sender Account that granted the role.
     event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
     /// @notice Emitted when a role is revoked.
+    /// @param role Role that was revoked.
+    /// @param account Account losing the role.
+    /// @param sender Account that revoked the role.
     event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
     /// @notice Thrown when an account is missing a required role.
+    /// @param account Account that failed authorization.
+    /// @param role Required role.
     error AccessControlUnauthorized(address account, bytes32 role);
     /// @notice Thrown when renouncing a role for another account.
     error AccessControlRenounceSelfOnly();

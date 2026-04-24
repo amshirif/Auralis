@@ -5,21 +5,27 @@ import {IERC165} from "../interfaces/IERC165.sol";
 import {IERC1271} from "../interfaces/IERC1271.sol";
 import {IMultiSendCallOnly} from "../interfaces/IMultiSendCallOnly.sol";
 import {IMultisigWallet} from "../interfaces/IMultisigWallet.sol";
+import {LibECDSA} from "../libraries/LibECDSA.sol";
 
 /// @title MultisigWallet
 /// @notice Standalone multisig wallet foundation with initializer-based owner/threshold state.
 contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
+    /// @notice ERC-1271 success value returned for valid signatures.
     bytes4 internal constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
+    /// @notice ERC-1271 invalid signature value.
     bytes4 internal constant ERC1271_INVALID_SIGNATURE = 0xffffffff;
+    /// @notice EIP-712 domain type hash used in wallet digest construction.
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    /// @notice EIP-712 type hash for single-call wallet transactions.
     bytes32 internal constant TRANSACTION_TYPEHASH =
         keccak256("WalletTransaction(address to,uint256 value,bytes32 dataHash,uint256 nonce)");
+    /// @notice EIP-712 type hash for batched wallet transactions.
     bytes32 internal constant BATCH_TYPEHASH = keccak256("WalletBatch(bytes32 transactionsHash,uint256 nonce)");
+    /// @notice EIP-712 hashed wallet name.
     bytes32 internal constant NAME_HASH = keccak256("Auralis Multisig Wallet");
+    /// @notice EIP-712 hashed wallet version.
     bytes32 internal constant VERSION_HASH = keccak256("1");
-    uint256 internal constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
-
     bool internal _initialized;
     uint256 internal _nonce;
     uint256 internal _threshold;
@@ -27,11 +33,13 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
     address[] internal _owners;
     mapping(address owner => uint256 indexPlusOne) internal _ownerIndexPlusOne;
 
+    /// @notice Locks the master implementation as initialized so only clones can run `initialize`.
     constructor() {
         _nonce = 0;
         _initialized = true;
     }
 
+    /// @inheritdoc IMultisigWallet
     function initialize(address[] calldata owners, uint256 threshold_, address multiSendCallOnly_) external {
         if (_initialized) {
             revert MultisigWalletAlreadyInitialized();
@@ -50,11 +58,13 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
 
     receive() external payable {}
 
+    /// @inheritdoc IERC165
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IERC165).interfaceId || interfaceId == type(IERC1271).interfaceId
             || interfaceId == type(IMultisigWallet).interfaceId;
     }
 
+    /// @inheritdoc IMultisigWallet
     function getTransactionHash(address to, uint256 value, bytes calldata data, uint256 nonce_)
         external
         view
@@ -63,12 +73,16 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         return _getTransactionHash(to, value, data, nonce_);
     }
 
+    /// @inheritdoc IMultisigWallet
     function getBatchHash(bytes calldata transactions, uint256 nonce_) external view returns (bytes32) {
         return _getBatchHash(transactions, nonce_);
     }
 
+    /// @inheritdoc IMultisigWallet
+    /// @dev Reverts while the wallet is non-operational (`threshold == 0`), including on the master implementation.
     // slither-disable-next-line reentrancy-events
     function executeTransaction(address to, uint256 value, bytes calldata data, bytes calldata signatures) external {
+        _requireOperational();
         if (to == address(0)) {
             revert MultisigWalletZeroTarget();
         }
@@ -90,8 +104,11 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         emit TransactionExecuted(digest, currentNonce, to, value);
     }
 
+    /// @inheritdoc IMultisigWallet
+    /// @dev Reverts while the wallet is non-operational (`threshold == 0`), including on the master implementation.
     // slither-disable-next-line reentrancy-events
     function executeBatch(bytes calldata transactions, bytes calldata signatures) external {
+        _requireOperational();
         uint256 currentNonce = _nonce;
         bytes32 digest = _getBatchHash(transactions, currentNonce);
 
@@ -110,21 +127,25 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         emit BatchExecuted(digest, currentNonce);
     }
 
+    /// @inheritdoc IMultisigWallet
     function addOwner(address owner) external {
         _requireSelfCall();
         _addOwner(owner);
     }
 
+    /// @inheritdoc IMultisigWallet
     function removeOwner(address owner) external {
         _requireSelfCall();
         _removeOwner(owner);
     }
 
+    /// @inheritdoc IMultisigWallet
     function replaceOwner(address oldOwner, address newOwner) external {
         _requireSelfCall();
         _replaceOwner(oldOwner, newOwner);
     }
 
+    /// @inheritdoc IMultisigWallet
     function changeThreshold(uint256 newThreshold) external {
         _requireSelfCall();
         _requireValidThreshold(newThreshold, _owners.length);
@@ -133,38 +154,48 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         emit ThresholdChanged(newThreshold);
     }
 
+    /// @inheritdoc IMultisigWallet
     function isValidSignature(bytes32 digest, bytes calldata signatures)
         external
         view
         override(IERC1271, IMultisigWallet)
         returns (bytes4)
     {
+        if (_threshold == 0) {
+            return ERC1271_INVALID_SIGNATURE;
+        }
         if (_hasValidSignatures(digest, signatures)) {
             return ERC1271_MAGIC_VALUE;
         }
         return ERC1271_INVALID_SIGNATURE;
     }
 
+    /// @inheritdoc IMultisigWallet
     function nonce() external view returns (uint256) {
         return _nonce;
     }
 
+    /// @inheritdoc IMultisigWallet
     function threshold() external view returns (uint256) {
         return _threshold;
     }
 
+    /// @inheritdoc IMultisigWallet
     function ownerCount() external view returns (uint256) {
         return _owners.length;
     }
 
+    /// @inheritdoc IMultisigWallet
     function multiSendCallOnly() external view returns (address) {
         return _multiSendCallOnly;
     }
 
+    /// @inheritdoc IMultisigWallet
     function isOwner(address account) external view returns (bool) {
         return _ownerIndexPlusOne[account] != 0;
     }
 
+    /// @inheritdoc IMultisigWallet
     function getOwners() external view returns (address[] memory) {
         return _owners;
     }
@@ -172,6 +203,12 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
     function _requireSelfCall() internal view {
         if (msg.sender != address(this)) {
             revert MultisigWalletCallerNotSelf();
+        }
+    }
+
+    function _requireOperational() internal view {
+        if (_threshold == 0) {
+            revert MultisigWalletNotOperational();
         }
     }
 
@@ -269,6 +306,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
     }
 
     function _domainSeparator() internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 domain hashing is clearer in canonical Solidity form.
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
 
@@ -277,12 +315,16 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         view
         returns (bytes32)
     {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 struct hashing stays high-level for auditability.
         bytes32 structHash = keccak256(abi.encode(TRANSACTION_TYPEHASH, to, value, keccak256(data), nonce_));
+        // forge-lint: disable-next-line(asm-keccak256) -- standard EIP-712 digest construction is intentionally explicit.
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 
     function _getBatchHash(bytes calldata transactions, uint256 nonce_) internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 struct hashing stays high-level for auditability.
         bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(transactions), nonce_));
+        // forge-lint: disable-next-line(asm-keccak256) -- standard EIP-712 digest construction is intentionally explicit.
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }
 
@@ -344,7 +386,7 @@ contract MultisigWallet is IERC165, IERC1271, IMultisigWallet {
         if (v != 27 && v != 28) {
             return address(0);
         }
-        if (uint256(s) > SECP256K1N_DIV_2) {
+        if (uint256(s) > LibECDSA.SECP256K1N_DIV_2) {
             return address(0);
         }
         return ecrecover(digest, v, r, s);

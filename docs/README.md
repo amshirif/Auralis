@@ -80,8 +80,8 @@ visual model materially improves comprehension.
 - `docs/access-control.md`: RBAC hierarchy and time-window access model.
 - `docs/pausable.md`: global and scoped pause behavior.
 - `docs/reentrancy-guard.md`: reentrancy protection model.
-- `docs/upgrade-guardrails.md`: queued upgrade intent model and execution
-  constraints.
+- `docs/upgrade-guardrails.md`: standalone, opt-in queued upgrade intent model
+  and execution constraints.
 
 ## ADRs
 

@@ -38,7 +38,9 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
 - Trigger: pull requests, pushes to `main` and `milestone/**`, manual dispatch.
 - Tooling: `crytic/slither-action`.
 - Policy: fail when Slither reports **high-severity** findings (`fail-on: high`).
-- Scope: contract/static analysis findings are printed in CI logs.
+- Scope: contract/static analysis findings are printed in CI logs. The CI gate
+  intentionally keeps the broader `crytic/slither-action` scope, while local
+  triage can filter test and script findings to focus production closeout.
 
 ### Dependency Review (`.github/workflows/dependency-review.yml`)
 
@@ -90,6 +92,10 @@ forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
 forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
 forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
 forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestAccountingInvariant.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestTime.t.sol
 forge test --offline --match-path test/ERC4626VaultIntegrationFacetCore.t.sol
 forge test --offline --match-path test/ERC4626VaultStrategyAccountingCore.t.sol
 forge test --offline --match-path test/VaultStrategyFoundationCore.t.sol
@@ -112,6 +118,10 @@ vault strategy suites:
 forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
 forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
 forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestAccountingInvariant.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestTime.t.sol
 forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
 forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
 forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
@@ -153,22 +163,28 @@ forge test --offline --match-path test/MultisigWalletFoundationCore.t.sol
 forge test --offline --match-path test/MultisigWalletCoreExecution.t.sol
 forge test --offline --match-path test/MultisigWalletIntegration.t.sol
 forge test --offline --match-path test/MultisigWalletManagement.t.sol
+forge test --offline --match-path test/MultisigWalletFuzz.t.sol
 forge test --offline --match-path test/MultisigWalletInvariant.t.sol
 ```
 
 Use these to reproduce initializer behavior, EIP-712 signing, ERC-1271
 verification, deterministic clone deployment, call-only batch execution,
 self-managed owner/threshold changes, and the wallet invariants around owner
-uniqueness, threshold bounds, and nonce progression.
+uniqueness, threshold bounds, signature validity, signer ordering, and nonce
+progression.
 
 ### Slither
 
-Install and run the same high-severity gate locally:
+Install and run the local high-severity triage gate:
 
 ```bash
 python3 -m pip install --upgrade pip slither-analyzer
-slither . --exclude-dependencies --fail-on high
+slither . --exclude-dependencies --fail-high --filter-paths 'test/|script/'
 ```
+
+See [`../SLITHER_TRIAGE.md`](../SLITHER_TRIAGE.md) for the current accepted
+medium, low, and informational detector families, the measured local baseline,
+and the local-vs-CI scope difference.
 
 ### Dependency Review
 

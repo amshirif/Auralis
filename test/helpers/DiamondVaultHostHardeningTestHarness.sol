@@ -14,7 +14,7 @@ interface IFacetVersionMarker {
     function facetVersion() external view returns (uint256);
 }
 
-contract ERC4626VaultFacetReplacement is ERC4626VaultFacet {
+contract FacetVersionMarkerV2 {
     function facetVersion() external pure returns (uint256) {
         return 2;
     }
@@ -87,14 +87,16 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
 
     MutableMockVaultStrategy internal strategyContract;
 
-    ERC4626VaultFacetReplacement internal coreReplacement;
+    ERC4626VaultFacet internal coreReplacement;
+    FacetVersionMarkerV2 internal coreMarker;
     ERC4626VaultControlsFacetReplacement internal controlsReplacement;
     ERC4626VaultIntegrationFacetReplacement internal integrationReplacement;
 
     function setUp() public virtual override {
         super.setUp();
 
-        coreReplacement = new ERC4626VaultFacetReplacement();
+        coreReplacement = new ERC4626VaultFacet();
+        coreMarker = new FacetVersionMarkerV2();
         controlsReplacement = new ERC4626VaultControlsFacetReplacement();
         integrationReplacement = new ERC4626VaultIntegrationFacetReplacement();
 
@@ -285,8 +287,8 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
         _replaceFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncIntegrationSelectors());
     }
 
-    function _addCoreReplacementMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _markerSelectors());
+    function _addCoreReplacementMarker() internal {
+        _addFacet(address(coreMarker), _markerSelectors());
     }
 
     function _addControlsReplacementMarker(address facetAddress_) internal {
@@ -310,7 +312,8 @@ abstract contract DiamondVaultHostHardeningFixture is DiamondVaultDeploymentFixt
     }
 
     function _reAddCoreFacetWithMarker(address facetAddress_) internal {
-        _addFacet(facetAddress_, _concat(LibVaultFacetSelectors.vaultAsyncHostCoreSelectors(), _markerSelectors()));
+        _addFacet(facetAddress_, LibVaultFacetSelectors.vaultAsyncHostCoreSelectors());
+        _addFacet(address(coreMarker), _markerSelectors());
     }
 
     function _reAddControlsFacetWithMarker(address facetAddress_) internal {

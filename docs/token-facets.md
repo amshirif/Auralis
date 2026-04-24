@@ -57,8 +57,21 @@ Reference artifact:
 
 ## Initialization Model
 
-Each token standard owns its own one-time initializer and is initialized through
-the diamond after the facet selectors are installed.
+Each token standard owns its own one-time initializer.
+
+Hosted bootstrap authority is split into two phases:
+
+- on an uninitialized hosted diamond, first initialization is restricted to the
+  current diamond owner
+- once the shared control plane exists, bootstrap-authority checks resolve
+  through `DEFAULT_ADMIN_ROLE`
+
+The reference host deployment uses atomic cut+init through
+`diamondCut(..., init, initCalldata)` rather than a two-step "install selectors
+and then initialize" flow. Standalone and unit-harness facet deployment remains
+supported when no diamond owner is present in storage.
+Under atomic cut+init, the initializer runs via delegatecall with `msg.sender`
+preserved as the `diamondCut` caller, which is already the diamond owner.
 
 ### ERC20
 
@@ -72,11 +85,14 @@ Initialization seeds:
 - Permit domain state
 - shared control state when the host is first initialized
 - role assignments for the provided `admin`
+- `DEFAULT_ADMIN_ROLE`, `TOKEN_ADMIN_ROLE`, `PAUSER_ROLE`,
+  `ERC20_MINTER_ROLE`, and `ERC20_BURNER_ROLE` are granted to `admin`
 
 Initialization expectations:
 
 - idempotent per ERC20 host
 - second initialization reverts
+- first hosted initialization on an uninitialized diamond is owner-only
 - Permit uses the token name, version `"1"`, current `chainid`, and diamond
   address for the domain separator
 
@@ -91,11 +107,15 @@ Initialization seeds:
 - token metadata and base URI
 - shared control state when the host is first initialized
 - role assignments for the provided `admin`
+- `DEFAULT_ADMIN_ROLE`, `TOKEN_ADMIN_ROLE`, `PAUSER_ROLE`,
+  `ERC721_MINTER_ROLE`, `ERC721_BURNER_ROLE`, and `ERC721_METADATA_ROLE` are
+  granted to `admin`
 
 Initialization expectations:
 
 - idempotent per ERC721 host
 - second initialization reverts
+- first hosted initialization on an uninitialized diamond is owner-only
 
 ## Role Model And Pause Scopes
 
@@ -157,17 +177,33 @@ storage level. The repo still deploys them as separate hosts because the raw
 selector surfaces collide.
 
 Hosted token state lives in the diamond, not in the facet contract bytecode.
-That means the supported replace/remove/re-add flows preserve state as long as:
+For ERC20, the supported replace/remove/re-add flows are only claimed for
+deployments already created on the current
+`keccak256("auralis.token.erc20.storage")` namespace baseline. Older pre-public
+deployments created before the Permit/domain layout expansion or before the
+`smart-contracts.token.erc20.storage` to `auralis.token.erc20.storage`
+namespace rename are not claimed as in-place upgrade compatible and should be
+treated as redeploy-or-migrate surfaces if they ever matter.
+
+That means the supported ERC20 replace/remove/re-add flows preserve state as
+long as:
 
 - the replacement facet preserves the same storage layout
 - the relevant selectors are reinstalled
 - the upgrade does not rely on re-initialization
 
-Current hardening coverage explicitly validates persistence for:
+Current hardening coverage explicitly validates same-namespace ERC20
+persistence in `test/DiamondTokenHostHardening.t.sol` for:
 
 - ERC20 balances, allowances, Permit nonces, roles, and pause state
+
+The same hardening suite also validates ERC721 non-layout persistence for:
+
 - ERC721 ownership, approvals, operator approvals, metadata, roles, and pause
   state
+
+ERC721 storage-layout freezing is tracked separately. The narrowed storage
+compatibility claim in this section applies to ERC20 only.
 
 ## Selector Ownership Model
 
@@ -221,6 +257,9 @@ The ERC721 host exposes:
 - No selector namespacing is used.
 - Re-initialization is not part of replace/remove/re-add flows.
 - Facet upgrades must preserve storage layout and hosted selector intent.
+- ERC20 storage-layout compatibility claims in this document are limited to the
+  current `auralis.token.erc20.storage` baseline.
+- ERC721 storage-layout compatibility is separate follow-up work.
 - Shared control selectors are treated as part of the token host surface, not as
   independent infrastructure selectors.
 

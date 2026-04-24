@@ -6,6 +6,7 @@ import {IERC165} from "../interfaces/IERC165.sol";
 import {IPausable} from "../interfaces/IPausable.sol";
 import {LibAccessControlStorage} from "../access/storage/LibAccessControlStorage.sol";
 import {LibPausableStorage} from "../access/storage/LibPausableStorage.sol";
+import {LibDiamond} from "../diamond/libraries/LibDiamond.sol";
 
 /// @title TokenFacetControl
 /// @notice Constructor-free access control and pausability layer for hosted token facets.
@@ -171,6 +172,26 @@ abstract contract TokenFacetControl is IAccessControl, IPausable {
         if (!_isPausableInitialized()) {
             _initializePausable(initialAdmin);
         }
+    }
+
+    /// @dev Enforces the hosted bootstrap authority model for one-time initializers.
+    function _enforceBootstrapInitializerAuthority() internal view {
+        if (_isAccessControlInitialized()) {
+            // Defense in depth for hosted bootstrap flows. The initializer itself is one-time, but
+            // keeping the post-bootstrap admin branch here makes the intended authority model explicit
+            // and keeps the helper reusable for future bootstrap-adjacent entrypoints.
+            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
+            return;
+        }
+
+        address diamondOwner = LibDiamond.contractOwner();
+        if (diamondOwner != address(0)) {
+            LibDiamond.enforceIsContractOwner();
+            return;
+        }
+
+        // This branch intentionally preserves standalone and unit-harness facet initialization when
+        // no diamond owner is present in storage.
     }
 
     /// @dev Returns true if access control storage has already been initialized.

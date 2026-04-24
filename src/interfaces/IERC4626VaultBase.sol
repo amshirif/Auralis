@@ -15,10 +15,19 @@ interface IERC4626VaultBase is IERC20Metadata {
     /// @notice Thrown when a required account is zero address.
     error ERC4626VaultZeroAddress();
     /// @notice Thrown when an account balance is insufficient for requested operation.
+    /// @param account Account whose share balance was checked.
+    /// @param available Current share balance.
+    /// @param required Required share amount.
     error ERC4626VaultInsufficientBalance(address account, uint256 available, uint256 required);
     /// @notice Thrown when allowance is insufficient for requested operation.
+    /// @param owner Allowance owner.
+    /// @param spender Allowance spender.
+    /// @param available Current allowance.
+    /// @param required Required allowance.
     error ERC4626VaultInsufficientAllowance(address owner, address spender, uint256 available, uint256 required);
     /// @notice Thrown when managed asset accounting would underflow.
+    /// @param available Current managed asset amount.
+    /// @param required Required decrement.
     error ERC4626VaultManagedAssetsUnderflow(uint256 available, uint256 required);
 
     /// @notice Returns true when vault storage is initialized.

@@ -4,9 +4,8 @@ pragma solidity ^0.8.30;
 import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
-import {IERC4626VaultControlsFacet} from "../../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
-import {ERC4626Vault} from "../../src/vault/ERC4626Vault.sol";
+import {ERC4626VaultBase} from "../../src/vault/ERC4626VaultBase.sol";
 import {ERC4626VaultControlsFacet} from "../../src/vault/facets/ERC4626VaultControlsFacet.sol";
 import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
 import {LibVaultFacetSelectors} from "../../src/vault/libraries/LibVaultFacetSelectors.sol";
@@ -15,7 +14,7 @@ import {ERC4626VaultFacetHarness} from "./ERC4626VaultFacetTestHarness.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 
-contract ERC4626VaultControlsFacetHarness is ERC4626VaultControlsFacet, ERC4626Vault {
+contract ERC4626VaultControlsFacetHarness is ERC4626VaultControlsFacet, ERC4626VaultBase {
     function initializeHostedVaultForTest(
         address vaultAsset,
         string memory vaultName,
@@ -24,6 +23,18 @@ contract ERC4626VaultControlsFacetHarness is ERC4626VaultControlsFacet, ERC4626V
     ) external {
         _initializeVaultFacetControl(admin);
         _initializeErc4626Vault(vaultAsset, vaultName, vaultSymbol);
+    }
+
+    function transfer(address, uint256) public pure override returns (bool) {
+        revert();
+    }
+
+    function approve(address, uint256) public pure override returns (bool) {
+        revert();
+    }
+
+    function transferFrom(address, address, uint256) public pure override returns (bool) {
+        revert();
     }
 }
 

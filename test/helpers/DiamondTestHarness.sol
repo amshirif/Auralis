@@ -2,9 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Diamond} from "../../src/diamond/Diamond.sol";
-import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
-import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {LibDiamond} from "../../src/diamond/libraries/LibDiamond.sol";
 import {TestBase} from "./AccessControlTestHarness.sol";
 

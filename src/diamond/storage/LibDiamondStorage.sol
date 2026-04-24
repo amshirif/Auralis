@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibDiamondStorage
 /// @notice Diamond storage layout for selector routing, facet metadata, and ownership.
 library LibDiamondStorage {
-    /// @dev Storage slot for the diamond layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.diamond.storage");
 
     /// @notice Selector routing metadata.

@@ -11,8 +11,12 @@ import {IPausable} from "./IPausable.sol";
 /// @notice Hosted ERC-20 facet surface for diamond deployments.
 interface IERC20TokenFacet is IERC20Metadata, IERC20TokenBase, IERC20Permit, IAccessControl, IPausable {
     /// @notice Thrown when a Permit signature is expired.
+    /// @param deadline Permit deadline.
+    /// @param currentTimestamp Current block timestamp.
     error ERC20PermitExpired(uint256 deadline, uint256 currentTimestamp);
     /// @notice Thrown when a Permit signature does not recover the expected signer.
+    /// @param signer Recovered signer.
+    /// @param owner Expected owner.
     error ERC20PermitInvalidSigner(address signer, address owner);
 
     /// @notice Returns the shared token admin role identifier.

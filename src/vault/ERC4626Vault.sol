@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC4626VaultStrategy} from "../interfaces/IERC4626VaultStrategy.sol";
 import {LibVaultAsset} from "./libraries/LibVaultAsset.sol";
@@ -28,6 +27,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @notice Thrown when a native-only entrypoint is used on an ERC-20 vault.
     error ERC4626VaultNativeAssetDisabled();
     /// @notice Thrown when `msg.value` does not match the required native asset amount.
+    /// @param supplied Native value supplied by caller.
+    /// @param required Native value required by the operation.
     error ERC4626VaultInvalidNativeAssetValue(uint256 supplied, uint256 required);
 
     /// @notice Returns vault underlying asset token address.
@@ -76,24 +77,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param assets Asset amount.
     /// @param receiver Receiver of minted shares.
     /// @return shares Minted shares.
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        shares = previewDeposit(assets);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        _safeTransferFromAsset(msg.sender, address(this), assets);
-        _increaseManagedAssets(assets);
-        _mintShares(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-    }
+    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares);
 
     /// @notice Returns max shares `receiver` can mint.
     /// @param receiver Target receiver.
@@ -113,24 +97,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param shares Share amount.
     /// @param receiver Receiver of minted shares.
     /// @return assets Deposited assets.
-    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        assets = previewMint(shares);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        _safeTransferFromAsset(msg.sender, address(this), assets);
-        _increaseManagedAssets(assets);
-        _mintShares(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-    }
+    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets);
 
     /// @notice Returns max assets `owner` can withdraw.
     /// @param owner Share owner.
@@ -154,29 +121,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param receiver Asset receiver.
     /// @param owner Share owner.
     /// @return shares Burned shares.
-    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        _requireNonZeroAddress(owner);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        shares = previewWithdraw(assets);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        if (msg.sender != owner) {
-            _spendAllowance(owner, msg.sender, shares);
-        }
-
-        _burnShares(owner, shares);
-        _decreaseManagedAssetsForAssetExit(assets);
-        _safeTransferAsset(receiver, assets);
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
+    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares);
 
     /// @notice Returns max shares `owner` can redeem.
     /// @param owner Share owner.
@@ -200,29 +145,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @param receiver Asset receiver.
     /// @param owner Share owner.
     /// @return assets Returned assets.
-    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets) {
-        _requireInitialized();
-        _requireNonZeroAddress(receiver);
-        _requireNonZeroAddress(owner);
-        if (shares == 0) {
-            revert ERC4626VaultZeroShares();
-        }
-
-        assets = previewRedeem(shares);
-        if (assets == 0) {
-            revert ERC4626VaultZeroAssets();
-        }
-
-        if (msg.sender != owner) {
-            _spendAllowance(owner, msg.sender, shares);
-        }
-
-        _burnShares(owner, shares);
-        _decreaseManagedAssetsForAssetExit(assets);
-        _safeTransferAsset(receiver, assets);
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-    }
+    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets);
 
     /// @notice Transfers shares from caller to `to`.
     /// @param to Recipient account.
@@ -279,6 +202,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Decreases managed assets for a user exit while ignoring untracked native surplus.
     /// @dev Forced ETH can increase `address(this).balance` without increasing managed assets. When a native
     ///      withdrawal is satisfied from that surplus, book accounting must only burn the tracked portion.
+    /// @param assets Gross assets exiting the vault.
     function _decreaseManagedAssetsForAssetExit(uint256 assets) internal {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         if (LibVaultAsset.isNativeAsset(layout.asset) && layout.strategyDebt != 0) {
@@ -297,6 +221,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Returns the vault's immediately idle asset balance.
+    /// @return Immediately held asset balance.
     function _idleAssetBalance() internal view returns (uint256) {
         return LibVaultAsset.balanceOfSelf(asset());
     }
@@ -304,6 +229,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Returns the tracked idle assets available to support exits when a strategy is active.
     /// @dev Raw idle balances can exceed tracked idle because of pending async deposits or direct transfers.
     ///      Exit paths that must preserve strategy-debt accounting use the smaller tracked value instead.
+    /// @return Tracked idle assets available for exits.
     function _trackedIdleAssetBalance() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         uint256 actualIdleAssets = _idleAssetBalance();
@@ -312,6 +238,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Returns the configured strategy's immediately withdrawable assets.
+    /// @return Strategy assets that can be withdrawn immediately.
     function _strategyWithdrawableAssets() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         if (layout.strategyDebt == 0) {
@@ -325,6 +252,9 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Pulls assets from the configured strategy back to the vault.
+    /// @param assets Requested withdrawal amount.
+    /// @return returnedAssets Assets returned by the strategy call.
+    /// @return postCallLiveAssets Strategy live assets reported after the call.
     function _withdrawStrategyAssets(uint256 assets)
         internal
         returns (uint256 returnedAssets, uint256 postCallLiveAssets)
@@ -336,6 +266,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Fully unwinds assets from the configured strategy back to the vault.
+    /// @return returnedAssets Assets returned by the strategy call.
+    /// @return postCallLiveAssets Strategy live assets reported after the call.
     function _withdrawAllStrategyAssets() internal returns (uint256 returnedAssets, uint256 postCallLiveAssets) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
@@ -344,6 +276,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Realizes strategy mark-to-market changes into book accounting without moving idle vault assets.
+    /// @param liveAssets Strategy live assets to sync into stored debt.
+    /// @return previousDebt Strategy debt before syncing.
     function _syncStrategyDebtToLiveAssets(uint256 liveAssets) internal returns (uint256 previousDebt) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         previousDebt = layout.strategyDebt;
@@ -359,6 +293,9 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Reconciles book accounting after a strategy withdrawal-like call that returned assets to the vault.
+    /// @param returnedAssets Assets returned to the vault by the strategy call.
+    /// @param postCallLiveAssets Strategy live assets reported after the call.
+    /// @return previousDebt Strategy debt before reconciliation.
     function _reconcileStrategyWithdrawalAccounting(uint256 returnedAssets, uint256 postCallLiveAssets)
         internal
         returns (uint256 previousDebt)

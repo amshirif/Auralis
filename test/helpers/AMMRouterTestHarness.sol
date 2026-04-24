@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {AMMRouter} from "../../src/amm/AMMRouter.sol";
-import {AMMFactory} from "../../src/amm/AMMFactory.sol";
 import {AMMPair} from "../../src/amm/AMMPair.sol";
 import {IWrappedNative} from "../../src/interfaces/IWrappedNative.sol";
 import {AMMPairCoreFixture, FalseReturningAMMToken, MockAMMToken} from "./AMMPairTestHarness.sol";

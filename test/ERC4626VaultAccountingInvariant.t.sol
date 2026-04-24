@@ -93,7 +93,7 @@ contract ERC4626VaultAccountingInvariantTest is ERC4626VaultAccountingFixture {
         }
 
         VM.prank(from);
-        vault.transfer(to, shares);
+        assertTrue(vault.transfer(to, shares), "share transfer should succeed");
     }
 
     function invariantManagedAssetsMatchUnderlyingBalance() public view {

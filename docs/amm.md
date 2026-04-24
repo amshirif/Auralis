@@ -134,6 +134,23 @@ Protocol-fee behavior is optional and factory-controlled:
 - `kLast` refreshes on fee-on liquidity events
 - disabling `feeTo` clears `kLast` on the next liquidity event
 
+## Token Assumptions
+
+The AMM pricing and invariant model assumes standard ERC-20 balance deltas:
+the amount sent by a caller is the amount received by the pair or router, and
+token supply does not mutate unexpectedly during AMM calls.
+
+Out-of-scope token economics:
+
+- fee-on-transfer or transfer-tax tokens
+- rebasing tokens
+- reflection tokens
+- hook-style token behavior that mutates balances or supply during AMM calls
+
+Malformed tokens, silent tokens, false-returning tokens, and reentrant tokens
+are part of the current hardening surface. Transfer-tax and rebasing economics
+are not part of the current invariant or pricing model.
+
 ## Security Notes
 
 The AMM track is opinionated about what it supports and what it rejects.

@@ -7,12 +7,21 @@ import {IERC165} from "./IERC165.sol";
 /// @notice ERC-721 non-fungible token standard interface.
 interface IERC721 is IERC165 {
     /// @notice Emitted when `tokenId` transfers from `from` to `to`.
+    /// @param from Previous token owner.
+    /// @param to New token owner.
+    /// @param tokenId Token identifier.
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
 
     /// @notice Emitted when `owner` approves `approved` for `tokenId`.
+    /// @param owner Token owner.
+    /// @param approved Approved account.
+    /// @param tokenId Token identifier.
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
 
     /// @notice Emitted when `owner` enables or disables `operator`.
+    /// @param owner Token owner.
+    /// @param operator Operator account.
+    /// @param approved True when approved, false when revoked.
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
 
     /// @notice Returns the token count owned by `owner`.

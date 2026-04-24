@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibReentrancyGuardStorage
 /// @notice Storage layout for reentrancy guard modules (diamond-ready).
 library LibReentrancyGuardStorage {
-    /// @dev Storage slot for reentrancy guard layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.reentrancy-guard.storage");
 
     /// @notice Reentrancy guard storage layout.
@@ -22,4 +22,3 @@ library LibReentrancyGuardStorage {
         }
     }
 }
-

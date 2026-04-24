@@ -249,9 +249,14 @@ contract DiamondVaultHostInvariantTest is DiamondVaultHostHardeningFixture {
 
         uint256 currentCommittedAssets = coreFacetInterface().totalAssets() + _sumPendingDepositRequestAssets()
             + _sumClaimableDepositRequestAssets();
-        uint128 maxTotalAssets = totalCapRaw % 4 == 0
-            ? 0
-            : uint128(currentCommittedAssets + (uint256(totalCapRaw) % EXPECTED_INITIAL_ASSET_SUPPLY) + 1);
+        uint128 maxTotalAssets;
+        if (totalCapRaw % 4 != 0) {
+            uint256 boundedTotalCap =
+                currentCommittedAssets + (uint256(totalCapRaw) % EXPECTED_INITIAL_ASSET_SUPPLY) + 1;
+            // casting to uint128 is safe because this bounded cap stays within the fixture supply envelope.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            maxTotalAssets = uint128(boundedTotalCap);
+        }
         uint128 maxDeposit = depositRaw % 4 == 0 ? 0 : uint128((uint256(depositRaw) % INITIAL_ASSETS) + 1);
         uint128 maxMint = mintRaw % 4 == 0 ? 0 : uint128((uint256(mintRaw) % INITIAL_ASSETS) + 1);
         uint128 maxWithdraw = withdrawRaw % 4 == 0 ? 0 : uint128((uint256(withdrawRaw) % INITIAL_ASSETS) + 1);

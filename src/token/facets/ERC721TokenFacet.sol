@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IAccessControl} from "../../interfaces/IAccessControl.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
 import {IERC721TokenFacet} from "../../interfaces/IERC721TokenFacet.sol";
 import {ERC721TokenBase} from "../ERC721TokenBase.sol";
@@ -39,10 +38,7 @@ contract ERC721TokenFacet is ERC721TokenBase, TokenFacetControl, IERC721TokenFac
             revert ERC721TokenAlreadyInitialized();
         }
 
-        if (_isAccessControlInitialized()) {
-            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        }
-
+        _enforceBootstrapInitializerAuthority();
         _initializeTokenFacetControl(admin);
         _initializeErc721Token(tokenName, tokenSymbol, baseURI);
 
@@ -151,14 +147,14 @@ contract ERC721TokenFacet is ERC721TokenBase, TokenFacetControl, IERC721TokenFac
     /// @notice Updates the collection base URI.
     /// @param baseURI New base URI.
     function setBaseURI(string calldata baseURI) external onlyRole(ERC721_METADATA_ROLE) {
-        _setBaseURI(baseURI);
+        _setBaseUri(baseURI);
     }
 
     /// @notice Sets an explicit metadata URI for `tokenId`.
     /// @param tokenId Token identifier.
     /// @param uri Explicit metadata URI.
     function setTokenURI(uint256 tokenId, string calldata uri) external onlyRole(ERC721_METADATA_ROLE) {
-        _setTokenURI(tokenId, uri);
+        _setTokenUri(tokenId, uri);
     }
 
     /// @notice Returns the current live token count.

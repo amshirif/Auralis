@@ -15,6 +15,11 @@ import {LibERC4626VaultStorage} from "../storage/LibERC4626VaultStorage.sol";
 /// @notice Hosted async redeem extension facet for ERC-7540-style request flows.
 contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC7540Redeem {
     /// @notice Emitted when a redeem request is submitted.
+    /// @param controller Controller that will own the async claim.
+    /// @param owner Share owner funding the request.
+    /// @param requestId Request identifier.
+    /// @param sender Account that submitted the request.
+    /// @param shares Requested redeem shares.
     event RedeemRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
@@ -26,6 +31,8 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
     error ERC7540VaultAsyncRedeemPreviewUnsupported();
 
     /// @notice Thrown when `sender` is not approved to manage requests for `account`.
+    /// @param account Account whose request authority was checked.
+    /// @param sender Unauthorized sender.
     error ERC7540VaultUnauthorizedOperator(address account, address sender);
 
     /// @notice Returns max assets that can currently be claimed for `controller`.
@@ -120,7 +127,7 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
     function withdraw(uint256 assets, address receiver, address controller)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -171,7 +178,7 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
     function redeem(uint256 shares, address receiver, address controller)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)
@@ -193,6 +200,9 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
 
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         _sourceStrategyLiquidity(grossAssets);
+        // Exact-share redeem claims settle at the post-sourcing price if strategy withdrawal
+        // reconciles live gains or losses into managed accounting during this call.
+        grossAssets = _convertToAssets(shares, Rounding.Down);
 
         uint256 availableIdleAssets =
             LibERC4626VaultStorage.layout().strategyDebt == 0 ? _idleAssetBalance() : _trackedIdleAssetBalance();

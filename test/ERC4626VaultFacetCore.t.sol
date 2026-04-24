@@ -11,11 +11,8 @@ import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC4626Vault} from "../src/vault/ERC4626Vault.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
-import {
-    ERC4626VaultFacetFixture,
-    ERC4626VaultFacetHarness,
-    RejectingNativeReceiver
-} from "./helpers/ERC4626VaultFacetTestHarness.sol";
+import {LibERC4626VaultStorage} from "../src/vault/storage/LibERC4626VaultStorage.sol";
+import {ERC4626VaultFacetFixture, RejectingNativeReceiver} from "./helpers/ERC4626VaultFacetTestHarness.sol";
 
 contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
     function testInitializeVaultSeedsMetadataAndControlPlane() public {
@@ -26,11 +23,44 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         assertTrue(keccak256(bytes(facet.name())) == keccak256(bytes("Vault Share")), "name mismatch");
         assertTrue(keccak256(bytes(facet.symbol())) == keccak256(bytes("vSHARE")), "symbol mismatch");
         assertTrue(facet.decimals() == 6, "decimals mismatch");
-        assertTrue(facet.feeRecipient() == admin, "fee recipient mismatch");
+        bytes32 feeWord = VM.load(address(facet), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT) + 7));
+        assertTrue(address(uint160(uint256(feeWord >> 32))) == admin, "fee recipient mismatch");
         assertTrue(facet.hasRole(facet.DEFAULT_ADMIN_ROLE(), admin), "missing default admin role");
         assertTrue(facet.hasRole(facet.PAUSER_ROLE(), admin), "missing pauser role");
         assertTrue(facet.hasRole(facet.VAULT_MANAGER_ROLE(), admin), "missing vault manager role");
         assertFalse(facet.reentrancyGuardEntered(), "reentrancy guard should be idle");
+    }
+
+    function testVaultStorageSlotAndPackedLayoutRemainFrozen() public {
+        assertTrue(
+            LibERC4626VaultStorage.STORAGE_SLOT == keccak256("auralis.erc4626-vault.storage"),
+            "vault storage slot mismatch"
+        );
+
+        _initializeHostedVault(address(facet));
+
+        uint256 packedSlot0 = uint256(VM.load(address(facet), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT))));
+        uint256 expectedPackedSlot0 =
+            1 | (uint256(1) << 8) | (uint256(uint160(address(asset))) << 16) | (uint256(facet.decimals()) << 176);
+
+        assertTrue(packedSlot0 == expectedPackedSlot0, "packed vault slot 0 mismatch");
+
+        _approveAsset(bob, address(facet), 100);
+        VM.prank(bob);
+        facet.deposit(40, bob);
+
+        assertTrue(
+            VM.load(address(facet), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT) + 6))
+                == bytes32(facet.totalManagedAssets()),
+            "totalManagedAssets slot mismatch"
+        );
+    }
+
+    function testStandaloneFacetInitializationRemainsAvailableWithoutDiamondOwner() public {
+        _initializeHostedVault(address(facet));
+
+        assertTrue(facet.isVaultInitialized(), "standalone vault facet should initialize");
+        assertTrue(facet.hasRole(facet.DEFAULT_ADMIN_ROLE(), admin), "standalone vault facet should seed admin role");
     }
 
     function testInitializeVaultRevertsOnZeroAsset() public {
@@ -125,9 +155,9 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
         VM.prank(bob);
         facet.approve(eve, 15);
         VM.prank(eve);
-        facet.transferFrom(bob, admin, 10);
+        assertTrue(facet.transferFrom(bob, admin, 10), "transferFrom should succeed");
         VM.prank(bob);
-        facet.transfer(admin, 5);
+        assertTrue(facet.transfer(admin, 5), "transfer should succeed");
 
         assertTrue(facet.allowance(bob, eve) == 5, "allowance mismatch");
         assertTrue(facet.balanceOf(bob) == 25, "bob share balance mismatch");
@@ -136,7 +166,7 @@ contract ERC4626VaultFacetCoreTest is ERC4626VaultFacetFixture {
 
     function testReentrantAttemptDuringDepositIsBlocked() public {
         _initializeHostedVault(address(facet));
-        bytes memory payload = abi.encodeCall(ERC4626VaultFacetHarness.probeNonReentrant, ());
+        bytes memory payload = abi.encodeCall(ERC4626Vault.withdraw, (1, bob, bob));
         asset.configureReentry(address(facet), payload, true);
 
         _approveAsset(bob, address(facet), 100);

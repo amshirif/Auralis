@@ -10,12 +10,31 @@ import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
+import {LibDiamond} from "../src/diamond/libraries/LibDiamond.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {DiamondNativeVaultHostHardeningFixture} from "./helpers/DiamondNativeVaultHostHardeningTestHarness.sol";
 import {IFacetVersionMarker} from "./helpers/DiamondVaultHostHardeningTestHarness.sol";
 
 contract DiamondNativeVaultHostHardeningTest is DiamondNativeVaultHostHardeningFixture {
+    function testNativeHostedVaultBootstrapRequiresDiamondOwnerBeforeSharedRbacExists() public {
+        _installNativeVaultHostFacets();
+
+        VM.prank(eve);
+        VM.expectRevert(abi.encodeWithSelector(LibDiamond.DiamondUnauthorized.selector, eve, admin));
+        coreFacetInterface().initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Native Vault Share", "nvSHARE", eve);
+
+        VM.prank(admin);
+        coreFacetInterface()
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Native Vault Share", "nvSHARE", admin);
+
+        assertTrue(coreFacetInterface().isVaultInitialized(), "native vault host should initialize");
+        assertTrue(
+            controlsFacetInterface().hasRole(controlsFacetInterface().DEFAULT_ADMIN_ROLE(), admin),
+            "native vault owner should receive admin role"
+        );
+    }
+
     function testNativeCoreFacetReplaceRemoveReAddPreservesState() public {
         _installAndSeedNativeVaultHost();
         _injectStrategyProfit(STRATEGY_PROFIT_ASSETS);
@@ -23,12 +42,12 @@ contract DiamondNativeVaultHostHardeningTest is DiamondNativeVaultHostHardeningF
         StrategyStateSnapshot memory initialState = _snapshotStrategyState();
 
         _replaceCoreFacet(address(coreReplacement));
-        _addCoreReplacementMarker(address(coreReplacement));
+        _addCoreReplacementMarker();
 
         _assertSelectorsOwnedByFacet(LibVaultFacetSelectors.vaultCoreSelectors(), address(coreReplacement));
         assertTrue(
             IDiamondLoupe(address(diamond)).facetAddress(IFacetVersionMarker.facetVersion.selector)
-                == address(coreReplacement),
+                == address(coreMarker),
             "core marker owner mismatch"
         );
         assertTrue(IFacetVersionMarker(address(diamond)).facetVersion() == 2, "core replacement marker mismatch");

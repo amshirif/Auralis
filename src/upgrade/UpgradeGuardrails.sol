@@ -7,8 +7,8 @@ import {IUpgradeGuardrails} from "../interfaces/IUpgradeGuardrails.sol";
 import {LibUpgradeGuardrailsStorage} from "./storage/LibUpgradeGuardrailsStorage.sol";
 
 /// @title UpgradeGuardrails
-/// @notice Role-gated queue/execute upgrade guard rails with optional timelock.
-/// @dev Uses `UPGRADER_ROLE` and diamond-ready storage.
+/// @notice Opt-in role-gated queue/execute upgrade guard rails with optional timelock.
+/// @dev Uses `UPGRADER_ROLE` and namespaced storage; deployments must implement their own `_applyUpgrade` hook.
 abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
     /// @notice Role required to queue, cancel, and execute upgrades.
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
@@ -37,7 +37,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
     /// @notice Queues an upgrade intent.
     /// @dev Caller must have `UPGRADER_ROLE`.
     /// @param implementation The new implementation address.
-    function queueUpgradeIntent(address implementation) public onlyRole(UPGRADER_ROLE) {
+    function queueUpgradeIntent(address implementation) external onlyRole(UPGRADER_ROLE) {
         _requireNonZeroImplementation(implementation);
         uint64 executeAfter = uint64(block.timestamp) + minUpgradeDelay();
 
@@ -51,7 +51,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
 
     /// @notice Cancels the currently queued upgrade intent.
     /// @dev Caller must have `UPGRADER_ROLE`.
-    function cancelUpgradeIntent() public onlyRole(UPGRADER_ROLE) {
+    function cancelUpgradeIntent() external onlyRole(UPGRADER_ROLE) {
         LibUpgradeGuardrailsStorage.UpgradeIntent storage intent = LibUpgradeGuardrailsStorage.layout().intent;
         if (!intent.exists) {
             revert UpgradeGuardrailsNoUpgradeIntent();
@@ -65,7 +65,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
     /// @notice Executes a queued upgrade after guardrail checks.
     /// @dev Caller must have `UPGRADER_ROLE`.
     /// @param implementation The queued implementation address.
-    function executeUpgrade(address implementation) public onlyRole(UPGRADER_ROLE) {
+    function executeUpgrade(address implementation) external onlyRole(UPGRADER_ROLE) {
         _requireNonZeroImplementation(implementation);
         LibUpgradeGuardrailsStorage.UpgradeIntent storage intent = LibUpgradeGuardrailsStorage.layout().intent;
         if (!intent.exists) {
@@ -93,7 +93,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
             || super.supportsInterface(interfaceId);
     }
 
-    /// @dev Initializes upgrade guardrails storage (diamond-ready).
+    /// @dev Initializes upgrade guardrails storage for an opt-in deployment.
     /// @param initialUpgrader The account to receive `UPGRADER_ROLE`.
     /// @param minDelaySeconds The minimum delay between queue and execute.
     function _initializeUpgradeGuardrails(address initialUpgrader, uint64 minDelaySeconds) internal {

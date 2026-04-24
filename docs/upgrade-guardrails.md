@@ -1,7 +1,13 @@
 # Upgrade Guardrails
 
-This module adds role-gated controls for upgrade operations with queue/execute
-guardrails and an optional timelock.
+This module adds standalone, opt-in role-gated controls for implementation-style
+upgrade operations with queue/execute guardrails and an optional timelock.
+
+`UpgradeGuardrails` is not wired into the repository's current diamond hosts.
+Current diamond selector upgrades are executed through
+`DiamondCutFacet.diamondCut(...)` and `LibDiamond.diamondCut(...)`; they do not
+call this module unless a future deployment explicitly adds a guardrail
+controller.
 
 ## Usage
 
@@ -21,16 +27,23 @@ guardrails and an optional timelock.
 - When `minUpgradeDelay == 0`, queue and execute can happen immediately.
 - Intent is cleared on cancel and after successful execution.
 
-## Diamond-Ready Usage
+## Opt-In Usage
 
-When used behind a diamond proxy, call the internal initializer from a facet or
-init contract:
+When a deployment chooses to use this module, inherit from `UpgradeGuardrails`,
+call the internal initializer from a constructor, facet, or init contract, and
+implement `_applyUpgrade(address)` for that deployment's own upgrade primitive:
 
 ```solidity
 function initUpgradeGuardrails(address initialUpgrader, uint64 minDelaySeconds) external {
     _initializeUpgradeGuardrails(initialUpgrader, minDelaySeconds);
 }
 ```
+
+No concrete diamond-cut subclass exists in this repository today. The current
+diamond cut payload shape includes `FacetCut[]`, an init target, and init
+calldata, while this module queues only an implementation address. A future
+diamond integration should define explicit queued cut-payload or cut-hash
+semantics before wiring this module into `diamondCut`.
 
 ## Example
 
@@ -39,8 +52,7 @@ contract MyUpgradeController is UpgradeGuardrails {
     constructor(address admin, uint64 delay) UpgradeGuardrails(admin, delay) {}
 
     function _applyUpgrade(address implementation) internal override {
-        // call proxy/diamond upgrade primitive here
+        // call this deployment's upgrade primitive here
     }
 }
 ```
-

@@ -147,24 +147,39 @@ The hosted vault uses one initializer on the core facet only.
 Initialization sequence:
 
 1. Install loupe selectors.
-2. Install the core, controls, and integration selector groups.
-3. For async ERC-20 hosts, also install the async request selector groups.
-4. For native mode, also install the native selector group.
-5. Call
+2. Build the hosted selector cut for the core, controls, and integration
+   groups.
+3. For async ERC-20 hosts, also include the async request selector groups in
+   the same cut.
+4. For native mode, also include the native selector group in the same cut.
+5. Execute the cut with the core facet as the init target so
    `initializeVault(address vaultAsset, string vaultName, string vaultSymbol, address admin)`
-   through the diamond.
+   runs atomically during `diamondCut(..., init, initCalldata)`.
 6. Call `setOracleAdapter(address newAdapter)` through the integration facet.
 7. Call `setStrategy(address newStrategy)` through the integration facet.
+
+Under atomic cut+init, the initializer runs via delegatecall with `msg.sender`
+preserved as the `diamondCut` caller, which is already the diamond owner.
 
 Initialization behavior:
 
 - `initializeVault(...)` initializes vault storage and shared control storage.
+- first hosted initialization on an uninitialized diamond is restricted to the
+  current diamond owner.
 - `DEFAULT_ADMIN_ROLE`, `PAUSER_ROLE`, and `VAULT_MANAGER_ROLE` are granted to
   `admin`.
 - `feeRecipient` defaults to `admin` at initialization.
 - `ERC4626VaultControlsFacet` has no independent initializer.
 - `ERC4626VaultIntegrationFacet` has no independent initializer.
 - a second call to `initializeVault(...)` reverts.
+
+Post-initialization configuration is role-gated through the initialized control
+plane. `setOracleAdapter(...)`, `setStrategy(...)`, strategy lifecycle calls,
+and async settlement require `VAULT_MANAGER_ROLE`; installing the integration
+selectors, or retaining diamond ownership by itself, is not enough to call
+those operations after initialization. The initialized `admin` receives that
+manager role by default and can delegate or revoke it through the shared access
+control surface.
 
 The local reference deployment in `script/DeployDiamondVaultHost.s.sol` wires a
 vault-bound, asset-bound strategy by default. It leaves the vault in a ready
@@ -177,9 +192,10 @@ state with:
 
 No funds are deployed to strategy during deployment.
 
-The native local reference deployment in `script/DeployDiamondNativeVaultHost.s.sol`
-uses the same init model, but passes the native asset sentinel as
-`vaultAsset` and installs the native selector group.
+The native local reference deployment in
+`script/DeployDiamondNativeVaultHost.s.sol` uses the same
+`initializeVault(...)` entrypoint, passes the native asset sentinel as
+`vaultAsset`, and installs the native selector group in the same atomic cut.
 
 ## Role Model And Pause Behavior
 
@@ -325,6 +341,18 @@ Live pricing:
 - hosted `totalAssets()` is priced as:
   `idleAssets() + liveStrategyAssets()`
 
+Trust boundary:
+
+- while `strategyDebt() != 0`, the bound strategy is a trusted accounting
+  module for live pricing
+- that trust is established when the account with `VAULT_MANAGER_ROLE` binds or
+  keeps a strategy active
+- inflated, stale, or otherwise incorrect strategy totals intentionally affect
+  hosted pricing and previews until a manager action reconciles or removes the
+  strategy
+- if the strategy's `totalAssets()` reverts, hosted live-priced reads are
+  expected to revert rather than silently fall back to stored debt
+
 Operationally:
 
 - after deploys, book value stays constant and debt increases
@@ -336,6 +364,13 @@ Operationally:
 
 This means the hosted vault uses live strategy pricing for ERC-4626 conversions
 while still keeping explicit book accounting for deployed debt.
+
+Reference pricing coverage:
+
+- `testDirectStrategyProfitMakesPricingMarkToMarketAndExtendsLiquidity()` in
+  `test/ERC4626VaultStrategyAccountingCore.t.sol`
+- `testDirectStrategyLossMovesPricingDownwardAndCapsLiquidityByWithdrawableAssets()`
+  in `test/ERC4626VaultStrategyAccountingCore.t.sol`
 
 ## Async Request Model
 
@@ -379,12 +414,17 @@ Native hosted vaults use the ERC-7535-style entry surface for asset-in flows.
 - caller sends raw native asset as `msg.value`
 - shares are minted from the same fee/limit/pause logic used by hosted
   `deposit`
+- share pricing uses the same live strategy-aware accounting as the hosted
+  ERC-4626 core facet, so active strategy debt prices native deposits from
+  tracked idle assets plus the strategy's `totalAssets()`
 - the vault asset remains the sentinel address, not wrapped native token state
 
 #### `mintNative(shares, receiver)`
 
 - caller requests exact `shares`
 - the vault computes the gross native assets required under current fee logic
+- the gross native asset requirement uses the same live strategy-aware pricing
+  as hosted ERC-4626 `mint`
 - `msg.value` must equal that required gross amount exactly
 - underpayment reverts
 - overpayment also reverts
@@ -400,12 +440,15 @@ Native hosted vaults use the ERC-7535-style entry surface for asset-in flows.
 ## Native-Asset Accounting And Safety Assumptions
 
 Hosted native vaults still use tracked managed assets rather than raw
-`address(this).balance`.
+`address(this).balance`. Force-sent ETH is untracked surplus, not managed vault
+capital.
 
 Implications:
-- force-sent ETH does not increase `totalManagedAssets()`
-- force-sent ETH does not increase share price through `totalAssets()` pricing
-- force-sent ETH does not increase hosted `maxWithdraw()` or `maxRedeem()`
+- force-sent ETH does not change `totalManagedAssets()`
+- force-sent ETH does not change `totalAssets()` pricing, conversions,
+  previews, or share issuance
+- force-sent ETH does not increase hosted `maxDeposit()`, `maxMint()`,
+  `maxWithdraw()`, or `maxRedeem()`
 - if a native exit is satisfied partly or fully from untracked force-sent ETH,
   book accounting only burns the tracked portion of assets
 
@@ -416,12 +459,18 @@ This is an explicit safety choice:
 - the vault does not attempt to reconcile unsolicited ETH into strategy debt or
   book value automatically
 
+This follows ADR 0005 (`docs/adr/0005-exclude-force-sent-eth.md`) and is
+covered by `test/DiamondNativeVaultHostHardening.t.sol` and
+`test/DiamondNativeVaultHostInvariant.t.sol`.
+
 `withdraw(assets)` and `redeem(shares)` remain core-facet entrypoints, but they
 are strategy-aware.
 
 ### `withdraw(assets)`
 
 - exact-assets semantics are preserved
+- withdraw fees use the same gross-asset fee basis as `redeem(shares)`, so the
+  exact-assets gross-up is inverse with redeem's net-from-gross calculation
 - if idle vault assets are insufficient, the core facet automatically pulls
   immediately withdrawable strategy liquidity
 - if the requested assets still cannot be sourced after realizing any loss, the
@@ -430,17 +479,28 @@ are strategy-aware.
 ### `redeem(shares)`
 
 - exact-shares semantics are preserved
-- the vault burns the requested shares and returns the current post-loss asset
-  value of those shares
 - if strategy liquidity must be sourced first, the vault pulls it before final
   asset calculation and transfer
+- the vault burns the requested shares and returns the post-sourcing asset value
+  of those shares after any strategy gain/loss reconciliation performed during
+  the call
+- withdraw fees are deducted from the gross asset value, matching the
+  exact-withdraw fee basis
+- `previewRedeem()` remains a pre-call quote; actual `redeem()` output can
+  differ if liquidity sourcing changes strategy accounting in the transaction
 
 ### `max*` Helpers
 
 - `maxDeposit()` and `maxMint()` remain strategy-aware through live `totalAssets()`
   pricing and limit shaping
-- `maxWithdraw()` and `maxRedeem()` are bounded by immediate liquidity, not by
-  total mark-to-market assets alone
+- on the sync ERC-4626 surface, `maxWithdraw()` and `maxRedeem()` remain
+  live-priced entitlement views, then cap that entitlement by
+  `_withdrawLiquidityCapAssets()`
+- when strategy debt is active, that view-layer cap consults live strategy
+  withdrawable assets and can revert if the strategy's `totalAssets()` quote
+  reverts
+- the same immediate-liquidity sourcing boundary is enforced during actual sync
+  `withdraw()` / `redeem()` execution
 - in native mode, immediate liquidity excludes untracked force-sent ETH above
   tracked idle assets
 - `maxWithdraw()` and `maxRedeem()` are zero when `totalAssets() == 0`, even if
@@ -472,11 +532,22 @@ One important implication:
 
 Hosted vault state lives in the diamond, not in facet bytecode.
 
-Supported replace/remove/re-add flows assume:
+Supported replace/remove/re-add flows are limited to vaults created on the
+current `auralis.*` storage namespace baseline:
 
-- replacement facets preserve the same storage layout
+- `LibERC4626VaultStorage` remains on
+  `keccak256("auralis.erc4626-vault.storage")`
+- `LibAccessControlStorage` remains on
+  `keccak256("auralis.access-control.storage")`
+- replacement facets preserve that same namespace and an append-only storage
+  layout
 - selectors are restored before the corresponding surface is expected to route
 - no re-initialization is performed during upgrades
+
+Older pre-public deployments created before the namespace rename from
+`smart-contracts.*` to `auralis.*` are not claimed as in-place upgrade
+compatible. If they ever matter, they require redeploy or explicit migration
+work rather than a same-address facet replacement.
 
 Current hardening coverage explicitly validates persistence for:
 
@@ -484,6 +555,14 @@ Current hardening coverage explicitly validates persistence for:
 - fee config, limit config, roles, role windows, and pause state
 - oracle adapter, strategy address, strategy debt, live strategy assets, and
   emergency-exit state
+
+Those persistence checks validate same-namespace replace/remove/re-add flows on
+the current baseline. They do not validate storage migration across renamed
+slot namespaces.
+
+This compatibility statement is only being frozen here for vault and
+access-control storage. Other renamed storage libraries remain separate
+follow-up work.
 
 ## Deployment References
 

@@ -94,6 +94,7 @@ contract DiamondErc20HostInvariantTest is DiamondTokenHostHardeningFixture {
             AccountingSnapshot memory snapshot = _snapshotAccounting();
             VM.startPrank(from);
             VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, transferScope));
+            // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
             token.transfer(to, value);
             VM.stopPrank();
             _assertAccountingUnchanged(snapshot, "paused transfer should not mutate accounting");
@@ -101,7 +102,7 @@ contract DiamondErc20HostInvariantTest is DiamondTokenHostHardeningFixture {
         }
 
         VM.prank(from);
-        token.transfer(to, value);
+        assertTrue(token.transfer(to, value), "hosted transfer should succeed");
     }
 
     function actionTransferFrom(uint8 spenderSeed, uint8 ownerSeed, uint8 toSeed, uint96 valueRaw) external {
@@ -123,6 +124,7 @@ contract DiamondErc20HostInvariantTest is DiamondTokenHostHardeningFixture {
             AccountingSnapshot memory snapshot = _snapshotAccounting();
             VM.startPrank(spender);
             VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, expectedScope));
+            // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
             token.transferFrom(owner, to, value);
             VM.stopPrank();
             _assertAccountingUnchanged(snapshot, "paused transferFrom should not mutate accounting");
@@ -130,7 +132,7 @@ contract DiamondErc20HostInvariantTest is DiamondTokenHostHardeningFixture {
         }
 
         VM.prank(spender);
-        token.transferFrom(owner, to, value);
+        assertTrue(token.transferFrom(owner, to, value), "hosted transferFrom should succeed");
     }
 
     function actionMint(uint8 actorSeed, uint96 valueRaw) external {

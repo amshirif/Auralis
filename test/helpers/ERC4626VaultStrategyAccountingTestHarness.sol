@@ -5,7 +5,6 @@ import {DiamondCutFacet} from "../../src/diamond/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/diamond/facets/DiamondLoupeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC4626VaultFacet} from "../../src/interfaces/IERC4626VaultFacet.sol";
-import {IERC4626VaultIntegrationFacet} from "../../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC4626VaultStrategy} from "../../src/interfaces/IERC4626VaultStrategy.sol";
 import {ERC7535VaultFacet} from "../../src/vault/facets/ERC7535VaultFacet.sol";
 import {LibVaultAsset} from "../../src/vault/libraries/LibVaultAsset.sol";
@@ -19,18 +18,14 @@ import {ReentrantMockVaultAsset} from "./ERC4626VaultControlsTestHarness.sol";
 import {ERC4626VaultIntegrationFacetHarness} from "./ERC4626VaultIntegrationFacetTestHarness.sol";
 import {
     LossShortfallMockVaultStrategy,
+    LossOnWithdrawMockVaultStrategy,
     NativeLossShortfallMockVaultStrategy,
+    NativeLossOnWithdrawMockVaultStrategy,
     NativeProfitMockVaultStrategy,
-    ProfitMockVaultStrategy
+    NativeRevertingMockVaultStrategy,
+    ProfitMockVaultStrategy,
+    RevertingMockVaultStrategy
 } from "./ERC4626VaultStrategyTestHarness.sol";
-
-contract ERC4626VaultStrategyAccountingFacetHarness is ERC4626VaultFacet {
-    function setStrategyStateForTest(address strategy_, uint256 strategyDebt_) external {
-        LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
-        layout.strategy = strategy_;
-        layout.strategyDebt = strategyDebt_;
-    }
-}
 
 contract ERC4626VaultStrategyAccountingInitMock {
     function seedStrategyState(address strategy_, uint256 strategyDebt_) external {
@@ -50,7 +45,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     address internal eve = address(0xE11E);
 
     ReentrantMockVaultAsset internal asset;
-    ERC4626VaultStrategyAccountingFacetHarness internal facet;
+    ERC4626VaultFacet internal facet;
     ERC7535VaultFacet internal nativeFacet;
     ERC4626VaultControlsFacetHarness internal controlsFacet;
     ERC4626VaultIntegrationFacetHarness internal integrationFacet;
@@ -60,13 +55,19 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
     ERC4626VaultStrategyAccountingInitMock internal accountingInit;
     ProfitMockVaultStrategy internal directProfitStrategy;
     LossShortfallMockVaultStrategy internal directLossStrategy;
+    LossOnWithdrawMockVaultStrategy internal directLossOnWithdrawStrategy;
+    RevertingMockVaultStrategy internal directRevertingStrategy;
     ProfitMockVaultStrategy internal diamondProfitStrategy;
+    LossOnWithdrawMockVaultStrategy internal diamondLossOnWithdrawStrategy;
+    RevertingMockVaultStrategy internal diamondRevertingStrategy;
     NativeProfitMockVaultStrategy internal diamondNativeProfitStrategy;
     NativeLossShortfallMockVaultStrategy internal diamondNativeLossStrategy;
+    NativeLossOnWithdrawMockVaultStrategy internal diamondNativeLossOnWithdrawStrategy;
+    NativeRevertingMockVaultStrategy internal diamondNativeRevertingStrategy;
 
     function setUp() public virtual {
         asset = new ReentrantMockVaultAsset();
-        facet = new ERC4626VaultStrategyAccountingFacetHarness();
+        facet = new ERC4626VaultFacet();
         nativeFacet = new ERC7535VaultFacet();
         controlsFacet = new ERC4626VaultControlsFacetHarness();
         integrationFacet = new ERC4626VaultIntegrationFacetHarness();
@@ -76,9 +77,15 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         accountingInit = new ERC4626VaultStrategyAccountingInitMock();
         directProfitStrategy = new ProfitMockVaultStrategy(address(facet), address(asset));
         directLossStrategy = new LossShortfallMockVaultStrategy(address(facet), address(asset));
+        directLossOnWithdrawStrategy = new LossOnWithdrawMockVaultStrategy(address(facet), address(asset));
+        directRevertingStrategy = new RevertingMockVaultStrategy(address(facet), address(asset));
         diamondProfitStrategy = new ProfitMockVaultStrategy(address(diamond), address(asset));
+        diamondLossOnWithdrawStrategy = new LossOnWithdrawMockVaultStrategy(address(diamond), address(asset));
+        diamondRevertingStrategy = new RevertingMockVaultStrategy(address(diamond), address(asset));
         diamondNativeProfitStrategy = new NativeProfitMockVaultStrategy(address(diamond));
         diamondNativeLossStrategy = new NativeLossShortfallMockVaultStrategy(address(diamond));
+        diamondNativeLossOnWithdrawStrategy = new NativeLossOnWithdrawMockVaultStrategy(address(diamond));
+        diamondNativeRevertingStrategy = new NativeRevertingMockVaultStrategy(address(diamond));
 
         asset.mint(bob, INITIAL_ASSETS);
         asset.mint(eve, INITIAL_ASSETS);
@@ -99,6 +106,13 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         VM.prank(admin);
         IERC4626VaultFacet(address(diamond))
             .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+    }
+
+    function _setDirectStrategy(IERC4626VaultStrategy strategy_, uint256 strategyDebt_) internal {
+        bytes32 baseSlot = LibERC4626VaultStorage.STORAGE_SLOT;
+        VM.store(address(facet), bytes32(uint256(baseSlot) + 12), bytes32(uint256(uint160(address(strategy_)))));
+        VM.store(address(facet), bytes32(uint256(baseSlot) + 14), bytes32(strategyDebt_));
+        _simulateStrategyDeployment(address(facet), strategy_, strategyDebt_);
     }
 
     function _approveAsset(address owner, address spender, uint256 amount) internal {
@@ -122,7 +136,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         internal
     {
         VM.prank(vaultAccount);
-        asset.transfer(address(strategy_), assets_);
+        assertTrue(asset.transfer(address(strategy_), assets_), "strategy asset transfer should succeed");
 
         VM.prank(vaultAccount);
         strategy_.deployFunds(assets_);

@@ -11,9 +11,58 @@ import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
+import {LibERC4626VaultStorage} from "../src/vault/storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultIntegrationFacetFixture} from "./helpers/ERC4626VaultIntegrationFacetTestHarness.sol";
 
 contract ERC4626VaultIntegrationFacetCoreTest is ERC4626VaultIntegrationFacetFixture {
+    function testDirectIntegrationFacetStorageLayoutRemainsFrozen() public {
+        _initializeDirectIntegrationFacet();
+
+        bytes32 baseSlot = LibERC4626VaultStorage.STORAGE_SLOT;
+
+        VM.prank(admin);
+        integrationFacet.setOracleAdapter(address(adapter));
+        assertTrue(
+            VM.load(address(integrationFacet), bytes32(uint256(baseSlot) + 11))
+                == bytes32(uint256(uint160(address(adapter)))),
+            "oracleAdapter slot mismatch"
+        );
+
+        VM.prank(admin);
+        integrationFacet.setStrategy(address(directProfitStrategy));
+        assertTrue(
+            VM.load(address(integrationFacet), bytes32(uint256(baseSlot) + 12))
+                == bytes32(uint256(uint160(address(directProfitStrategy)))),
+            "strategy slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(integrationFacet), bytes32(uint256(baseSlot) + 13)) == bytes32(0),
+            "strategyReportedAssets slot mismatch"
+        );
+        assertTrue(
+            VM.load(address(integrationFacet), bytes32(uint256(baseSlot) + 15)) == bytes32(0),
+            "strategyEmergencyExit initial slot mismatch"
+        );
+
+        _approveAsset(bob, address(integrationFacet), 100);
+        VM.prank(bob);
+        integrationFacet.deposit(100, bob);
+
+        VM.prank(admin);
+        integrationFacet.deployToStrategy(40);
+        assertTrue(
+            VM.load(address(integrationFacet), bytes32(uint256(baseSlot) + 14)) == bytes32(uint256(40)),
+            "strategyDebt slot mismatch"
+        );
+
+        VM.prank(admin);
+        integrationFacet.emergencyExitStrategy();
+        assertTrue(
+            uint256(VM.load(address(integrationFacet), bytes32(uint256(baseSlot) + 15))) & 0xff == 1,
+            "strategyEmergencyExit slot mismatch"
+        );
+    }
+
     function testDirectIntegrationFacetRequiresManagerForConfigAndLifecycle() public {
         _initializeDirectIntegrationFacet();
         _approveAsset(bob, address(integrationFacet), 100);

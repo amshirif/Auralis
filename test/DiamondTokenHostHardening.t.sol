@@ -10,12 +10,48 @@ import {IERC721Metadata} from "../src/interfaces/IERC721Metadata.sol";
 import {IERC20TokenFacet} from "../src/interfaces/IERC20TokenFacet.sol";
 import {IERC721TokenFacet} from "../src/interfaces/IERC721TokenFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
+import {LibDiamond} from "../src/diamond/libraries/LibDiamond.sol";
 import {
     DiamondTokenHostHardeningFixture,
     IFacetVersionMarker
 } from "./helpers/DiamondTokenHostHardeningTestHarness.sol";
 
 contract DiamondTokenHostHardeningTest is DiamondTokenHostHardeningFixture {
+    function testErc20HostedBootstrapRequiresDiamondOwnerBeforeSharedRbacExists() public {
+        _installErc20HostFacet(address(erc20Facet));
+
+        VM.prank(eve);
+        VM.expectRevert(abi.encodeWithSelector(LibDiamond.DiamondUnauthorized.selector, eve, admin));
+        IERC20TokenFacet(address(diamond)).initializeErc20("Facet Token", "FTKN", 18, eve);
+
+        VM.prank(admin);
+        IERC20TokenFacet(address(diamond)).initializeErc20("Facet Token", "FTKN", 18, admin);
+
+        assertTrue(IERC20TokenFacet(address(diamond)).isErc20Initialized(), "erc20 host should initialize");
+        assertTrue(
+            IERC20TokenFacet(address(diamond)).hasRole(IERC20TokenFacet(address(diamond)).DEFAULT_ADMIN_ROLE(), admin),
+            "erc20 host owner should receive admin role"
+        );
+    }
+
+    function testErc721HostedBootstrapRequiresDiamondOwnerBeforeSharedRbacExists() public {
+        _installErc721HostFacet(address(erc721Facet));
+
+        VM.prank(eve);
+        VM.expectRevert(abi.encodeWithSelector(LibDiamond.DiamondUnauthorized.selector, eve, admin));
+        IERC721TokenFacet(address(diamond)).initializeErc721("Facet NFT", "FNFT", "ipfs://facet/", eve);
+
+        VM.prank(admin);
+        IERC721TokenFacet(address(diamond)).initializeErc721("Facet NFT", "FNFT", "ipfs://facet/", admin);
+
+        assertTrue(IERC721TokenFacet(address(diamond)).isErc721Initialized(), "erc721 host should initialize");
+        assertTrue(
+            IERC721TokenFacet(address(diamond))
+                .hasRole(IERC721TokenFacet(address(diamond)).DEFAULT_ADMIN_ROLE(), admin),
+            "erc721 host owner should receive admin role"
+        );
+    }
+
     function testErc20HostReplaceRemoveAndReAddPreservesState() public {
         _installErc20HostFacet(address(erc20Facet));
         _erc20InitDiamond();

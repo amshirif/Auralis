@@ -7,6 +7,7 @@ import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../src/interfaces/IERC7540Redeem.sol";
@@ -14,6 +15,11 @@ import {IERC7540VaultSettlementFacet} from "../src/interfaces/IERC7540VaultSettl
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC7540VaultRedeemFacet} from "../src/vault/facets/ERC7540VaultRedeemFacet.sol";
 import {ERC4626VaultFacetFixture} from "./helpers/ERC4626VaultFacetTestHarness.sol";
+import {
+    LossOnWithdrawMockVaultStrategy,
+    MockVaultStrategyForcedRevert,
+    RevertingMockVaultStrategy
+} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
     function _initializeDiamondFullAsyncVault() internal {
@@ -113,6 +119,130 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
         assertTrue(IERC4626(address(diamond)).balanceOf(address(diamond)) == 15, "escrow share balance mismatch");
         assertTrue(IERC4626(address(diamond)).totalSupply() == 55, "share supply mismatch");
         assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 25, "receiver asset balance mismatch");
+    }
+
+    function testAsyncWithdrawAndRedeemUseSameGrossFeeBasisForNonRoundFees() public {
+        _initializeDiamondFullAsyncVault();
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(0, 3_333, admin);
+
+        _seedClaimedShares(bob, 100);
+        _seedClaimedShares(eve, 100);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(100, bob, bob);
+        _settleRedeem(bob, 100);
+
+        VM.prank(eve);
+        IERC7540Redeem(address(diamond)).requestRedeem(100, eve, eve);
+        _settleRedeem(eve, 100);
+
+        assertTrue(IERC4626(address(diamond)).maxWithdraw(bob) == 67, "async maxWithdraw mismatch");
+        assertTrue(IERC4626(address(diamond)).maxRedeem(bob) == 100, "async maxRedeem mismatch");
+
+        uint256 bobAssetsBefore = asset.balanceOf(bob);
+        uint256 eveAssetsBefore = asset.balanceOf(eve);
+
+        VM.prank(bob);
+        uint256 withdrawnShares = IERC4626(address(diamond)).withdraw(67, bob, bob);
+        VM.prank(eve);
+        uint256 redeemedAssets = IERC4626(address(diamond)).redeem(100, eve, eve);
+
+        assertTrue(withdrawnShares == 100, "async withdraw should burn all claimable shares");
+        assertTrue(redeemedAssets == 67, "async redeem should return same net assets");
+        assertTrue(asset.balanceOf(bob) == bobAssetsBefore + 67, "async withdraw receiver balance mismatch");
+        assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 67, "async redeem receiver balance mismatch");
+        assertTrue(asset.balanceOf(admin) == 66, "async fee recipient balance mismatch");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 0, "bob claimable mismatch");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, eve) == 0, "eve claimable mismatch");
+    }
+
+    function testAsyncRedeemRepricesAfterWithdrawalTimeLoss() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 100);
+
+        LossOnWithdrawMockVaultStrategy lossStrategy =
+            new LossOnWithdrawMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(lossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        lossStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(50, bob, bob);
+        _settleRedeem(bob, 50);
+
+        uint256 eveAssetsBefore = asset.balanceOf(eve);
+
+        VM.prank(bob);
+        uint256 assets = IERC4626(address(diamond)).redeem(50, eve, bob);
+
+        assertTrue(assets == 40, "async redeem should settle at post-loss share value");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 0, "claimable should clear");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 40, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 40, "total assets mismatch");
+        assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 40, "receiver asset balance mismatch");
+    }
+
+    function testAsyncWithdrawBurnsPostSourcingSharesAfterWithdrawalTimeLoss() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 100);
+
+        LossOnWithdrawMockVaultStrategy lossStrategy =
+            new LossOnWithdrawMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(lossStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(60);
+        lossStrategy.setLossOnNextWithdraw(20);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(100, bob, bob);
+        _settleRedeem(bob, 100);
+
+        uint256 eveAssetsBefore = asset.balanceOf(eve);
+
+        VM.prank(bob);
+        uint256 shares = IERC4626(address(diamond)).withdraw(50, eve, bob);
+
+        assertTrue(shares == 63, "async withdraw should burn post-loss priced shares");
+        assertTrue(shares > 50, "async withdraw should burn more than stale pre-loss pricing");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 37, "claimable mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalManagedAssets() == 30, "managed assets mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 30, "total assets mismatch");
+        assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 50, "receiver asset balance mismatch");
+    }
+
+    function testAsyncRedeemMaxReadsInheritStrategyPricingRevert() public {
+        _initializeDiamondFullAsyncVault();
+        _seedClaimedShares(bob, 80);
+
+        RevertingMockVaultStrategy revertingStrategy = new RevertingMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(revertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(40);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(40, bob, bob);
+        _settleRedeem(bob, 25);
+
+        revertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.totalAssets.selector)
+        );
+        IERC4626(address(diamond)).maxWithdraw(bob);
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.totalAssets.selector)
+        );
+        IERC4626(address(diamond)).maxRedeem(bob);
     }
 
     function testOnlyManagerCanSettleAsyncRedeemRequests() public {

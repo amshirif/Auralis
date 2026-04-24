@@ -15,6 +15,7 @@ import {IPausable} from "../src/interfaces/IPausable.sol";
 import {IReentrancyGuard} from "../src/interfaces/IReentrancyGuard.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {LibVaultAsset} from "../src/vault/libraries/LibVaultAsset.sol";
+import {LibERC4626VaultStorage} from "../src/vault/storage/LibERC4626VaultStorage.sol";
 import {ERC4626VaultControlsFacetFixture} from "./helpers/ERC4626VaultControlsFacetTestHarness.sol";
 
 contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
@@ -68,6 +69,34 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         assertTrue(maxMint == 300, "max mint not updated");
         assertTrue(maxWithdraw == 200, "max withdraw not updated");
         assertTrue(maxRedeem == 100, "max redeem not updated");
+    }
+
+    function testDirectControlsFacetStorageLayoutRemainsFrozenForFeesAndLimits() public {
+        _initializeDirectControlsFacet();
+
+        VM.prank(admin);
+        controlsFacet.setFeeConfig(500, 250, eve);
+        VM.prank(admin);
+        controlsFacet.setLimitConfig(1_000, 500, 300, 200, 100);
+
+        bytes32 baseSlot = LibERC4626VaultStorage.STORAGE_SLOT;
+
+        uint256 feeSlot = uint256(VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 7)));
+        uint256 expectedFeeSlot = uint256(500) | (uint256(250) << 16) | (uint256(uint160(eve)) << 32);
+        assertTrue(feeSlot == expectedFeeSlot, "fee config slot mismatch");
+
+        uint256 limitSlot0 = uint256(VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 8)));
+        uint256 expectedLimitSlot0 = uint256(uint128(1_000)) | (uint256(uint128(500)) << 128);
+        assertTrue(limitSlot0 == expectedLimitSlot0, "limit config slot 0 mismatch");
+
+        uint256 limitSlot1 = uint256(VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 9)));
+        uint256 expectedLimitSlot1 = uint256(uint128(300)) | (uint256(uint128(200)) << 128);
+        assertTrue(limitSlot1 == expectedLimitSlot1, "limit config slot 1 mismatch");
+
+        assertTrue(
+            VM.load(address(controlsFacet), bytes32(uint256(baseSlot) + 10)) == bytes32(uint256(100)),
+            "limit config slot 2 mismatch"
+        );
     }
 
     function testDirectControlsFacetRejectsInvalidFeeConfigAndNonManagerCalls() public {
@@ -203,6 +232,39 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         IERC4626VaultFacet(address(diamond)).redeem(21, bob, bob);
     }
 
+    function testDiamondWithdrawAndRedeemUseSameGrossFeeBasisForNonRoundFees() public {
+        _installHostedVaultFacetsToDiamond();
+        _initializeDiamondVault();
+        address carol = address(0xCA20);
+        asset.mint(carol, 100);
+        _approveAsset(bob, address(diamond), 100);
+        _approveAsset(carol, address(diamond), 100);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(0, 3_333, eve);
+
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).deposit(100, bob);
+        VM.prank(carol);
+        IERC4626VaultFacet(address(diamond)).deposit(100, carol);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 67, "maxWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100, "maxRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(67) == 100, "previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(100) == 67, "previewRedeem mismatch");
+
+        VM.prank(bob);
+        uint256 sharesBurned = IERC4626VaultFacet(address(diamond)).withdraw(67, bob, bob);
+        VM.prank(carol);
+        uint256 assetsOut = IERC4626VaultFacet(address(diamond)).redeem(100, carol, carol);
+
+        assertTrue(sharesBurned == 100, "withdraw should burn all owner shares");
+        assertTrue(assetsOut == 67, "redeem should return same net assets");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 0, "bob shares should be exhausted");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(carol) == 0, "carol shares should be exhausted");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 66, "fee recipient balance mismatch");
+    }
+
     function testDiamondGlobalPauseBlocksVaultEntrypointsButNotShareTokenFlows() public {
         _installHostedVaultFacetsToDiamond();
         _initializeDiamondVault();
@@ -238,9 +300,11 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         VM.prank(bob);
         IERC4626VaultFacet(address(diamond)).approve(eve, 15);
         VM.prank(eve);
-        IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10);
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10), "share transferFrom should succeed"
+        );
         VM.prank(bob);
-        IERC4626VaultFacet(address(diamond)).transfer(admin, 5);
+        assertTrue(IERC4626VaultFacet(address(diamond)).transfer(admin, 5), "share transfer should succeed");
 
         assertTrue(IERC4626VaultFacet(address(diamond)).allowance(bob, eve) == 5, "allowance mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 25, "bob balance mismatch");
@@ -335,6 +399,35 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         IERC4626VaultFacet(address(diamond)).redeem(21, bob, bob);
     }
 
+    function testDiamondNativeWithdrawUsesGrossFeeBasisForNonRoundFees() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(0, 3_333, eve);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 100}(bob);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 67, "native maxWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100, "native maxRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(67) == 100, "native previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(100) == 67, "native previewRedeem mismatch");
+
+        uint256 bobBalanceBefore = bob.balance;
+        VM.prank(bob);
+        uint256 sharesBurned = IERC4626VaultFacet(address(diamond)).withdraw(67, bob, bob);
+
+        assertTrue(sharesBurned == 100, "native withdraw should burn all shares");
+        assertTrue(bob.balance == bobBalanceBefore + 67, "native receiver balance mismatch");
+        assertTrue(eve.balance == 33, "native fee recipient balance mismatch");
+        assertTrue(address(diamond).balance == 0, "native vault balance should be exhausted");
+    }
+
     function testDiamondNativeGlobalPauseBlocksVaultEntrypointsButNotShareTokenFlows() public {
         _installHostedVaultNativeFacetsToDiamond();
 
@@ -373,9 +466,12 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         VM.prank(bob);
         IERC4626VaultFacet(address(diamond)).approve(eve, 15);
         VM.prank(eve);
-        IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10);
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10),
+            "native share transferFrom should succeed"
+        );
         VM.prank(bob);
-        IERC4626VaultFacet(address(diamond)).transfer(admin, 5);
+        assertTrue(IERC4626VaultFacet(address(diamond)).transfer(admin, 5), "native share transfer should succeed");
 
         assertTrue(IERC4626VaultFacet(address(diamond)).allowance(bob, eve) == 5, "native allowance mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 25, "native bob balance mismatch");

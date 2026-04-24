@@ -13,37 +13,93 @@ contract AMMRouter is IAMMRouter {
     uint256 internal constant FEE_DENOMINATOR = 1000;
     uint256 internal constant FEE_NUMERATOR = 997;
 
+    /// @notice Reverts when a required address is zero.
     error AMMRouterZeroAddress();
+    /// @notice Reverts when a deadline has expired.
+    /// @param deadline Supplied deadline.
+    /// @param currentTimestamp Current block timestamp.
     error AMMRouterExpired(uint256 deadline, uint256 currentTimestamp);
+    /// @notice Reverts when a swap path has fewer than two tokens.
     error AMMRouterInvalidPath();
+    /// @notice Reverts when a native route does not begin or end with the wrapped native token as required.
     error AMMRouterInvalidWrappedNativePath();
+    /// @notice Reverts when a native liquidity route uses the wrapped native token as the explicit token leg.
+    /// @param token Invalid explicit token.
     error AMMRouterInvalidWrappedNativeToken(address token);
+    /// @notice Reverts when both token inputs are identical.
     error AMMRouterIdenticalTokens();
+    /// @notice Reverts when a token input is the zero address.
     error AMMRouterZeroTokenAddress();
+    /// @notice Reverts when native value is sent by an account other than the wrapped native token.
+    /// @param sender Native sender.
     error AMMRouterInvalidNativeSender(address sender);
+    /// @notice Reverts when a required pair is unavailable.
+    /// @param tokenA First token in the pair.
+    /// @param tokenB Second token in the pair.
     error AMMRouterPairUnavailable(address tokenA, address tokenB);
+    /// @notice Reverts when a quoted amount is zero.
     error AMMRouterInsufficientAmount();
+    /// @notice Reverts when pair reserves cannot satisfy the quote.
     error AMMRouterInsufficientLiquidity();
+    /// @notice Reverts when the tokenA leg of an add-liquidity quote is below the caller minimum.
+    /// @param amountA Quoted tokenA amount.
+    /// @param minimumAmountA Minimum tokenA amount required.
     error AMMRouterInsufficientAAmount(uint256 amountA, uint256 minimumAmountA);
+    /// @notice Reverts when the tokenB leg of an add-liquidity quote is below the caller minimum.
+    /// @param amountB Quoted tokenB amount.
+    /// @param minimumAmountB Minimum tokenB amount required.
     error AMMRouterInsufficientBAmount(uint256 amountB, uint256 minimumAmountB);
+    /// @notice Reverts when final swap output is below the caller minimum.
+    /// @param amountOut Quoted output amount.
+    /// @param minimumAmountOut Minimum output required.
     error AMMRouterInsufficientOutputAmount(uint256 amountOut, uint256 minimumAmountOut);
+    /// @notice Reverts when required input exceeds the caller maximum.
+    /// @param amountIn Required input amount.
+    /// @param maximumAmountIn Maximum input allowed.
     error AMMRouterExcessiveInputAmount(uint256 amountIn, uint256 maximumAmountIn);
+    /// @notice Reverts when an ERC-20 transfer fails.
+    /// @param token Token being transferred.
+    /// @param to Transfer recipient.
+    /// @param value Transfer amount.
     error AMMRouterTransferFailed(address token, address to, uint256 value);
+    /// @notice Reverts when an ERC-20 transferFrom fails.
+    /// @param token Token being transferred.
+    /// @param from Transfer source.
+    /// @param to Transfer recipient.
+    /// @param value Transfer amount.
     error AMMRouterTransferFromFailed(address token, address from, address to, uint256 value);
+    /// @notice Reverts when wrapping native value fails.
+    /// @param value Native value that failed to wrap.
     error AMMRouterWrapFailed(uint256 value);
+    /// @notice Reverts when unwrapping wrapped native value fails.
+    /// @param value Wrapped native value that failed to unwrap.
     error AMMRouterUnwrapFailed(uint256 value);
+    /// @notice Reverts when sending native value fails.
+    /// @param to Native recipient.
+    /// @param value Native value.
     error AMMRouterNativeTransferFailed(address to, uint256 value);
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the IAMMRouter getter name.
     address public immutable override factory;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the IAMMRouter getter name.
     address public immutable override wrappedNative;
 
+    /// @notice Reverts after the caller-supplied deadline has expired.
+    /// @param deadline Latest acceptable block timestamp for the operation.
     modifier ensure(uint256 deadline) {
-        if (block.timestamp > deadline) {
-            revert AMMRouterExpired(deadline, block.timestamp);
-        }
+        _ensure(deadline);
         _;
     }
 
+    function _ensure(uint256 deadline) internal view {
+        if (block.timestamp > deadline) {
+            revert AMMRouterExpired(deadline, block.timestamp);
+        }
+    }
+
+    /// @notice Initializes router dependencies.
+    /// @param factory_ AMM factory address.
+    /// @param wrappedNative_ Wrapped native token address.
     constructor(address factory_, address wrappedNative_) {
         if (factory_ == address(0) || wrappedNative_ == address(0)) {
             revert AMMRouterZeroAddress();
@@ -53,12 +109,14 @@ contract AMMRouter is IAMMRouter {
         wrappedNative = wrappedNative_;
     }
 
+    /// @notice Accepts native assets only from the configured wrapped native token during unwraps.
     receive() external payable {
         if (msg.sender != wrappedNative) {
             revert AMMRouterInvalidNativeSender(msg.sender);
         }
     }
 
+    /// @inheritdoc IAMMRouter
     function quote(uint256 amountA, uint256 reserveA, uint256 reserveB) public pure override returns (uint256 amountB) {
         if (amountA == 0) {
             revert AMMRouterInsufficientAmount();
@@ -70,6 +128,7 @@ contract AMMRouter is IAMMRouter {
         amountB = (amountA * reserveB) / reserveA;
     }
 
+    /// @inheritdoc IAMMRouter
     function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
         public
         pure
@@ -87,6 +146,7 @@ contract AMMRouter is IAMMRouter {
         amountOut = (amountInWithFee * reserveOut) / ((reserveIn * FEE_DENOMINATOR) + amountInWithFee);
     }
 
+    /// @inheritdoc IAMMRouter
     function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut)
         public
         pure
@@ -105,6 +165,7 @@ contract AMMRouter is IAMMRouter {
         amountIn = (numerator / denominator) + 1;
     }
 
+    /// @inheritdoc IAMMRouter
     function getAmountsOut(uint256 amountIn, address[] calldata path)
         public
         view
@@ -122,6 +183,7 @@ contract AMMRouter is IAMMRouter {
         }
     }
 
+    /// @inheritdoc IAMMRouter
     function getAmountsIn(uint256 amountOut, address[] calldata path)
         public
         view
@@ -139,6 +201,7 @@ contract AMMRouter is IAMMRouter {
         }
     }
 
+    /// @inheritdoc IAMMRouter
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -159,6 +222,8 @@ contract AMMRouter is IAMMRouter {
         return (addAmountA, addAmountB, liquidity);
     }
 
+    /// @inheritdoc IAMMRouter
+    /// @dev The ERC-20 leg cannot be the configured wrapped native token; use the non-native liquidity path instead.
     function addLiquidityNative(
         address token,
         uint256 amountTokenDesired,
@@ -194,6 +259,7 @@ contract AMMRouter is IAMMRouter {
         return (addAmountToken, addAmountNative, liquidity);
     }
 
+    /// @inheritdoc IAMMRouter
     function removeLiquidity(
         address tokenA,
         address tokenB,
@@ -206,6 +272,8 @@ contract AMMRouter is IAMMRouter {
         return _removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to);
     }
 
+    /// @inheritdoc IAMMRouter
+    /// @dev The ERC-20 leg cannot be the configured wrapped native token; use the non-native liquidity path instead.
     function removeLiquidityNative(
         address token,
         uint256 liquidity,
@@ -226,6 +294,7 @@ contract AMMRouter is IAMMRouter {
         _safeTransferNative(to, amountNative);
     }
 
+    /// @inheritdoc IAMMRouter
     function removeLiquidityWithPermit(
         address tokenA,
         address tokenB,
@@ -243,6 +312,7 @@ contract AMMRouter is IAMMRouter {
         return removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to, deadline);
     }
 
+    /// @inheritdoc IAMMRouter
     function removeLiquidityNativeWithPermit(
         address token,
         uint256 liquidity,
@@ -259,6 +329,7 @@ contract AMMRouter is IAMMRouter {
         return removeLiquidityNative(token, liquidity, amountTokenMin, amountNativeMin, to, deadline);
     }
 
+    /// @inheritdoc IAMMRouter
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -276,6 +347,7 @@ contract AMMRouter is IAMMRouter {
         _swap(amounts, path, to);
     }
 
+    /// @inheritdoc IAMMRouter
     function swapTokensForExactTokens(
         uint256 amountOut,
         uint256 amountInMax,
@@ -293,6 +365,7 @@ contract AMMRouter is IAMMRouter {
         _swap(amounts, path, to);
     }
 
+    /// @inheritdoc IAMMRouter
     function swapExactNativeForTokens(uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)
         external
         payable
@@ -313,6 +386,7 @@ contract AMMRouter is IAMMRouter {
         _swap(amounts, path, to);
     }
 
+    /// @inheritdoc IAMMRouter
     function swapTokensForExactNative(
         uint256 amountOut,
         uint256 amountInMax,
@@ -335,6 +409,7 @@ contract AMMRouter is IAMMRouter {
         _safeTransferNative(to, amounts[amounts.length - 1]);
     }
 
+    /// @inheritdoc IAMMRouter
     function swapExactTokensForNative(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -357,6 +432,7 @@ contract AMMRouter is IAMMRouter {
         _safeTransferNative(to, finalAmountOut);
     }
 
+    /// @inheritdoc IAMMRouter
     function swapNativeForExactTokens(uint256 amountOut, address[] calldata path, address to, uint256 deadline)
         external
         payable

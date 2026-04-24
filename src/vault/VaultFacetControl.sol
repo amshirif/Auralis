@@ -62,24 +62,29 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         _;
     }
 
+    /// @inheritdoc IAccessControl
     function hasRole(bytes32 role, address account) public view returns (bool) {
         return LibAccessControlStorage.layout().roles[role].members[account];
     }
 
+    /// @inheritdoc IAccessControl
     function getRoleAdmin(bytes32 role) public view returns (bytes32) {
         return LibAccessControlStorage.layout().roles[role].adminRole;
     }
 
     /// @notice Role that can manage vault fees and limits.
     /// @return The vault manager role identifier.
+    // forge-lint: disable-next-line(mixed-case-function) -- public role getter name is selector-stable.
     function VAULT_MANAGER_ROLE() public pure virtual returns (bytes32) {
         return VAULT_MANAGER_ROLE_VALUE;
     }
 
+    /// @inheritdoc IAccessControl
     function grantRole(bytes32 role, address account) public onlyRole(getRoleAdmin(role)) {
         _grantRole(role, account);
     }
 
+    /// @inheritdoc IAccessControlTime
     function grantRoleWithWindow(bytes32 role, address account, uint64 start, uint64 end)
         public
         onlyRole(getRoleAdmin(role))
@@ -88,10 +93,12 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         _setRoleWindow(role, account, start, end, msg.sender);
     }
 
+    /// @inheritdoc IAccessControl
     function revokeRole(bytes32 role, address account) public onlyRole(getRoleAdmin(role)) {
         _revokeRole(role, account);
     }
 
+    /// @inheritdoc IAccessControl
     function renounceRole(bytes32 role, address account) public {
         if (account != msg.sender) {
             revert AccessControlRenounceSelfOnly();
@@ -99,14 +106,17 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         _revokeRole(role, account);
     }
 
+    /// @inheritdoc IAccessControl
     function getRoleMember(bytes32 role, uint256 index) public view returns (address) {
         return LibAccessControlStorage.layout().roles[role].memberList[index];
     }
 
+    /// @inheritdoc IAccessControl
     function getRoleMemberCount(bytes32 role) public view returns (uint256) {
         return LibAccessControlStorage.layout().roles[role].memberList.length;
     }
 
+    /// @inheritdoc IAccessControlTime
     function setRoleWindow(bytes32 role, address account, uint64 start, uint64 end)
         public
         onlyRole(getRoleAdmin(role))
@@ -114,17 +124,20 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         _setRoleWindow(role, account, start, end, msg.sender);
     }
 
+    /// @inheritdoc IAccessControlTime
     function clearRoleWindow(bytes32 role, address account) public onlyRole(getRoleAdmin(role)) {
         _requireNonZeroAccount(account);
         _clearRoleWindow(role, account, msg.sender);
     }
 
+    /// @inheritdoc IAccessControlTime
     function getRoleWindow(bytes32 role, address account) public view returns (uint64 start, uint64 end, bool exists) {
         LibAccessControlTimeStorage.RoleWindow storage window =
             LibAccessControlTimeStorage.layout().roleWindows[role][account];
         return (window.start, window.end, window.exists);
     }
 
+    /// @inheritdoc IAccessControlTime
     function hasActiveRole(bytes32 role, address account) public view returns (bool) {
         if (!hasRole(role, account)) {
             return false;
@@ -146,28 +159,34 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         return true;
     }
 
+    /// @inheritdoc IPausable
     function paused() public view returns (bool) {
         return LibPausableStorage.layout().paused;
     }
 
+    /// @inheritdoc IPausable
     function paused(bytes32 scope) public view returns (bool) {
         return paused() || scopePaused(scope);
     }
 
+    /// @inheritdoc IPausable
     function scopePaused(bytes32 scope) public view returns (bool) {
         return LibPausableStorage.layout().pausedScopes[scope];
     }
 
+    /// @inheritdoc IPausable
     function pause() public onlyRole(PAUSER_ROLE) whenNotPaused {
         LibPausableStorage.layout().paused = true;
         emit Paused(msg.sender);
     }
 
+    /// @inheritdoc IPausable
     function unpause() public onlyRole(PAUSER_ROLE) whenPaused {
         LibPausableStorage.layout().paused = false;
         emit Unpaused(msg.sender);
     }
 
+    /// @inheritdoc IPausable
     function pauseScope(bytes32 scope) public onlyRole(PAUSER_ROLE) {
         _requireValidScope(scope);
         if (scopePaused(scope)) {
@@ -178,6 +197,7 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         emit ScopePaused(scope, msg.sender);
     }
 
+    /// @inheritdoc IPausable
     function unpauseScope(bytes32 scope) public onlyRole(PAUSER_ROLE) {
         _requireValidScope(scope);
         if (!scopePaused(scope)) {
@@ -188,10 +208,12 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
         emit ScopeUnpaused(scope, msg.sender);
     }
 
+    /// @inheritdoc IReentrancyGuard
     function reentrancyGuardEntered() public view returns (bool) {
         return LibReentrancyGuardStorage.layout().status == ENTERED;
     }
 
+    /// @inheritdoc IERC165
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
         return interfaceId == type(IERC165).interfaceId || interfaceId == type(IAccessControl).interfaceId
             || interfaceId == type(IAccessControlTime).interfaceId || interfaceId == type(IPausable).interfaceId
@@ -202,6 +224,20 @@ abstract contract VaultFacetControl is IAccessControl, IAccessControlTime, IPaus
     /// @param initialAdmin The default admin, pauser, and initial vault manager.
     function _initializeVaultFacetControl(address initialAdmin) internal {
         if (!_isAccessControlInitialized()) {
+            address diamondOwner;
+            // This branch intentionally preserves standalone and unit-harness facet initialization when
+            // no diamond owner is present in storage.
+            assembly {
+                diamondOwner := sload(add(0xd18822d915e92c257217ed11ce402f38beb69a891f3cff0924389749c6ea4a47, 4))
+            }
+            if (diamondOwner != address(0) && msg.sender != diamondOwner) {
+                assembly {
+                    mstore(0x00, 0x3bd3ca2300000000000000000000000000000000000000000000000000000000)
+                    mstore(0x04, caller())
+                    mstore(0x24, diamondOwner)
+                    revert(0x00, 0x44)
+                }
+            }
             _initializeAccessControl(initialAdmin);
         }
         if (!_isPausableInitialized()) {

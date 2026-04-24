@@ -18,10 +18,8 @@ import {DiamondTokenDeploymentFixture} from "./helpers/DiamondTokenDeploymentTes
 
 contract DiamondTokenDeploymentIntegrationTest is DiamondTokenDeploymentFixture {
     function testErc20HostDeployInstallInitAndLoupeChecks() public {
-        _installErc20HostFacet();
-
-        VM.prank(admin);
-        IERC20TokenFacet(address(diamond)).initializeErc20("Facet Token", "FTKN", 18, admin);
+        _installErc20HostFacetAtomically();
+        assertTrue(IERC20TokenFacet(address(diamond)).isErc20Initialized(), "erc20 host should initialize inside cut");
 
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
         address[] memory facetAddresses = loupe.facetAddresses();
@@ -75,10 +73,10 @@ contract DiamondTokenDeploymentIntegrationTest is DiamondTokenDeploymentFixture 
     }
 
     function testErc721HostDeployInstallInitAndLoupeChecks() public {
-        _installErc721HostFacet();
-
-        VM.prank(admin);
-        IERC721TokenFacet(address(diamond)).initializeErc721("Facet NFT", "FNFT", "ipfs://facet/", admin);
+        _installErc721HostFacetAtomically();
+        assertTrue(
+            IERC721TokenFacet(address(diamond)).isErc721Initialized(), "erc721 host should initialize inside cut"
+        );
 
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
         address[] memory facetAddresses = loupe.facetAddresses();

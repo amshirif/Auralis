@@ -15,6 +15,10 @@ It covers the standalone vault modules and their math/control behavior. For the
 diamond-hosted vault platform, see `docs/vault-facets.md`. For the hosted
 ERC-7540 async request track, see `docs/erc7540-vault.md`.
 
+For hosted diamonds, bootstrap still runs through `initializeVault(...)` on the
+core facet, but the reference deployment path is an atomic cut+init flow and
+the first hosted initialization is restricted to the current diamond owner.
+
 ## Accounting Model
 
 ```mermaid
@@ -117,14 +121,20 @@ Deposit and mint use deposit fee:
   computed with fee gross-up.
 
 Withdraw and redeem use withdraw fee:
-- `withdraw(assetsOut)`: requested net assets are grossed-up before share burn.
+- `withdraw(assetsOut)`: requested net assets are grossed-up on the same
+  gross-asset fee basis used by redeem, then converted to burned shares.
 - `redeem(shares)`: gross assets from shares are computed first, then net
-  receiver assets are derived by subtracting fee.
+  receiver assets are derived by subtracting fee. Hosted redeems recompute the
+  gross asset value after any strategy liquidity sourcing, so exact-share exits
+  settle at the post-sourcing price.
 
 Fee rounding:
 - Deposit fee on raw assets rounds down.
-- Withdraw fee on requested net assets rounds up.
-- Withdraw fee on gross redeem amount rounds down.
+- Withdraw fee on gross exit assets rounds down.
+- Exact-withdraw gross-up rounds down to remain inverse with redeem's
+  net-from-gross calculation. For small exits with non-round withdraw fee bps,
+  this can pay less fee than a net-basis gross-up; that is intentional to avoid
+  withdraw/redeem route-choice differences.
 
 ## Limits and Cap Behavior (`ERC4626VaultControls`)
 
@@ -161,6 +171,22 @@ vault entrypoints. This is the primary emergency stop for vault write paths.
 - `_mulDiv` uses direct `x * y` math, so unrealistic extreme values can overflow.
 - `totalManagedAssets` assumes integrators use canonical vault flows for
   accounting updates.
+- while `strategyDebt() != 0`, hosted live pricing intentionally trusts the
+  bound strategy's `totalAssets()` as a mark-to-market input.
+- trust in a strategy is established by the account holding
+  `VAULT_MANAGER_ROLE`; that role is responsible for reviewing, binding, and
+  reconciling strategies.
+- if a bound strategy's `totalAssets()` reverts, live-priced reads such as
+  `totalAssets()`, conversions, previews, `maxMint()`, `maxWithdraw()`, and
+  `maxRedeem()` are expected to revert rather than silently fall back to book
+  value.
+- `previewRedeem()` is a read-only pre-call quote; actual `redeem()` can return
+  a different asset amount when call-time strategy liquidity sourcing realizes
+  profit or loss before final settlement.
+- the expected mark-to-market behavior is covered by
+  `testDirectStrategyProfitMakesPricingMarkToMarketAndExtendsLiquidity()` and
+  `testDirectStrategyLossMovesPricingDownwardAndCapsLiquidityByWithdrawableAssets()`
+  in `test/ERC4626VaultStrategyAccountingCore.t.sol`.
 - No native slippage parameters are present on ERC-4626 functions; integrators
   should pre-check previews and enforce client-side constraints.
 - The controls layer applies global limits, not per-user risk limits.
@@ -173,8 +199,12 @@ module contract described here.
 
 Implications:
 - `deposit` and `mint` remain ERC-20 entrypoints only.
+- hosted native vaults use the same `initializeVault(...)` entrypoint with
+  `NATIVE_ASSET_SENTINEL`; there is no separate native-only initializer.
 - native funding, exact `msg.value` validation, and raw native payouts are
   documented in `docs/vault-facets.md`.
+- native `depositNative` and `mintNative` share the hosted core facet's live
+  strategy pricing boundary while strategy debt is active.
 - async request flows, settlement, and controller/operator semantics are
   documented in `docs/erc7540-vault.md`.
 - forced native transfers are a hosted-vault accounting concern, not a

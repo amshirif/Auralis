@@ -6,12 +6,14 @@ import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
+import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC7540VaultSettlementFacet} from "../src/interfaces/IERC7540VaultSettlementFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {ERC7540VaultDepositFacet} from "../src/vault/facets/ERC7540VaultDepositFacet.sol";
 import {ERC4626VaultFacetFixture} from "./helpers/ERC4626VaultFacetTestHarness.sol";
+import {MockVaultStrategyForcedRevert, RevertingMockVaultStrategy} from "./helpers/ERC4626VaultStrategyTestHarness.sol";
 
 contract ERC7540VaultDepositCoreTest is ERC4626VaultFacetFixture {
     function _initializeDiamondAsyncVault() internal {
@@ -93,6 +95,37 @@ contract ERC7540VaultDepositCoreTest is ERC4626VaultFacetFixture {
         assertTrue(IERC4626VaultFacet(address(diamond)).totalAssets() == 25, "total assets mismatch");
         assertTrue(IERC4626(address(diamond)).balanceOf(eve) == 25, "receiver share balance mismatch");
         assertTrue(asset.balanceOf(address(diamond)) == 40, "vault balance should keep locked assets");
+    }
+
+    function testAsyncDepositClaimHelpersStayClaimableBasedWhileHostTotalAssetsStillReverts() public {
+        _initializeDiamondAsyncVault();
+        _approveAsset(bob, address(diamond), 100);
+
+        VM.prank(bob);
+        IERC7540Deposit(address(diamond)).requestDeposit(60, bob, bob);
+        _settleDeposit(bob, 60);
+
+        VM.prank(bob);
+        IERC4626(address(diamond)).deposit(40, bob);
+
+        RevertingMockVaultStrategy revertingStrategy = new RevertingMockVaultStrategy(address(diamond), address(asset));
+
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).setStrategy(address(revertingStrategy));
+        VM.prank(admin);
+        IERC4626VaultIntegrationFacet(address(diamond)).deployToStrategy(20);
+        revertingStrategy.setRevertModes(true, false, false, false);
+
+        VM.prank(bob);
+        assertTrue(IERC4626(address(diamond)).maxDeposit(bob) == 20, "maxDeposit should remain claimable-only");
+
+        VM.prank(bob);
+        assertTrue(IERC4626(address(diamond)).maxMint(bob) == 20, "maxMint should remain claimable/book priced");
+
+        VM.expectRevert(
+            abi.encodeWithSelector(MockVaultStrategyForcedRevert.selector, revertingStrategy.totalAssets.selector)
+        );
+        IERC4626(address(diamond)).totalAssets();
     }
 
     function testOnlyManagerCanSettleAsyncDepositRequests() public {

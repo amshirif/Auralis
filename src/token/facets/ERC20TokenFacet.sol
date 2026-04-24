@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC20TokenFacet} from "../../interfaces/IERC20TokenFacet.sol";
 import {IERC20Permit} from "../../interfaces/IERC20Permit.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
+import {LibECDSA} from "../../libraries/LibECDSA.sol";
 import {ERC20TokenBase} from "../ERC20TokenBase.sol";
 import {TokenFacetControl} from "../TokenFacetControl.sol";
 import {LibTokenFacetConstants} from "../libraries/LibTokenFacetConstants.sol";
@@ -17,7 +18,6 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 internal constant VERSION_HASH = keccak256("1");
-    uint256 internal constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     /// @notice Shared token admin role.
     bytes32 public constant TOKEN_ADMIN_ROLE = LibTokenFacetConstants.TOKEN_ADMIN_ROLE;
@@ -45,10 +45,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
             revert ERC20TokenAlreadyInitialized();
         }
 
-        if (_isAccessControlInitialized()) {
-            _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        }
-
+        _enforceBootstrapInitializerAuthority();
         _initializeTokenFacetControl(admin);
         _initializeErc20Token(tokenName, tokenSymbol, tokenDecimals);
         _initializePermitDomain(tokenName);
@@ -136,7 +133,9 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
 
         LibERC20TokenStorage.Layout storage layout = LibERC20TokenStorage.layout();
         uint256 nonce = layout.nonces[owner];
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 struct hashing stays high-level for auditability.
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        // forge-lint: disable-next-line(asm-keccak256) -- standard EIP-712 digest construction is intentionally explicit.
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), structHash));
         address signer = _recoverSigner(digest, v, r, s);
         if (signer != owner) {
@@ -156,6 +155,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
 
     /// @notice Returns the EIP-712 domain separator for Permit signatures.
     /// @return The domain separator.
+    // forge-lint: disable-next-line(mixed-case-function) -- ERC-2612 requires this canonical getter name.
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         LibERC20TokenStorage.Layout storage layout = LibERC20TokenStorage.layout();
         if (layout.cachedChainId == block.chainid) {
@@ -180,6 +180,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
     }
 
     function _buildDomainSeparator(bytes32 hashedName, uint256 chainId) internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- EIP-712 domain hashing is clearer in canonical Solidity form.
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, hashedName, VERSION_HASH, chainId, address(this)));
     }
 
@@ -187,7 +188,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
         if (v != 27 && v != 28) {
             return address(0);
         }
-        if (uint256(s) > SECP256K1N_DIV_2) {
+        if (uint256(s) > LibECDSA.SECP256K1N_DIV_2) {
             return address(0);
         }
 

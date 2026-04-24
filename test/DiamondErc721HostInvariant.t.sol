@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC721TokenBase} from "../src/interfaces/IERC721TokenBase.sol";
 import {IERC721TokenFacet} from "../src/interfaces/IERC721TokenFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
 import {DiamondTokenHostHardeningFixture} from "./helpers/DiamondTokenHostHardeningTestHarness.sol";

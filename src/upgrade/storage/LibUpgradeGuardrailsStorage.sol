@@ -2,9 +2,9 @@
 pragma solidity ^0.8.30;
 
 /// @title LibUpgradeGuardrailsStorage
-/// @notice Storage layout for upgrade guardrails modules (diamond-ready).
+/// @notice Namespaced storage layout for opt-in upgrade guardrails modules.
 library LibUpgradeGuardrailsStorage {
-    /// @dev Storage slot for upgrade guardrails layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.upgrade-guardrails.storage");
 
     /// @notice Queued upgrade metadata.
@@ -30,4 +30,3 @@ library LibUpgradeGuardrailsStorage {
         }
     }
 }
-

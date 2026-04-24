@@ -15,28 +15,54 @@ contract AMMPair is AMMLpToken, IAMMPair {
     uint256 internal constant FEE_UNITS = 3;
     address internal constant MINIMUM_LIQUIDITY_SINK = 0x000000000000000000000000000000000000dEaD;
 
+    /// @notice Reverts when a caller is not the factory.
     error AMMPairForbidden();
+    /// @notice Reverts when pair initialization is attempted more than once.
     error AMMPairAlreadyInitialized();
+    /// @notice Reverts when one of the pair tokens is the zero address.
     error AMMPairZeroTokenAddress();
+    /// @notice Reverts when both pair token addresses are identical.
     error AMMPairIdenticalTokens();
+    /// @notice Reverts when a reentrant pair operation is attempted.
     error AMMPairLocked();
+    /// @notice Reverts when a swap recipient is invalid.
+    /// @param to Invalid recipient.
     error AMMPairInvalidRecipient(address to);
+    /// @notice Reverts when minting would produce zero or insufficient liquidity.
     error AMMPairInsufficientLiquidityMinted();
+    /// @notice Reverts when burning would return zero liquidity on either side.
     error AMMPairInsufficientLiquidityBurned();
+    /// @notice Reverts when reserves cannot cover the requested output.
     error AMMPairInsufficientLiquidity();
+    /// @notice Reverts when a swap observes no input amount.
     error AMMPairInsufficientInputAmount();
+    /// @notice Reverts when a swap requests no output amount.
     error AMMPairInsufficientOutputAmount();
+    /// @notice Reverts when balances exceed uint112 reserve storage.
     error AMMPairReserveOverflow();
+    /// @notice Reverts when swap callback data is supplied; callbacks are unsupported.
     error AMMPairUnsupportedSwapData();
+    /// @notice Reverts when a token transfer from the pair fails.
+    /// @param token Token being transferred.
+    /// @param to Transfer recipient.
+    /// @param value Transfer amount.
     error AMMPairTransferFailed(address token, address to, uint256 value);
+    /// @notice Reverts when a swap would violate the constant-product invariant.
     error AMMPairKInvariant();
 
+    /// @notice Factory that deployed this pair.
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the IAMMPair getter name.
     address public immutable override factory;
 
+    /// @notice Lower-address token in the pair after initialization.
     address public override token0;
+    /// @notice Higher-address token in the pair after initialization.
     address public override token1;
+    /// @notice Last cumulative price of token0 in UQ112x112 time-weighted units.
     uint256 public override price0CumulativeLast;
+    /// @notice Last cumulative price of token1 in UQ112x112 time-weighted units.
     uint256 public override price1CumulativeLast;
+    /// @notice Last reserve product used for protocol-fee minting.
     uint256 public override kLast;
 
     uint112 internal _reserve0;
@@ -44,25 +70,38 @@ contract AMMPair is AMMLpToken, IAMMPair {
     uint32 internal _blockTimestampLast;
     uint256 internal _unlocked = 1;
 
+    /// @notice Initializes the pair with the deploying factory as immutable owner.
     constructor() {
         factory = msg.sender;
     }
 
+    /// @notice Prevents reentrant pair state transitions.
+    /// @dev Applied to liquidity, swap, skim, and sync entrypoints.
     modifier lock() {
+        _lockBefore();
+        _;
+        _lockAfter();
+    }
+
+    function _lockBefore() internal {
         if (_unlocked != 1) {
             revert AMMPairLocked();
         }
 
         _unlocked = 0;
-        _;
+    }
+
+    function _lockAfter() internal {
         _unlocked = 1;
     }
 
+    /// @inheritdoc IAMMPair
     // forge-lint: disable-next-line(mixed-case-function)
     function MINIMUM_LIQUIDITY() public pure override returns (uint256) {
         return 1000;
     }
 
+    /// @inheritdoc IAMMPair
     function getReserves()
         external
         view
@@ -72,6 +111,7 @@ contract AMMPair is AMMLpToken, IAMMPair {
         return (_reserve0, _reserve1, _blockTimestampLast);
     }
 
+    /// @inheritdoc IAMMPair
     function initialize(address token0_, address token1_) external override {
         if (msg.sender != factory) {
             revert AMMPairForbidden();
@@ -91,6 +131,8 @@ contract AMMPair is AMMLpToken, IAMMPair {
         token1 = token1_;
     }
 
+    /// @inheritdoc IAMMPair
+    /// @dev Guarded by the `lock` reentrancy modifier.
     function mint(address to) external override lock returns (uint256 liquidity) {
         uint112 reserve0_ = _reserve0;
         uint112 reserve1_ = _reserve1;
@@ -130,6 +172,8 @@ contract AMMPair is AMMLpToken, IAMMPair {
         emit Mint(msg.sender, amount0, amount1);
     }
 
+    /// @inheritdoc IAMMPair
+    /// @dev Guarded by the `lock` reentrancy modifier.
     function burn(address to) external override lock returns (uint256 amount0, uint256 amount1) {
         uint112 reserve0_ = _reserve0;
         uint112 reserve1_ = _reserve1;
@@ -162,6 +206,8 @@ contract AMMPair is AMMLpToken, IAMMPair {
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
+    /// @inheritdoc IAMMPair
+    /// @dev Guarded by the `lock` reentrancy modifier; swap callback data is intentionally unsupported.
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external override lock {
         if (amount0Out == 0 && amount1Out == 0) {
             revert AMMPairInsufficientOutputAmount();
@@ -211,20 +257,32 @@ contract AMMPair is AMMLpToken, IAMMPair {
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
+    /// @inheritdoc IAMMPair
+    /// @dev Guarded by the `lock` reentrancy modifier.
     function skim(address to) external override lock {
         _safeTransfer(token0, to, IERC20(token0).balanceOf(address(this)) - _reserve0);
         _safeTransfer(token1, to, IERC20(token1).balanceOf(address(this)) - _reserve1);
     }
 
+    /// @inheritdoc IAMMPair
+    /// @dev Guarded by the `lock` reentrancy modifier.
     function sync() external override lock {
         (uint256 balance0, uint256 balance1) = _currentBalances();
         _update(balance0, balance1, _reserve0, _reserve1);
     }
 
+    /// @notice Reads current token balances held by the pair.
+    /// @return balance0 Current token0 balance.
+    /// @return balance1 Current token1 balance.
     function _currentBalances() internal view returns (uint256 balance0, uint256 balance1) {
         return (IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)));
     }
 
+    /// @notice Mints protocol liquidity fees when fee collection is enabled.
+    /// @dev Uses the V2-style one-sixth share of root-K growth since `kLast`.
+    /// @param reserve0_ Previous token0 reserve.
+    /// @param reserve1_ Previous token1 reserve.
+    /// @return feeOn True when protocol fee collection is enabled.
     function _mintFee(uint112 reserve0_, uint112 reserve1_) internal returns (bool feeOn) {
         address feeTo = IAMMFactory(factory).feeTo();
         feeOn = feeTo != address(0);
@@ -249,6 +307,11 @@ contract AMMPair is AMMLpToken, IAMMPair {
         }
     }
 
+    /// @notice Updates reserves and cumulative prices from observed balances.
+    /// @param balance0 Observed token0 balance.
+    /// @param balance1 Observed token1 balance.
+    /// @param reserve0_ Previous token0 reserve.
+    /// @param reserve1_ Previous token1 reserve.
     function _update(uint256 balance0, uint256 balance1, uint112 reserve0_, uint112 reserve1_) internal {
         if (balance0 > type(uint112).max || balance1 > type(uint112).max) {
             revert AMMPairReserveOverflow();
@@ -276,6 +339,10 @@ contract AMMPair is AMMLpToken, IAMMPair {
         emit Sync(_reserve0, _reserve1);
     }
 
+    /// @notice Transfers tokens and accepts either no return data or a true boolean return.
+    /// @param token Token to transfer.
+    /// @param to Transfer recipient.
+    /// @param value Transfer amount.
     function _safeTransfer(address token, address to, uint256 value) internal {
         if (value == 0) {
             return;

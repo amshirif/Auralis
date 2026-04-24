@@ -23,6 +23,11 @@ The async ERC-20 track uses two deployment shapes:
 
 The native hosted vault does not currently expose the async request surface.
 
+Async hosts still bootstrap through `initializeVault(...)` on the core facet.
+The reference deployment path uses atomic cut+init, and the first hosted
+initialization on an uninitialized diamond is restricted to the current
+diamond owner.
+
 ## Selector Ownership
 
 The async request model is implemented by splitting the hosted selector groups
@@ -115,7 +120,9 @@ Fully async hosts extend the model to redeem requests:
    - `redeem(shares, receiver, controller)`
 5. Claiming consumes claimable shares, burns the escrowed shares, reduces
    managed assets by the gross asset exit amount, transfers the net assets to
-   the receiver, and pays any configured withdraw fee.
+   the receiver, and pays any configured withdraw fee. Exact-share redeem
+   claims recompute the gross asset value after strategy liquidity sourcing, so
+   claim settlement uses the post-sourcing share price.
 
 Reviewer-visible implications:
 
@@ -211,8 +218,23 @@ reviewer needs to track.
 
 - async redeem claims may pull immediately withdrawable assets from the active
   strategy before paying the receiver
+- exact-share `redeem(shares, receiver, controller)` claims settle at the
+  post-sourcing asset value if strategy withdrawal reconciles gain or loss
+  during the claim transaction
 - `maxWithdraw` and `maxRedeem` do not promise access to full mark-to-market
   value when strategy liquidity is constrained
+- async host reads that depend on live pricing inherit the same strategy trust
+  boundary as the sync vault surface
+- in practice that means the hosted `totalAssets()` read and the async redeem
+  `maxWithdraw` / `maxRedeem` helpers revert when the bound strategy's
+  `totalAssets()` reverts while debt is active
+- async deposit claim helpers remain claimable-request views; `maxDeposit` stays
+  claimable-asset-based and `maxMint` remains claimable/book-priced rather than
+  consulting live strategy totals
+- because `maxMint` resolves through the deposit facet's book-pricing chain
+  while `convertToShares` resolves through the core facet's live-pricing
+  override, the two can disagree while strategy debt is active; integrators
+  that need a single-source share quote should prefer `convertToShares`
 
 ## Known Limitations
 
@@ -226,6 +248,9 @@ reviewer needs to track.
   settlement pricing
 - manager settlement is a trust and operations assumption that reviewers should
   evaluate alongside the role model
+- manager-controlled strategy binding is also a pricing trust assumption:
+  `VAULT_MANAGER_ROLE` decides which strategy is trusted for live mark-to-market
+  reads while debt is active
 
 ## Reviewer Entry Points
 
@@ -256,9 +281,24 @@ Use these suites to review the async request surface locally:
   claim, operator, limit, and settlement-pause behavior
 - `test/ERC7540VaultRedeemCore.t.sol`: async redeem request, settlement,
   claim, allowance/operator behavior, limit, and settlement-pause behavior
+- `test/ERC7540VaultRequestAccountingInvariant.t.sol`: library-level
+  invariant coverage for aggregate pending/claimable request accounting and
+  operator pair isolation
+- `test/ERC7540VaultDepositFuzz.t.sol`: diamond-routed fuzz coverage for async
+  deposit request, settlement, claim, max-helper, and operator behavior
+- `test/ERC7540VaultRedeemFuzz.t.sol`: diamond-routed fuzz coverage for async
+  redeem request, settlement, claim, escrow, allowance/operator, and max-helper
+  behavior
+- `test/ERC7540VaultRequestTime.t.sol`: time-neutrality coverage proving time
+  alone does not settle requests and settlement pause persists across warps
+- `testAsyncDepositClaimHelpersStayClaimableBasedWhileHostTotalAssetsStillReverts()`
+  in `test/ERC7540VaultDepositCore.t.sol`: async deposit claim-path boundary
+- `testAsyncRedeemMaxReadsInheritStrategyPricingRevert()` in
+  `test/ERC7540VaultRedeemCore.t.sol`: async redeem trust-boundary freeze
 - `test/DiamondVaultDeploymentIntegration.t.sol`: fully async host deployment,
   selector ownership, interface support, and strategy wiring
 - `test/DiamondVaultHostHardening.t.sol`: persistence across replace/remove
   flows with async selectors installed
 - `test/DiamondVaultHostInvariant.t.sol`: diamond-routed invariant coverage for
-  the hosted async vault path
+  the hosted async vault path, including broader cross-facet strategy, pause,
+  fee, limit, and request lifecycle interactions

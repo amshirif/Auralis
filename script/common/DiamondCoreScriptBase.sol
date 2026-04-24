@@ -28,6 +28,7 @@ abstract contract DiamondCoreScriptBase {
 
     /// @notice Loads the local deployment artifact and returns its canonical diamond addresses.
     function loadDeploymentArtifact() internal view returns (DeploymentArtifact memory deployment) {
+        // forge-lint: disable-next-line(unsafe-cheatcode) -- local scripts intentionally read deployment artifacts.
         string memory json = VM.readFile(deploymentArtifactPath());
 
         deployment.diamond = VM.parseJsonAddress(json, ".diamond");

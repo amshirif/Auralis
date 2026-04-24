@@ -7,9 +7,18 @@ import {IERC20Metadata} from "./IERC20Metadata.sol";
 /// @notice ERC-4626 tokenized vault interface.
 interface IERC4626 is IERC20Metadata {
     /// @notice Emitted after a successful deposit or mint.
+    /// @param caller Account that initiated the deposit or mint.
+    /// @param owner Share receiver.
+    /// @param assets Asset amount supplied.
+    /// @param shares Share amount minted.
     event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
 
     /// @notice Emitted after a successful withdraw or redeem.
+    /// @param caller Account that initiated the withdraw or redeem.
+    /// @param receiver Asset receiver.
+    /// @param owner Share owner.
+    /// @param assets Asset amount withdrawn.
+    /// @param shares Share amount burned.
     event Withdraw(
         address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
     );

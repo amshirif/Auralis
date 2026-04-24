@@ -77,6 +77,7 @@ contract ERC20TokenFacetInvariantTest is ERC20TokenFacetInvariantFixture {
             AccountingSnapshot memory snapshot = _snapshotAccounting();
             VM.startPrank(from);
             VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, transferScope));
+            // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
             IERC20TokenFacet(address(facet)).transfer(to, value);
             VM.stopPrank();
             _assertAccountingUnchanged(snapshot, "paused transfer should not mutate accounting");
@@ -84,7 +85,7 @@ contract ERC20TokenFacetInvariantTest is ERC20TokenFacetInvariantFixture {
         }
 
         VM.prank(from);
-        IERC20TokenFacet(address(facet)).transfer(to, value);
+        assertTrue(IERC20TokenFacet(address(facet)).transfer(to, value), "transfer should succeed");
     }
 
     function actionTransferFrom(uint8 spenderSeed, uint8 ownerSeed, uint8 toSeed, uint96 valueRaw) external {
@@ -113,6 +114,7 @@ contract ERC20TokenFacetInvariantTest is ERC20TokenFacetInvariantFixture {
             AccountingSnapshot memory snapshot = _snapshotAccounting();
             VM.startPrank(spender);
             VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, expectedScope));
+            // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
             IERC20TokenFacet(address(facet)).transferFrom(owner, to, value);
             VM.stopPrank();
             _assertAccountingUnchanged(snapshot, "paused transferFrom should not mutate accounting");
@@ -120,7 +122,7 @@ contract ERC20TokenFacetInvariantTest is ERC20TokenFacetInvariantFixture {
         }
 
         VM.prank(spender);
-        IERC20TokenFacet(address(facet)).transferFrom(owner, to, value);
+        assertTrue(IERC20TokenFacet(address(facet)).transferFrom(owner, to, value), "transferFrom should succeed");
     }
 
     function actionMint(uint8 actorSeed, uint96 valueRaw) external {
