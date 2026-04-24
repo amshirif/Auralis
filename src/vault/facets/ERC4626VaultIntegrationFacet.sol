@@ -19,22 +19,30 @@ contract ERC4626VaultIntegrationFacet is
     IERC4626VaultIntegrationFacet,
     IERC7540VaultSettlementFacet
 {
-    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function deposit(uint256, address) public virtual override returns (uint256) {
         revert();
     }
 
-    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function mint(uint256, address) public virtual override returns (uint256) {
         revert();
     }
 
-    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function withdraw(uint256, address, address) public virtual override returns (uint256) {
         revert();
     }
 
-    /// @dev The integration facet inherits ERC-4626 helpers but does not own mutating ERC-4626 selectors.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function redeem(uint256, address, address) public virtual override returns (uint256) {
         revert();
     }
@@ -220,6 +228,7 @@ contract ERC4626VaultIntegrationFacet is
     }
 
     /// @notice Moves pending deposit assets into claimable state for `controller`.
+    /// @dev Requires `VAULT_MANAGER_ROLE` and an unpaused `ASYNC_SETTLEMENT_SCOPE`.
     /// @param controller Request controller account.
     /// @param assets Asset amount to settle.
     function settleDepositRequest(address controller, uint256 assets) public {
@@ -232,6 +241,7 @@ contract ERC4626VaultIntegrationFacet is
     }
 
     /// @notice Moves pending redeem shares into claimable state for `controller`.
+    /// @dev Requires `VAULT_MANAGER_ROLE` and an unpaused `ASYNC_SETTLEMENT_SCOPE`.
     /// @param controller Request controller account.
     /// @param shares Share amount to settle.
     function settleRedeemRequest(address controller, uint256 shares) public {

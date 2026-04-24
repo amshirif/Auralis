@@ -15,11 +15,19 @@ import {LibVaultAsset} from "../libraries/LibVaultAsset.sol";
 /// @notice Hosted async deposit and operator extension facet for ERC-7540-style request flows.
 contract ERC7540VaultDepositFacet is ERC4626VaultControlledCore, VaultFacetControl, IERC7540Deposit, IERC7540Operators {
     /// @notice Emitted when a deposit request is submitted.
+    /// @param controller Controller that will own the async claim.
+    /// @param owner Asset owner funding the request.
+    /// @param requestId Request identifier.
+    /// @param sender Account that submitted the request.
+    /// @param assets Requested deposit assets.
     event DepositRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 assets
     );
 
     /// @notice Emitted when `controller` updates `operator` approval.
+    /// @param controller Account granting or revoking operator authority.
+    /// @param operator Operator account.
+    /// @param approved True when approved, false when revoked.
     event OperatorSet(address indexed controller, address indexed operator, bool approved);
 
     /// @notice Thrown when an async deposit entrypoint is used before the async deposit extension is active.
@@ -29,11 +37,14 @@ contract ERC7540VaultDepositFacet is ERC4626VaultControlledCore, VaultFacetContr
     error ERC7540VaultAsyncDepositPreviewUnsupported();
 
     /// @notice Thrown when `sender` is not approved to manage requests for `account`.
+    /// @param account Account whose request authority was checked.
+    /// @param sender Unauthorized sender.
     error ERC7540VaultUnauthorizedOperator(address account, address sender);
 
-    /// @notice Returns max assets that can currently be claimed for `receiver`.
+    /// @notice Returns max assets that `msg.sender` can currently claim into shares for `receiver`.
+    /// @dev `receiver` is only validated as the destination; the claimable deposit balance is keyed by `msg.sender`.
     /// @param receiver Receiver of minted shares.
-    /// @return assets Max gross claimable asset amount.
+    /// @return assets Max gross claimable asset amount for `msg.sender`.
     function maxDeposit(address receiver)
         public
         view
@@ -50,9 +61,10 @@ contract ERC7540VaultDepositFacet is ERC4626VaultControlledCore, VaultFacetContr
         );
     }
 
-    /// @notice Returns max shares that can currently be claimed for `receiver`.
+    /// @notice Returns max shares that `msg.sender` can currently claim for `receiver`.
+    /// @dev `receiver` is only validated as the destination; the claimable deposit balance is keyed by `msg.sender`.
     /// @param receiver Receiver of minted shares.
-    /// @return shares Max claimable share amount at the current exchange rate.
+    /// @return shares Max claimable share amount for `msg.sender` at the current exchange rate.
     function maxMint(address receiver)
         public
         view

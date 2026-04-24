@@ -20,10 +20,23 @@ interface IOracleAdapter is IERC165 {
     }
 
     /// @notice Emitted when oracle source is updated.
+    /// @param previousSource Previous oracle source.
+    /// @param newSource New oracle source.
+    /// @param sender Account that updated the source.
     event OracleSourceUpdated(address indexed previousSource, address indexed newSource, address indexed sender);
     /// @notice Emitted when max staleness is updated.
+    /// @param previousMaxStaleness Previous staleness threshold.
+    /// @param newMaxStaleness New staleness threshold.
+    /// @param sender Account that updated staleness.
     event OracleMaxStalenessUpdated(uint64 previousMaxStaleness, uint64 newMaxStaleness, address indexed sender);
     /// @notice Emitted when validation bounds policy is updated.
+    /// @param previousMinAnswer Previous minimum accepted answer.
+    /// @param previousMaxAnswer Previous maximum accepted answer.
+    /// @param previousBoundsEnabled Previous bounds-enabled flag.
+    /// @param newMinAnswer New minimum accepted answer.
+    /// @param newMaxAnswer New maximum accepted answer.
+    /// @param newBoundsEnabled New bounds-enabled flag.
+    /// @param sender Account that updated bounds.
     event OracleValidationBoundsUpdated(
         int256 previousMinAnswer,
         int256 previousMaxAnswer,
@@ -34,14 +47,24 @@ interface IOracleAdapter is IERC165 {
         address indexed sender
     );
     /// @notice Emitted when circuit breaker is tripped.
+    /// @param sender Account that tripped the breaker.
     event OracleCircuitBreakerTripped(address indexed sender);
     /// @notice Emitted when circuit breaker is reset.
+    /// @param sender Account that reset the breaker.
     event OracleCircuitBreakerReset(address indexed sender);
     /// @notice Emitted when fallback mode is updated.
+    /// @param previousMode Previous fallback mode.
+    /// @param newMode New fallback mode.
+    /// @param sender Account that updated fallback mode.
     event OracleFallbackModeUpdated(FallbackMode previousMode, FallbackMode newMode, address indexed sender);
     /// @notice Emitted when fallback quote is configured.
+    /// @param value Fallback quote value.
+    /// @param updatedAt Fallback quote timestamp.
+    /// @param decimals Fallback quote decimals.
+    /// @param sender Account that updated the fallback quote.
     event OracleFallbackQuoteUpdated(int256 value, uint64 updatedAt, uint8 decimals, address indexed sender);
     /// @notice Emitted when fallback quote is cleared.
+    /// @param sender Account that cleared the fallback quote.
     event OracleFallbackQuoteCleared(address indexed sender);
 
     /// @notice Thrown when the oracle source address is zero.
@@ -49,18 +72,31 @@ interface IOracleAdapter is IERC165 {
     /// @notice Thrown when adapter initializer runs more than once.
     error OracleAdapterAlreadyInitialized();
     /// @notice Thrown when feed timestamp does not fit in uint64.
+    /// @param updatedAt Feed timestamp that exceeded uint64.
     error OracleAdapterInvalidUpdatedAt(uint256 updatedAt);
     /// @notice Thrown when feed timestamp is zero.
     error OracleAdapterZeroUpdatedAt();
     /// @notice Thrown when feed timestamp is in the future.
+    /// @param updatedAt Feed timestamp.
+    /// @param currentTimestamp Current block timestamp.
     error OracleAdapterFutureUpdatedAt(uint64 updatedAt, uint64 currentTimestamp);
     /// @notice Thrown when quote exceeds configured staleness threshold.
+    /// @param updatedAt Feed timestamp.
+    /// @param currentTimestamp Current block timestamp.
+    /// @param maxStaleness Maximum allowed age.
     error OracleAdapterStaleQuote(uint64 updatedAt, uint64 currentTimestamp, uint64 maxStaleness);
     /// @notice Thrown when feed round consistency is invalid.
+    /// @param roundId Reported round id.
+    /// @param answeredInRound Round id that produced the answer.
     error OracleAdapterInvalidRound(uint80 roundId, uint80 answeredInRound);
     /// @notice Thrown when configured bounds are invalid.
+    /// @param minAnswer Minimum answer.
+    /// @param maxAnswer Maximum answer.
     error OracleAdapterInvalidValidationBounds(int256 minAnswer, int256 maxAnswer);
     /// @notice Thrown when quote value falls outside configured bounds.
+    /// @param answer Oracle answer.
+    /// @param minAnswer Minimum accepted answer.
+    /// @param maxAnswer Maximum accepted answer.
     error OracleAdapterAnswerOutOfBounds(int256 answer, int256 minAnswer, int256 maxAnswer);
     /// @notice Thrown when breaker is already active.
     error OracleAdapterBreakerAlreadyActive();
@@ -73,6 +109,7 @@ interface IOracleAdapter is IERC165 {
     /// @notice Thrown when fallback mode is selected but no fallback quote is configured.
     error OracleAdapterFallbackUnavailable();
     /// @notice Thrown when configured fallback quote is invalid.
+    /// @param updatedAt Fallback quote timestamp.
     error OracleAdapterInvalidFallbackQuote(uint64 updatedAt);
 
     /// @notice Returns the configured oracle source address.

@@ -27,6 +27,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @notice Thrown when a native-only entrypoint is used on an ERC-20 vault.
     error ERC4626VaultNativeAssetDisabled();
     /// @notice Thrown when `msg.value` does not match the required native asset amount.
+    /// @param supplied Native value supplied by caller.
+    /// @param required Native value required by the operation.
     error ERC4626VaultInvalidNativeAssetValue(uint256 supplied, uint256 required);
 
     /// @notice Returns vault underlying asset token address.
@@ -200,6 +202,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Decreases managed assets for a user exit while ignoring untracked native surplus.
     /// @dev Forced ETH can increase `address(this).balance` without increasing managed assets. When a native
     ///      withdrawal is satisfied from that surplus, book accounting must only burn the tracked portion.
+    /// @param assets Gross assets exiting the vault.
     function _decreaseManagedAssetsForAssetExit(uint256 assets) internal {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         if (LibVaultAsset.isNativeAsset(layout.asset) && layout.strategyDebt != 0) {
@@ -218,6 +221,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Returns the vault's immediately idle asset balance.
+    /// @return Immediately held asset balance.
     function _idleAssetBalance() internal view returns (uint256) {
         return LibVaultAsset.balanceOfSelf(asset());
     }
@@ -225,6 +229,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     /// @dev Returns the tracked idle assets available to support exits when a strategy is active.
     /// @dev Raw idle balances can exceed tracked idle because of pending async deposits or direct transfers.
     ///      Exit paths that must preserve strategy-debt accounting use the smaller tracked value instead.
+    /// @return Tracked idle assets available for exits.
     function _trackedIdleAssetBalance() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         uint256 actualIdleAssets = _idleAssetBalance();
@@ -233,6 +238,7 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Returns the configured strategy's immediately withdrawable assets.
+    /// @return Strategy assets that can be withdrawn immediately.
     function _strategyWithdrawableAssets() internal view returns (uint256) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         if (layout.strategyDebt == 0) {
@@ -246,6 +252,9 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Pulls assets from the configured strategy back to the vault.
+    /// @param assets Requested withdrawal amount.
+    /// @return returnedAssets Assets returned by the strategy call.
+    /// @return postCallLiveAssets Strategy live assets reported after the call.
     function _withdrawStrategyAssets(uint256 assets)
         internal
         returns (uint256 returnedAssets, uint256 postCallLiveAssets)
@@ -257,6 +266,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Fully unwinds assets from the configured strategy back to the vault.
+    /// @return returnedAssets Assets returned by the strategy call.
+    /// @return postCallLiveAssets Strategy live assets reported after the call.
     function _withdrawAllStrategyAssets() internal returns (uint256 returnedAssets, uint256 postCallLiveAssets) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         IERC4626VaultStrategy configuredStrategy = IERC4626VaultStrategy(layout.strategy);
@@ -265,6 +276,8 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Realizes strategy mark-to-market changes into book accounting without moving idle vault assets.
+    /// @param liveAssets Strategy live assets to sync into stored debt.
+    /// @return previousDebt Strategy debt before syncing.
     function _syncStrategyDebtToLiveAssets(uint256 liveAssets) internal returns (uint256 previousDebt) {
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
         previousDebt = layout.strategyDebt;
@@ -280,6 +293,9 @@ abstract contract ERC4626Vault is ERC4626VaultBase, IERC4626 {
     }
 
     /// @dev Reconciles book accounting after a strategy withdrawal-like call that returned assets to the vault.
+    /// @param returnedAssets Assets returned to the vault by the strategy call.
+    /// @param postCallLiveAssets Strategy live assets reported after the call.
+    /// @return previousDebt Strategy debt before reconciliation.
     function _reconcileStrategyWithdrawalAccounting(uint256 returnedAssets, uint256 postCallLiveAssets)
         internal
         returns (uint256 previousDebt)

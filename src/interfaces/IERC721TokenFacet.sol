@@ -10,6 +10,8 @@ import {IPausable} from "./IPausable.sol";
 /// @notice Hosted ERC-721 facet surface for diamond deployments.
 interface IERC721TokenFacet is IERC721Metadata, IERC721TokenBase, IAccessControl, IPausable {
     /// @notice Thrown when `operator` is not authorized to manage `tokenId`.
+    /// @param operator Unauthorized operator.
+    /// @param tokenId Token identifier.
     error ERC721TokenUnauthorizedOperator(address operator, uint256 tokenId);
 
     /// @notice Returns the shared token admin role identifier.
