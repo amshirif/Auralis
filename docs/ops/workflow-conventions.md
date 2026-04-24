@@ -62,8 +62,8 @@ Task PRs should:
 When GitHub `Development` links are unreliable, the issue `Delivery` section and
 the PR `Closes #...` line are treated as the canonical linkage.
 
-Use [`scripts/open-task-pr.sh`](/Users/amirshirif/Documents/personal/auralis/scripts/open-task-pr.sh)
-to create task PRs with the expected metadata and delivery links in one step.
+Use [`scripts/open-task-pr.sh`](../../scripts/open-task-pr.sh) to create task
+PRs with the expected metadata and delivery links in one step.
 
 ## Milestone PR Rules
 
@@ -76,11 +76,11 @@ Milestone PRs should:
 - have a project card on `Portfolio`
 - use `In progress` status while open
 
-Use [`scripts/open-milestone-pr.sh`](/Users/amirshirif/Documents/personal/auralis/scripts/open-milestone-pr.sh)
-to create milestone PRs with the expected metadata in one step.
+Use [`scripts/open-milestone-pr.sh`](../../scripts/open-milestone-pr.sh) to
+create milestone PRs with the expected metadata in one step.
 
 Main-branch guardrails in
-[`main-pr-branch-guard.yml`](/Users/amirshirif/Documents/personal/auralis/.github/workflows/main-pr-branch-guard.yml)
+[`main-pr-branch-guard.yml`](../../.github/workflows/main-pr-branch-guard.yml)
 enforce the parts of this checklist that GitHub Actions can verify.
 
 ## Branch Naming

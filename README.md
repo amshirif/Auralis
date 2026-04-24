@@ -239,9 +239,16 @@ Built with Foundry. CI workflows live under `.github/workflows/`.
 
 Foundry docs: [book.getfoundry.sh](https://book.getfoundry.sh/)
 
+## Public Metadata
+
+This is a personal portfolio repository. Contribution, security, changelog, and
+GitHub template guidance are provided for public review, while community
+operations files such as `CODE_OF_CONDUCT.md`, `SUPPORT.md`, and `FUNDING.yml`
+are intentionally omitted.
+
 ## AI Usage
 
-AI assistance was used for tests, documentation, scripts, planning support.
+AI assistance was used for tests, documentation, scripts, and planning support.
 
 The protocol architecture, technical decisions, and final review/integration of
 changes were directed and owned by me.

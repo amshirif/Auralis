@@ -2,6 +2,10 @@
 
 Release date: `YYYY-MM-DD`
 
+Use this file as the GitHub release-note drafting template. `CHANGELOG.md` is
+the public release history surface that should be updated alongside the final
+release notes.
+
 ## Summary
 
 - 
