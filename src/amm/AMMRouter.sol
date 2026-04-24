@@ -34,14 +34,20 @@ contract AMMRouter is IAMMRouter {
     error AMMRouterUnwrapFailed(uint256 value);
     error AMMRouterNativeTransferFailed(address to, uint256 value);
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the IAMMRouter getter name.
     address public immutable override factory;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the IAMMRouter getter name.
     address public immutable override wrappedNative;
 
     modifier ensure(uint256 deadline) {
+        _ensure(deadline);
+        _;
+    }
+
+    function _ensure(uint256 deadline) internal view {
         if (block.timestamp > deadline) {
             revert AMMRouterExpired(deadline, block.timestamp);
         }
-        _;
     }
 
     constructor(address factory_, address wrappedNative_) {

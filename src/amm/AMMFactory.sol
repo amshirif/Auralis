@@ -23,6 +23,7 @@ contract AMMFactory is IAMMFactory {
     }
 
     function pairCodeHash() public pure override returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256) -- CREATE2 code hash is exposed in canonical high-level form.
         return keccak256(type(AMMPair).creationCode);
     }
 
@@ -36,6 +37,7 @@ contract AMMFactory is IAMMFactory {
             revert AMMFactoryPairExists(token0, token1);
         }
 
+        // forge-lint: disable-next-line(asm-keccak256) -- pair salt mirrors the CREATE2 address formula.
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
         pair = address(new AMMPair{salt: salt}());
 

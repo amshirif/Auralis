@@ -2,9 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IERC165} from "../interfaces/IERC165.sol";
-import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../interfaces/IERC4626VaultControls.sol";
-import {ERC4626Vault} from "./ERC4626Vault.sol";
 import {ERC4626VaultControlledCore, ERC4626VaultControlSurface} from "./ERC4626VaultControlLogic.sol";
 import {VaultFacetControl} from "./VaultFacetControl.sol";
 
@@ -41,7 +39,7 @@ abstract contract ERC4626VaultControls is ERC4626VaultControlSurface, ERC4626Vau
     function deposit(uint256 assets, address receiver)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -56,7 +54,7 @@ abstract contract ERC4626VaultControls is ERC4626VaultControlSurface, ERC4626Vau
     function mint(uint256 shares, address receiver)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)
@@ -72,7 +70,7 @@ abstract contract ERC4626VaultControls is ERC4626VaultControlSurface, ERC4626Vau
     function withdraw(uint256 assets, address receiver, address owner)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -88,7 +86,7 @@ abstract contract ERC4626VaultControls is ERC4626VaultControlSurface, ERC4626Vau
     function redeem(uint256 shares, address receiver, address owner)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)

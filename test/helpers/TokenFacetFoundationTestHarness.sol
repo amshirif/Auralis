@@ -106,11 +106,11 @@ contract ERC721TokenBaseHarness is ERC721TokenBase {
     }
 
     function setBaseURI(string calldata baseUri) external {
-        _setBaseURI(baseUri);
+        _setBaseUri(baseUri);
     }
 
     function setTokenURI(uint256 tokenId, string calldata uri) external {
-        _setTokenURI(tokenId, uri);
+        _setTokenUri(tokenId, uri);
     }
 
     function isApprovedOrOwner(address spender, uint256 tokenId) external view returns (bool) {

@@ -18,6 +18,7 @@ library LibERC721TokenStorage {
         mapping(address => uint256) balances;
         mapping(uint256 => address) tokenApprovals;
         mapping(address => mapping(address => bool)) operatorApprovals;
+        // forge-lint: disable-next-line(mixed-case-variable) -- storage field name is frozen for layout compatibility.
         mapping(uint256 => string) tokenURIs;
     }
 

@@ -120,7 +120,7 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
     function withdraw(uint256 assets, address receiver, address controller)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 shares)
@@ -171,7 +171,7 @@ contract ERC7540VaultRedeemFacet is ERC4626VaultControlledCore, VaultFacetContro
     function redeem(uint256 shares, address receiver, address controller)
         public
         virtual
-        override(ERC4626Vault)
+        override(ERC4626VaultControlledCore)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)

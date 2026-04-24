@@ -8,6 +8,7 @@ import {LibClone} from "../libraries/LibClone.sol";
 /// @title MultisigWalletFactory
 /// @notice Deterministic clone deployment for standalone multisig wallets.
 contract MultisigWalletFactory is IMultisigWalletFactory {
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- public immutable preserves the factory getter selector.
     address public immutable implementation;
 
     constructor(address implementation_) {

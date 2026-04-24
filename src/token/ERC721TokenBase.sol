@@ -227,7 +227,7 @@ abstract contract ERC721TokenBase is IERC721TokenBase {
 
     /// @dev Sets the base URI used for tokens without explicit URI.
     /// @param baseUri The new base URI.
-    function _setBaseURI(string memory baseUri) internal {
+    function _setBaseUri(string memory baseUri) internal {
         _requireInitialized();
         LibERC721TokenStorage.layout().baseURI = baseUri;
     }
@@ -235,7 +235,7 @@ abstract contract ERC721TokenBase is IERC721TokenBase {
     /// @dev Sets explicit metadata URI for `tokenId`.
     /// @param tokenId The token identifier.
     /// @param uri The explicit metadata URI.
-    function _setTokenURI(uint256 tokenId, string memory uri) internal {
+    function _setTokenUri(uint256 tokenId, string memory uri) internal {
         _requireInitialized();
         _requireOwned(tokenId);
         LibERC721TokenStorage.layout().tokenURIs[tokenId] = uri;
@@ -318,6 +318,7 @@ abstract contract ERC721TokenBase is IERC721TokenBase {
         bytes memory buffer = new bytes(digits);
         while (value != 0) {
             digits -= 1;
+            // forge-lint: disable-next-line(unsafe-typecast) -- value % 10 is a single decimal digit.
             buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
             value /= 10;
         }
