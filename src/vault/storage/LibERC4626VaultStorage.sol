@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibERC4626VaultStorage
 /// @notice Storage layout for ERC-4626 vault modules (diamond-ready).
 library LibERC4626VaultStorage {
-    /// @dev Storage slot for vault layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.erc4626-vault.storage");
 
     /// @notice Configurable fee settings for vault flows.

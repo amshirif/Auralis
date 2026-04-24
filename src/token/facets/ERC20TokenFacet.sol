@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC20TokenFacet} from "../../interfaces/IERC20TokenFacet.sol";
 import {IERC20Permit} from "../../interfaces/IERC20Permit.sol";
 import {IERC165} from "../../interfaces/IERC165.sol";
+import {LibECDSA} from "../../libraries/LibECDSA.sol";
 import {ERC20TokenBase} from "../ERC20TokenBase.sol";
 import {TokenFacetControl} from "../TokenFacetControl.sol";
 import {LibTokenFacetConstants} from "../libraries/LibTokenFacetConstants.sol";
@@ -17,7 +18,6 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 internal constant VERSION_HASH = keccak256("1");
-    uint256 internal constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     /// @notice Shared token admin role.
     bytes32 public constant TOKEN_ADMIN_ROLE = LibTokenFacetConstants.TOKEN_ADMIN_ROLE;
@@ -188,7 +188,7 @@ contract ERC20TokenFacet is ERC20TokenBase, TokenFacetControl, IERC20TokenFacet 
         if (v != 27 && v != 28) {
             return address(0);
         }
-        if (uint256(s) > SECP256K1N_DIV_2) {
+        if (uint256(s) > LibECDSA.SECP256K1N_DIV_2) {
             return address(0);
         }
 

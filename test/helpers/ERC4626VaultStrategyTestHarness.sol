@@ -28,7 +28,9 @@ error MockVaultStrategyForcedRevert(bytes4 selector);
 abstract contract MockVaultStrategyBase is IERC4626VaultStrategy {
     address internal constant LOSS_SINK = address(0x1055);
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- test immutable follows field naming.
     address internal immutable _vault;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- test immutable follows field naming.
     address internal immutable _asset;
 
     uint256 internal _trackedAssets;
@@ -73,7 +75,7 @@ abstract contract MockVaultStrategyBase is IERC4626VaultStrategy {
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 
@@ -82,7 +84,7 @@ abstract contract MockVaultStrategyBase is IERC4626VaultStrategy {
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 
@@ -115,7 +117,7 @@ contract LossShortfallMockVaultStrategy is MockVaultStrategyBase {
     function applyLoss(uint256 lossAssets, uint256 withdrawableAssets_) external {
         uint256 realizedLoss = _min(lossAssets, _trackedAssets);
         if (realizedLoss != 0) {
-            MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss);
+            require(MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss), "STRATEGY_LOSS_TRANSFER_FAILED");
             _trackedAssets -= realizedLoss;
         }
         _withdrawableAssets = _min(withdrawableAssets_, _trackedAssets);
@@ -137,7 +139,7 @@ contract LossOnWithdrawMockVaultStrategy is MockVaultStrategyBase {
         _lossOnNextWithdraw = 0;
 
         if (realizedLoss != 0) {
-            MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss);
+            require(MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss), "STRATEGY_LOSS_TRANSFER_FAILED");
             _trackedAssets -= realizedLoss;
             _withdrawableAssets = _min(_withdrawableAssets, _trackedAssets);
         }
@@ -146,7 +148,7 @@ contract LossOnWithdrawMockVaultStrategy is MockVaultStrategyBase {
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 }
@@ -192,7 +194,7 @@ contract RevertingMockVaultStrategy is MockVaultStrategyBase {
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 
@@ -204,7 +206,7 @@ contract RevertingMockVaultStrategy is MockVaultStrategyBase {
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 }
@@ -217,12 +219,13 @@ contract EmergencyUnwindMockVaultStrategy is MockVaultStrategyBase {
         _trackedAssets = 0;
         _withdrawableAssets = 0;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 }
 
 contract MutableMockVaultStrategy is MockVaultStrategyBase {
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- test immutable follows field naming.
     address internal immutable _profitSource;
     bool internal _revertWithdrawAllToVault;
 
@@ -243,7 +246,9 @@ contract MutableMockVaultStrategy is MockVaultStrategyBase {
             return;
         }
 
-        MockVaultAsset(_asset).transferFrom(_profitSource, address(this), assets);
+        require(
+            MockVaultAsset(_asset).transferFrom(_profitSource, address(this), assets), "STRATEGY_PROFIT_TRANSFER_FAILED"
+        );
         _trackedAssets += assets;
         _withdrawableAssets += assets;
     }
@@ -251,7 +256,7 @@ contract MutableMockVaultStrategy is MockVaultStrategyBase {
     function applyLoss(uint256 lossAssets, uint256 withdrawableAssets_) external {
         uint256 realizedLoss = _min(lossAssets, _trackedAssets);
         if (realizedLoss != 0) {
-            MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss);
+            require(MockVaultAsset(_asset).transfer(LOSS_SINK, realizedLoss), "STRATEGY_LOSS_TRANSFER_FAILED");
             _trackedAssets -= realizedLoss;
         }
         _withdrawableAssets = _min(withdrawableAssets_, _trackedAssets);
@@ -270,7 +275,7 @@ contract MutableMockVaultStrategy is MockVaultStrategyBase {
         _trackedAssets -= assetsReturned;
         _withdrawableAssets -= assetsReturned;
         if (assetsReturned != 0) {
-            MockVaultAsset(_asset).transfer(_vault, assetsReturned);
+            require(MockVaultAsset(_asset).transfer(_vault, assetsReturned), "STRATEGY_TRANSFER_FAILED");
         }
     }
 }
@@ -278,6 +283,7 @@ contract MutableMockVaultStrategy is MockVaultStrategyBase {
 abstract contract MockNativeVaultStrategyBase is IERC4626VaultStrategy {
     address internal constant LOSS_SINK = address(0x1055);
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- test immutable follows field naming.
     address internal immutable _vault;
 
     uint256 internal _trackedAssets;
@@ -477,6 +483,7 @@ contract NativeEmergencyUnwindMockVaultStrategy is MockNativeVaultStrategyBase {
 }
 
 contract MutableNativeMockVaultStrategy is MockNativeVaultStrategyBase {
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- test immutable follows field naming.
     address internal immutable _profitSource;
     bool internal _revertWithdrawAllToVault;
 

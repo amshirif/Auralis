@@ -47,6 +47,7 @@ contract ReentrancyGuardHarness is ReentrancyGuard {
 }
 
 contract ReentrantAttacker is IReentrantCallback {
+    // forge-lint: disable-next-line(screaming-snake-case-immutable) -- test immutable follows field naming.
     ReentrancyGuardHarness internal immutable target;
 
     constructor(ReentrancyGuardHarness target_) {

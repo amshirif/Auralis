@@ -15,14 +15,6 @@ import {
 } from "./DiamondVaultHostHardeningTestHarness.sol";
 import {MutableNativeMockVaultStrategy} from "./ERC4626VaultStrategyTestHarness.sol";
 
-contract ForceSendNative {
-    constructor() payable {}
-
-    function forceSend(address payable receiver) external {
-        selfdestruct(receiver);
-    }
-}
-
 abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeploymentFixture {
     struct AccountingSnapshot {
         uint256 totalAssets;
@@ -356,10 +348,7 @@ abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeployme
             return;
         }
 
-        VM.startPrank(forceSender);
-        ForceSendNative sender = new ForceSendNative{value: assets}();
-        sender.forceSend(payable(address(diamond)));
-        VM.stopPrank();
+        _forceSendNative(address(diamond), assets);
     }
 
     function _forceSendToStrategy(uint256 assets) internal {
@@ -367,10 +356,13 @@ abstract contract DiamondNativeVaultHostHardeningFixture is DiamondVaultDeployme
             return;
         }
 
-        VM.startPrank(forceSender);
-        ForceSendNative sender = new ForceSendNative{value: assets}();
-        sender.forceSend(payable(address(strategyContract)));
-        VM.stopPrank();
+        _forceSendNative(address(strategyContract), assets);
+    }
+
+    function _forceSendNative(address receiver, uint256 assets) internal {
+        // Test-only forced-balance simulation: no receiver call is made, matching unsolicited native surplus.
+        VM.deal(forceSender, forceSender.balance - assets);
+        VM.deal(receiver, receiver.balance + assets);
     }
 
     function _addFacet(address facetAddress_, bytes4[] memory selectors) internal {

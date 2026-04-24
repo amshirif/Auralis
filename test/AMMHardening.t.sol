@@ -138,6 +138,8 @@ contract AMMHardeningTest is AMMHardeningFixture {
         try router.addLiquidity(address(falseToken), address(normalToken), 10_000, 10_000, 0, 0, bob, DEADLINE) {
             revert("expected addLiquidity revert");
         } catch (bytes memory revertData) {
+            // casting to bytes4 is safe because revert selectors are defined by the first four bytes.
+            // forge-lint: disable-next-line(unsafe-typecast)
             bytes4 selector = bytes4(revertData);
             assertTrue(selector == AMMRouter.AMMRouterTransferFromFailed.selector, "unexpected router revert");
         }

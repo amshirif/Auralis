@@ -76,6 +76,8 @@ contract VaultFacetFoundationCoreTest is VaultFacetFoundationFixture {
 
         uint256 controlOnlySlot0 =
             uint256(VM.load(address(vault), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT))));
+        // casting to uint8 is safe because the mask keeps only the packed initialization byte.
+        // forge-lint: disable-next-line(unsafe-typecast)
         assertTrue(uint8(controlOnlySlot0 & 0xff) == 0, "vault initialized byte should remain zero before vault init");
         assertTrue(uint8((controlOnlySlot0 >> 8) & 0xff) == 1, "controlPlaneInitialized byte should occupy second byte");
         assertTrue((controlOnlySlot0 >> 16) == 0, "asset and decimals bytes should remain unset before vault init");
@@ -84,10 +86,15 @@ contract VaultFacetFoundationCoreTest is VaultFacetFoundationFixture {
 
         uint256 initializedSlot0 =
             uint256(VM.load(address(vault), bytes32(uint256(LibERC4626VaultStorage.STORAGE_SLOT))));
+        // casting to uint8 is safe because the mask keeps only the packed initialization byte.
+        // forge-lint: disable-next-line(unsafe-typecast)
         assertTrue(uint8(initializedSlot0 & 0xff) == 1, "vault initialized byte mismatch");
         assertTrue(uint8((initializedSlot0 >> 8) & 0xff) == 1, "controlPlaneInitialized byte mismatch");
         assertTrue(
-            uint160(initializedSlot0 >> 16) == uint160(address(asset)), "asset bytes should start at the third byte"
+            // casting to uint160 is safe because this assertion intentionally inspects the packed address field.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint160(initializedSlot0 >> 16) == uint160(address(asset)),
+            "asset bytes should start at the third byte"
         );
         assertTrue(uint8((initializedSlot0 >> 176) & 0xff) == 6, "decimals byte mismatch");
     }

@@ -300,9 +300,11 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         VM.prank(bob);
         IERC4626VaultFacet(address(diamond)).approve(eve, 15);
         VM.prank(eve);
-        IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10);
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10), "share transferFrom should succeed"
+        );
         VM.prank(bob);
-        IERC4626VaultFacet(address(diamond)).transfer(admin, 5);
+        assertTrue(IERC4626VaultFacet(address(diamond)).transfer(admin, 5), "share transfer should succeed");
 
         assertTrue(IERC4626VaultFacet(address(diamond)).allowance(bob, eve) == 5, "allowance mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 25, "bob balance mismatch");
@@ -464,9 +466,12 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         VM.prank(bob);
         IERC4626VaultFacet(address(diamond)).approve(eve, 15);
         VM.prank(eve);
-        IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10);
+        assertTrue(
+            IERC4626VaultFacet(address(diamond)).transferFrom(bob, admin, 10),
+            "native share transferFrom should succeed"
+        );
         VM.prank(bob);
-        IERC4626VaultFacet(address(diamond)).transfer(admin, 5);
+        assertTrue(IERC4626VaultFacet(address(diamond)).transfer(admin, 5), "native share transfer should succeed");
 
         assertTrue(IERC4626VaultFacet(address(diamond)).allowance(bob, eve) == 5, "native allowance mismatch");
         assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 25, "native bob balance mismatch");

@@ -93,12 +93,12 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
         VM.expectEmit(true, true, false, true, address(facet));
         emit Transfer(bob, admin, 10);
         VM.prank(bob);
-        IERC20TokenFacet(address(facet)).transfer(admin, 10);
+        assertTrue(IERC20TokenFacet(address(facet)).transfer(admin, 10), "transfer should succeed");
 
         VM.expectEmit(true, true, false, true, address(facet));
         emit Approval(bob, eve, 20);
         VM.prank(eve);
-        IERC20TokenFacet(address(facet)).transferFrom(bob, admin, 25);
+        assertTrue(IERC20TokenFacet(address(facet)).transferFrom(bob, admin, 25), "transferFrom should succeed");
 
         VM.prank(admin);
         IERC20TokenFacet(address(facet)).burn(bob, 20);
@@ -147,6 +147,7 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
 
         VM.startPrank(bob);
         VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, transferScope));
+        // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
         IERC20TokenFacet(address(facet)).transfer(admin, 1);
         VM.stopPrank();
 
@@ -189,6 +190,7 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
 
         VM.startPrank(eve);
         VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, approvalScope));
+        // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
         IERC20TokenFacet(address(facet)).transferFrom(bob, admin, 1);
         VM.stopPrank();
     }
@@ -233,7 +235,9 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
         IERC20TokenFacet(address(diamond)).approve(eve, 50);
 
         VM.prank(eve);
-        IERC20TokenFacet(address(diamond)).transferFrom(bob, admin, 20);
+        assertTrue(
+            IERC20TokenFacet(address(diamond)).transferFrom(bob, admin, 20), "diamond transferFrom should succeed"
+        );
 
         assertTrue(IERC20TokenFacet(address(diamond)).balanceOf(bob) == 100, "diamond bob balance mismatch");
         assertTrue(IERC20TokenFacet(address(diamond)).balanceOf(admin) == 20, "diamond admin balance mismatch");
@@ -249,6 +253,7 @@ contract ERC20TokenFacetCoreTest is ERC20TokenFacetFixture {
 
         VM.startPrank(bob);
         VM.expectRevert(abi.encodeWithSelector(IPausable.PausableScopeEnforcedPause.selector, transferScope));
+        // forge-lint: disable-next-line(erc20-unchecked-transfer) -- expected revert path.
         IERC20TokenFacet(address(diamond)).transfer(admin, 1);
         VM.stopPrank();
     }

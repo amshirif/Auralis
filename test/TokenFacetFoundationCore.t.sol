@@ -5,7 +5,6 @@ import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC20TokenBase} from "../src/interfaces/IERC20TokenBase.sol";
 import {IERC721} from "../src/interfaces/IERC721.sol";
 import {IERC721Metadata} from "../src/interfaces/IERC721Metadata.sol";
-import {IERC721Receiver} from "../src/interfaces/IERC721Receiver.sol";
 import {IERC721TokenBase} from "../src/interfaces/IERC721TokenBase.sol";
 import {LibERC20TokenStorage} from "../src/token/storage/LibERC20TokenStorage.sol";
 import {TokenFacetFoundationFixture} from "./helpers/TokenFacetFoundationTestHarness.sol";

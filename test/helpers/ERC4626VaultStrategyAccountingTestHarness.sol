@@ -136,7 +136,7 @@ abstract contract ERC4626VaultStrategyAccountingFixture is TestBase {
         internal
     {
         VM.prank(vaultAccount);
-        asset.transfer(address(strategy_), assets_);
+        assertTrue(asset.transfer(address(strategy_), assets_), "strategy asset transfer should succeed");
 
         VM.prank(vaultAccount);
         strategy_.deployFunds(assets_);

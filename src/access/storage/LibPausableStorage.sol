@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibPausableStorage
 /// @notice Storage layout for pausability modules (diamond-ready).
 library LibPausableStorage {
-    /// @dev Storage slot for pausable layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.pausable.storage");
 
     /// @notice Pausable storage layout.

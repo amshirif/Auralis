@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibERC7540VaultStorage
 /// @notice Storage layout for hosted ERC-7540 async request accounting.
 library LibERC7540VaultStorage {
-    /// @dev Storage slot for async-vault request layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.erc7540-vault.storage");
 
     /// @notice Async request accounting layout.

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {AMMPair} from "../src/amm/AMMPair.sol";
-import {MockAMMToken} from "./helpers/AMMPairTestHarness.sol";
 import {AMMPairCoreFixture} from "./helpers/AMMPairTestHarness.sol";
 
 contract AMMPairFuzzTest is AMMPairCoreFixture {
@@ -64,7 +63,7 @@ contract AMMPairFuzzTest is AMMPairCoreFixture {
         uint256 expectedAmount1 = (burnLiquidity * reserve1Before) / totalSupplyBefore;
 
         VM.prank(alice);
-        localPair.transfer(address(localPair), burnLiquidity);
+        assertTrue(localPair.transfer(address(localPair), burnLiquidity), "lp transfer should succeed");
 
         (uint256 amount0Out, uint256 amount1Out) = localPair.burn(alice);
 
@@ -83,7 +82,7 @@ contract AMMPairFuzzTest is AMMPairCoreFixture {
 
         token0.mint(bob, amountIn);
         VM.prank(bob);
-        token0.transfer(address(pair), amountIn);
+        assertTrue(token0.transfer(address(pair), amountIn), "token0 transfer should succeed");
 
         VM.prank(bob);
         pair.swap(0, expectedAmountOut, bob, "");

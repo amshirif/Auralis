@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC165} from "../../src/interfaces/IERC165.sol";
 import {IERC4626VaultControlsFacet} from "../../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {ERC4626VaultBase} from "../../src/vault/ERC4626VaultBase.sol";
 import {VaultFacetControl} from "../../src/vault/VaultFacetControl.sol";

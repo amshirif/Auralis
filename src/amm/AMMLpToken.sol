@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IAMMLpToken} from "../interfaces/IAMMLpToken.sol";
+import {LibECDSA} from "../libraries/LibECDSA.sol";
 
 /// @title AMMLpToken
 /// @notice Abstract ERC-20 + permit base for AMM LP shares.
@@ -12,7 +13,6 @@ abstract contract AMMLpToken is IAMMLpToken {
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 internal constant NAME_HASH = keccak256("Auralis V2 LP");
     bytes32 internal constant VERSION_HASH = keccak256("1");
-    uint256 internal constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     bool internal _ammLpInitialized;
     uint256 internal _ammLpTotalSupply;
@@ -232,7 +232,7 @@ abstract contract AMMLpToken is IAMMLpToken {
         if (v != 27 && v != 28) {
             return address(0);
         }
-        if (uint256(s) > SECP256K1N_DIV_2) {
+        if (uint256(s) > LibECDSA.SECP256K1N_DIV_2) {
             return address(0);
         }
 

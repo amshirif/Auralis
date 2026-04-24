@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {IERC7540Deposit} from "../src/interfaces/IERC7540Deposit.sol";
 import {IERC7540Operators} from "../src/interfaces/IERC7540Operators.sol";
 import {IERC7540Redeem} from "../src/interfaces/IERC7540Redeem.sol";
-import {IERC7535VaultFacet} from "../src/interfaces/IERC7535VaultFacet.sol";
-import {IAccessControlTime} from "../src/interfaces/IAccessControlTime.sol";
-import {IERC4626VaultBase} from "../src/interfaces/IERC4626VaultBase.sol";
-import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
-import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
-import {IReentrancyGuard} from "../src/interfaces/IReentrancyGuard.sol";
 import {LibERC7540RequestAccounting} from "../src/vault/libraries/LibERC7540RequestAccounting.sol";
 import {LibVaultFacetSelectors} from "../src/vault/libraries/LibVaultFacetSelectors.sol";
 import {ERC7540VaultFoundationFixture} from "./helpers/ERC7540VaultFoundationTestHarness.sol";

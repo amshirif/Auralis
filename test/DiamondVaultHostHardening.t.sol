@@ -6,7 +6,6 @@ import {IERC165} from "../src/interfaces/IERC165.sol";
 import {IERC20Metadata} from "../src/interfaces/IERC20Metadata.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
-import {IERC4626VaultControlsFacet} from "../src/interfaces/IERC4626VaultControlsFacet.sol";
 import {IERC4626VaultFacet} from "../src/interfaces/IERC4626VaultFacet.sol";
 import {IERC4626VaultIntegrationFacet} from "../src/interfaces/IERC4626VaultIntegrationFacet.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";

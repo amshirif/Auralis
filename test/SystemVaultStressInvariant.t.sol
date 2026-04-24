@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC4626VaultControls} from "../src/interfaces/IERC4626VaultControls.sol";
 import {IPausable} from "../src/interfaces/IPausable.sol";
-import {IReentrancyGuard} from "../src/interfaces/IReentrancyGuard.sol";
 import {ERC4626VaultControlsHarness} from "./helpers/ERC4626VaultControlsTestHarness.sol";
 import {SystemVaultStressFixture} from "./helpers/SystemVaultStressTestHarness.sol";
 
@@ -106,8 +104,13 @@ contract SystemVaultStressInvariantTest is SystemVaultStressFixture {
         AccountingSnapshot memory beforeSnapshot = _snapshotAccounting();
 
         uint256 currentAssets = vault.totalAssets();
-        uint128 maxTotalAssets =
-            totalCapRaw % 4 == 0 ? 0 : uint128(currentAssets + (uint256(totalCapRaw) % INITIAL_ASSET_SUPPLY) + 1);
+        uint128 maxTotalAssets;
+        if (totalCapRaw % 4 != 0) {
+            uint256 boundedTotalCap = currentAssets + (uint256(totalCapRaw) % INITIAL_ASSET_SUPPLY) + 1;
+            // casting to uint128 is safe because this bounded cap stays below the fixture's initial supply envelope.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            maxTotalAssets = uint128(boundedTotalCap);
+        }
         uint128 maxDeposit = depositRaw % 4 == 0 ? 0 : uint128((uint256(depositRaw) % INITIAL_ASSETS) + 1);
         uint128 maxMint = mintRaw % 4 == 0 ? 0 : uint128((uint256(mintRaw) % INITIAL_ASSETS) + 1);
         uint128 maxWithdraw = withdrawRaw % 4 == 0 ? 0 : uint128((uint256(withdrawRaw) % INITIAL_ASSETS) + 1);

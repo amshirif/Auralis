@@ -113,7 +113,7 @@ contract ERC4626VaultIntegrationFacet is
 
     /// @notice Sets the external oracle adapter reference.
     /// @param newAdapter The new adapter address, or zero to clear.
-    function setOracleAdapter(address newAdapter) public {
+    function setOracleAdapter(address newAdapter) external {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         LibERC4626VaultStorage.Layout storage layout = LibERC4626VaultStorage.layout();
@@ -125,7 +125,7 @@ contract ERC4626VaultIntegrationFacet is
 
     /// @notice Sets the configured strategy reference.
     /// @param newStrategy The new strategy address, or zero to clear.
-    function setStrategy(address newStrategy) public nonReentrant {
+    function setStrategy(address newStrategy) external nonReentrant {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
 
@@ -151,7 +151,7 @@ contract ERC4626VaultIntegrationFacet is
 
     /// @notice Deploys idle vault assets into the configured strategy.
     /// @param assets The asset amount to deploy.
-    function deployToStrategy(uint256 assets) public nonReentrant {
+    function deployToStrategy(uint256 assets) external nonReentrant {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         if (assets == 0) {
@@ -181,7 +181,7 @@ contract ERC4626VaultIntegrationFacet is
     /// @notice Withdraws assets from the configured strategy back to the vault.
     /// @param assets The requested asset amount to withdraw.
     /// @return returnedAssets The actual returned asset amount.
-    function withdrawFromStrategy(uint256 assets) public nonReentrant returns (uint256 returnedAssets) {
+    function withdrawFromStrategy(uint256 assets) external nonReentrant returns (uint256 returnedAssets) {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         if (assets == 0) {
@@ -197,7 +197,7 @@ contract ERC4626VaultIntegrationFacet is
     }
 
     /// @notice Syncs live strategy assets into vault book accounting.
-    function syncStrategyAssets() public nonReentrant {
+    function syncStrategyAssets() external nonReentrant {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
 
@@ -209,7 +209,7 @@ contract ERC4626VaultIntegrationFacet is
 
     /// @notice Activates emergency-exit mode and attempts to unwind the configured strategy.
     /// @return assetsReturned The actual returned asset amount from the unwind attempt.
-    function emergencyExitStrategy() public nonReentrant returns (uint256 assetsReturned) {
+    function emergencyExitStrategy() external nonReentrant returns (uint256 assetsReturned) {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
 
@@ -231,7 +231,7 @@ contract ERC4626VaultIntegrationFacet is
     /// @dev Requires `VAULT_MANAGER_ROLE` and an unpaused `ASYNC_SETTLEMENT_SCOPE`.
     /// @param controller Request controller account.
     /// @param assets Asset amount to settle.
-    function settleDepositRequest(address controller, uint256 assets) public {
+    function settleDepositRequest(address controller, uint256 assets) external {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         _requireScopeNotPaused(ASYNC_SETTLEMENT_SCOPE());
@@ -244,7 +244,7 @@ contract ERC4626VaultIntegrationFacet is
     /// @dev Requires `VAULT_MANAGER_ROLE` and an unpaused `ASYNC_SETTLEMENT_SCOPE`.
     /// @param controller Request controller account.
     /// @param shares Share amount to settle.
-    function settleRedeemRequest(address controller, uint256 shares) public {
+    function settleRedeemRequest(address controller, uint256 shares) external {
         _requireInitialized();
         _checkRole(VAULT_MANAGER_ROLE(), msg.sender);
         _requireScopeNotPaused(ASYNC_SETTLEMENT_SCOPE());

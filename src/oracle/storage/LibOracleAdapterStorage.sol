@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 /// @title LibOracleAdapterStorage
 /// @notice Storage layout for oracle adapter modules (diamond-ready).
 library LibOracleAdapterStorage {
-    /// @dev Storage slot for oracle adapter layout.
+    /// @dev Unique namespaced storage slot; do not reuse or rename without migration review.
     bytes32 internal constant STORAGE_SLOT = keccak256("auralis.oracle-adapter.storage");
 
     /// @notice Oracle adapter storage layout.
