@@ -1,0 +1,35 @@
+name: Audit or documentation task
+description: Track audit-remediation, documentation, or public-reviewer cleanup work.
+title: "[audit] "
+labels:
+  - audit
+  - documentation
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What documentation, metadata, or review surface is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: expected-resolution
+    attributes:
+      label: Expected resolution
+      description: What should be true when this issue is closed?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: List concrete checks or outcomes.
+      value: |
+        - [ ] <criterion>
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Commands or review steps expected for the PR.
