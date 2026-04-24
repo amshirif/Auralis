@@ -7,8 +7,8 @@ import {IUpgradeGuardrails} from "../interfaces/IUpgradeGuardrails.sol";
 import {LibUpgradeGuardrailsStorage} from "./storage/LibUpgradeGuardrailsStorage.sol";
 
 /// @title UpgradeGuardrails
-/// @notice Role-gated queue/execute upgrade guard rails with optional timelock.
-/// @dev Uses `UPGRADER_ROLE` and diamond-ready storage.
+/// @notice Opt-in role-gated queue/execute upgrade guard rails with optional timelock.
+/// @dev Uses `UPGRADER_ROLE` and namespaced storage; deployments must implement their own `_applyUpgrade` hook.
 abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
     /// @notice Role required to queue, cancel, and execute upgrades.
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
@@ -93,7 +93,7 @@ abstract contract UpgradeGuardrails is AccessControl, IUpgradeGuardrails {
             || super.supportsInterface(interfaceId);
     }
 
-    /// @dev Initializes upgrade guardrails storage (diamond-ready).
+    /// @dev Initializes upgrade guardrails storage for an opt-in deployment.
     /// @param initialUpgrader The account to receive `UPGRADER_ROLE`.
     /// @param minDelaySeconds The minimum delay between queue and execute.
     function _initializeUpgradeGuardrails(address initialUpgrader, uint64 minDelaySeconds) internal {

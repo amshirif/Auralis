@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC165} from "./IERC165.sol";
 
 /// @title IUpgradeGuardrails
-/// @notice Interface for role-gated upgrade guard rails.
+/// @notice Interface for opt-in role-gated upgrade guard rails.
 interface IUpgradeGuardrails is IERC165 {
     /// @notice Emitted when an upgrade intent is queued.
     /// @param implementation Queued implementation address.

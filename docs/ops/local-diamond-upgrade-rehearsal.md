@@ -15,7 +15,8 @@ cut behavior before production-style operator changes.
 
 The rehearsal validates cut mechanics and state persistence on the current
 storage-layout baseline. It does not validate storage migration across renamed
-slot namespaces from older pre-public deployments.
+slot namespaces from older pre-public deployments, and it does not exercise
+`UpgradeGuardrails` queue/timelock checks.
 
 ## Run
 

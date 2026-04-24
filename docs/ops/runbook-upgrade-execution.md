@@ -1,6 +1,8 @@
 # Runbook: Upgrade Execution
 
-Use this runbook for guarded upgrade operations.
+Use this runbook for deployments that explicitly opt into
+`UpgradeGuardrails`. It does not describe the current diamond selector-upgrade
+path; for current diamond cuts, use `docs/ops/runbook-diamond-cut.md`.
 
 ## Relevant Controls
 
@@ -18,6 +20,8 @@ Use this runbook for guarded upgrade operations.
 - Confirm implementation address is final and deployed.
 - Confirm compatibility and migration assumptions.
 - Confirm rollback or cancel path is clear.
+- Confirm the target deployment actually inherits `UpgradeGuardrails` and
+  implements `_applyUpgrade(address)` for this upgrade primitive.
 - If the change touches the diamond upgrade path or system-level validation
   surface, rehearse locally first:
   - `bash script/run-local-diamond-upgrade-rehearsal.sh`
