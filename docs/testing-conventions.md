@@ -8,6 +8,7 @@ Use a split test layout so modules stay readable as complexity grows.
 - `test/<Module>Time.t.sol` (only when time-window behavior exists)
 - `test/<Module>Fuzz.t.sol` (for property/fuzz coverage)
 - `test/<Module>Invariant.t.sol` (for stateful invariant coverage)
+- `test/<Module>Hardening.t.sol` (for adversarial and regression coverage)
 - `test/<Module>Integration.t.sol` (optional, cross-module workflows)
 - `test/helpers/<Module>TestHarness.sol`
 
@@ -18,12 +19,15 @@ Use a split test layout so modules stay readable as complexity grows.
 - `Integration`: interactions between modules and end-to-end flows.
 - `Fuzz`: property-style checks across random inputs and edge value ranges.
 - `Invariant`: stateful safety properties across randomized action sequences.
+- `Hardening`: adversarial and regression suites that combine realistic edge
+  cases, hostile integrations, selector replacement, and remove/re-add flows.
 - `helpers`: shared fixture setup, actors, harness wrappers, and utility assertions.
 
 ## Naming
 
 - Test contract names: `<Module>CoreTest`, `<Module>TimeTest`, `<Module>IntegrationTest`.
-- Test contract names: `<Module>FuzzTest`, `<Module>InvariantTest`.
+- Test contract names: `<Module>FuzzTest`, `<Module>InvariantTest`,
+  `<Module>HardeningTest`.
 - Test function names should describe one behavior each, for example:
   - `testNonAdminCannotSetRoleWindow`
   - `testRoleWindowBoundariesAndOnlyActiveRole`
@@ -62,6 +66,10 @@ Use a split test layout so modules stay readable as complexity grows.
 - Fuzz example: `test/MultisigWalletFuzz.t.sol`
 - Invariant example: `test/ERC4626VaultAccountingInvariant.t.sol`
 - Invariant example: `test/ERC7540VaultRequestAccountingInvariant.t.sol`
+- Hardening example: `test/AMMHardening.t.sol`
+- Hardening example: `test/DiamondTokenHostHardening.t.sol`
+- Hardening example: `test/DiamondVaultHostHardening.t.sol`
+- Hardening example: `test/DiamondNativeVaultHostHardening.t.sol`
 - Time example: `test/AccessControlTime.t.sol`
 - Time example: `test/UpgradeGuardrailsTime.t.sol`
 - Time example: `test/ERC7540VaultRequestTime.t.sol`

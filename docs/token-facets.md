@@ -85,6 +85,8 @@ Initialization seeds:
 - Permit domain state
 - shared control state when the host is first initialized
 - role assignments for the provided `admin`
+- `DEFAULT_ADMIN_ROLE`, `TOKEN_ADMIN_ROLE`, `PAUSER_ROLE`,
+  `ERC20_MINTER_ROLE`, and `ERC20_BURNER_ROLE` are granted to `admin`
 
 Initialization expectations:
 
@@ -105,6 +107,9 @@ Initialization seeds:
 - token metadata and base URI
 - shared control state when the host is first initialized
 - role assignments for the provided `admin`
+- `DEFAULT_ADMIN_ROLE`, `TOKEN_ADMIN_ROLE`, `PAUSER_ROLE`,
+  `ERC721_MINTER_ROLE`, `ERC721_BURNER_ROLE`, and `ERC721_METADATA_ROLE` are
+  granted to `admin`
 
 Initialization expectations:
 
