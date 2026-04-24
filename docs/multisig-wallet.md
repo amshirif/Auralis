@@ -125,6 +125,11 @@ The current wallet track does not include:
 
 - `test/MultisigWalletFoundationCore.t.sol`
 - `test/MultisigWalletCoreExecution.t.sol`
+- `test/MultisigWalletFuzz.t.sol`
 - `test/MultisigWalletIntegration.t.sol`
 - `test/MultisigWalletManagement.t.sol`
 - `test/MultisigWalletInvariant.t.sol`
+
+`test/MultisigWalletFuzz.t.sol` is the signature/threshold/nonce fuzz evidence:
+it exercises sorted threshold signatures, malformed lengths, invalid signers,
+wrong nonces, replay rejection, target reverts, and batch execution.

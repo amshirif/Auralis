@@ -281,6 +281,16 @@ Use these suites to review the async request surface locally:
   claim, operator, limit, and settlement-pause behavior
 - `test/ERC7540VaultRedeemCore.t.sol`: async redeem request, settlement,
   claim, allowance/operator behavior, limit, and settlement-pause behavior
+- `test/ERC7540VaultRequestAccountingInvariant.t.sol`: library-level
+  invariant coverage for aggregate pending/claimable request accounting and
+  operator pair isolation
+- `test/ERC7540VaultDepositFuzz.t.sol`: diamond-routed fuzz coverage for async
+  deposit request, settlement, claim, max-helper, and operator behavior
+- `test/ERC7540VaultRedeemFuzz.t.sol`: diamond-routed fuzz coverage for async
+  redeem request, settlement, claim, escrow, allowance/operator, and max-helper
+  behavior
+- `test/ERC7540VaultRequestTime.t.sol`: time-neutrality coverage proving time
+  alone does not settle requests and settlement pause persists across warps
 - `testAsyncDepositClaimHelpersStayClaimableBasedWhileHostTotalAssetsStillReverts()`
   in `test/ERC7540VaultDepositCore.t.sol`: async deposit claim-path boundary
 - `testAsyncRedeemMaxReadsInheritStrategyPricingRevert()` in
@@ -290,4 +300,5 @@ Use these suites to review the async request surface locally:
 - `test/DiamondVaultHostHardening.t.sol`: persistence across replace/remove
   flows with async selectors installed
 - `test/DiamondVaultHostInvariant.t.sol`: diamond-routed invariant coverage for
-  the hosted async vault path
+  the hosted async vault path, including broader cross-facet strategy, pause,
+  fee, limit, and request lifecycle interactions

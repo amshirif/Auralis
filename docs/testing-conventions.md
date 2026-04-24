@@ -57,9 +57,14 @@ Use a split test layout so modules stay readable as complexity grows.
 - Fuzz example: `test/PausableFuzz.t.sol`
 - Fuzz example: `test/UpgradeGuardrailsFuzz.t.sol`
 - Fuzz example: `test/ERC4626VaultAccountingFuzz.t.sol`
+- Fuzz example: `test/ERC7540VaultDepositFuzz.t.sol`
+- Fuzz example: `test/ERC7540VaultRedeemFuzz.t.sol`
+- Fuzz example: `test/MultisigWalletFuzz.t.sol`
 - Invariant example: `test/ERC4626VaultAccountingInvariant.t.sol`
+- Invariant example: `test/ERC7540VaultRequestAccountingInvariant.t.sol`
 - Time example: `test/AccessControlTime.t.sol`
 - Time example: `test/UpgradeGuardrailsTime.t.sol`
+- Time example: `test/ERC7540VaultRequestTime.t.sol`
 - Helper example: `test/helpers/AccessControlTestHarness.sol`
 - Helper example: `test/helpers/PausableTestHarness.sol`
 - Helper example: `test/helpers/OracleAdapterTestHarness.sol`
