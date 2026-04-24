@@ -16,11 +16,21 @@ library LibERC4626VaultControlLogic {
         Up
     }
 
+    /// @notice Reads the current vault fee configuration from storage.
+    /// @return depositFeeBps Deposit fee in basis points.
+    /// @return withdrawFeeBps Withdraw fee in basis points.
+    /// @return recipient Fee recipient account.
     function feeConfig() internal view returns (uint16 depositFeeBps, uint16 withdrawFeeBps, address recipient) {
         LibERC4626VaultStorage.FeeConfig storage fees = LibERC4626VaultStorage.layout().fees;
         return (fees.depositFeeBps, fees.withdrawFeeBps, fees.feeRecipient);
     }
 
+    /// @notice Reads the current vault limit configuration from storage.
+    /// @return maxTotalAssets Cap for managed assets, or zero when unlimited.
+    /// @return maxDeposit Per-call deposit limit, or zero when unlimited.
+    /// @return maxMint Per-call mint limit, or zero when unlimited.
+    /// @return maxWithdraw Per-call withdraw limit, or zero when unlimited.
+    /// @return maxRedeem Per-call redeem limit, or zero when unlimited.
     function limitConfig()
         internal
         view
@@ -30,22 +40,33 @@ library LibERC4626VaultControlLogic {
         return (limits.maxTotalAssets, limits.maxDeposit, limits.maxMint, limits.maxWithdraw, limits.maxRedeem);
     }
 
+    /// @notice Reads the configured vault fee recipient.
+    /// @return Fee recipient account.
     function feeRecipient() internal view returns (address) {
         return LibERC4626VaultStorage.layout().fees.feeRecipient;
     }
 
+    /// @notice Reverts unless a fee rate is below 100%.
+    /// @param feeBps Fee rate in basis points.
     function validateFeeBps(uint16 feeBps) internal pure {
         if (feeBps >= BPS_DENOMINATOR) {
             revert IERC4626VaultControls.ERC4626VaultInvalidFeeBps(feeBps);
         }
     }
 
+    /// @notice Computes net managed assets credited after a deposit fee.
+    /// @param assets Gross assets paid by the depositor.
+    /// @return netAssets Assets credited to vault managed accounting.
+    /// @return feeAssets Assets paid to the configured fee recipient.
     function netAfterDepositFee(uint256 assets) internal view returns (uint256 netAssets, uint256 feeAssets) {
         uint16 depositFeeBps = LibERC4626VaultStorage.layout().fees.depositFeeBps;
         feeAssets = feeOnRaw(assets, depositFeeBps, FeeRounding.Down);
         netAssets = assets - feeAssets;
     }
 
+    /// @notice Computes the smallest gross deposit that credits at least `netAssets`.
+    /// @param netAssets Desired net managed assets after deposit fee.
+    /// @return grossAssets Gross assets required from the depositor.
     function grossUpForDepositFee(uint256 netAssets) internal view returns (uint256 grossAssets) {
         uint16 depositFeeBps = LibERC4626VaultStorage.layout().fees.depositFeeBps;
         if (depositFeeBps == 0 || netAssets == 0) {
@@ -61,6 +82,10 @@ library LibERC4626VaultControlLogic {
         }
     }
 
+    /// @notice Computes gross accounting assets needed to withdraw an exact net amount.
+    /// @param assets Net assets requested by the receiver.
+    /// @return grossAssets Gross assets removed from vault accounting.
+    /// @return feeAssets Withdraw fee paid to the configured recipient.
     function withdrawGrossFromNet(uint256 assets) internal view returns (uint256 grossAssets, uint256 feeAssets) {
         uint256 withdrawFeeBps = LibERC4626VaultStorage.layout().fees.withdrawFeeBps;
 
@@ -76,12 +101,21 @@ library LibERC4626VaultControlLogic {
         grossAssets = assets + feeAssets;
     }
 
+    /// @notice Computes net receiver assets and fees from a gross redeem amount.
+    /// @param grossAssets Gross assets removed from vault accounting.
+    /// @return netAssets Assets paid to the receiver.
+    /// @return feeAssets Withdraw fee paid to the configured recipient.
     function withdrawNetFromGross(uint256 grossAssets) internal view returns (uint256 netAssets, uint256 feeAssets) {
         uint16 withdrawFeeBps = LibERC4626VaultStorage.layout().fees.withdrawFeeBps;
         feeAssets = feeOnRaw(grossAssets, withdrawFeeBps, FeeRounding.Down);
         netAssets = grossAssets - feeAssets;
     }
 
+    /// @notice Computes a raw basis-point fee with the requested rounding direction.
+    /// @param assets Asset amount used as fee basis.
+    /// @param feeBps Fee rate in basis points.
+    /// @param rounding Rounding direction for non-even divisions.
+    /// @return Fee amount.
     function feeOnRaw(uint256 assets, uint16 feeBps, FeeRounding rounding) internal pure returns (uint256) {
         if (feeBps == 0 || assets == 0) {
             return 0;
@@ -90,6 +124,12 @@ library LibERC4626VaultControlLogic {
         return mulDiv(assets, feeBps, BPS_DENOMINATOR, rounding);
     }
 
+    /// @notice Multiplies and divides with optional upward rounding.
+    /// @param x Multiplicand.
+    /// @param y Multiplier.
+    /// @param denominator Division denominator.
+    /// @param rounding Rounding direction for non-even divisions.
+    /// @return result Computed `x * y / denominator`.
     function mulDiv(uint256 x, uint256 y, uint256 denominator, FeeRounding rounding)
         internal
         pure
@@ -107,30 +147,37 @@ library LibERC4626VaultControlLogic {
 /// @title ERC4626VaultControlledCore
 /// @notice Shared fee-aware and limit-aware ERC-4626 core behavior.
 abstract contract ERC4626VaultControlledCore is ERC4626Vault {
-    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
-    ///      Leaf facets override the selectors they expose through the diamond.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function deposit(uint256, address) public virtual override returns (uint256) {
         revert();
     }
 
-    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
-    ///      Leaf facets override the selectors they expose through the diamond.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function mint(uint256, address) public virtual override returns (uint256) {
         revert();
     }
 
-    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
-    ///      Leaf facets override the selectors they expose through the diamond.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function withdraw(uint256, address, address) public virtual override returns (uint256) {
         revert();
     }
 
-    /// @dev Non-core facets inherit this type for shared helpers but do not own every ERC-4626 selector.
-    ///      Leaf facets override the selectors they expose through the diamond.
+    /// @notice Unconditionally reverts because this facet does not own this ERC-4626 selector.
+    /// @dev Exists only to satisfy concrete inheritance; intended calls are routed by the diamond proxy to the owning facet.
+    /// @return Never returns.
     function redeem(uint256, address, address) public virtual override returns (uint256) {
         revert();
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Returns zero while vault operations are paused, and otherwise applies per-call deposit and total-assets caps.
+    ///      The total-assets cap is fee-aware because deposit limits are enforced on net managed assets.
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         if (receiver == address(0) || _vaultOperationsPaused()) {
             return 0;
@@ -165,6 +212,8 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         return maxAssets;
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Returns zero while vault operations are paused, and otherwise applies per-call mint and total-assets caps.
     function maxMint(address receiver) public view virtual override returns (uint256) {
         if (receiver == address(0) || _vaultOperationsPaused()) {
             return 0;
@@ -193,6 +242,9 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         return maxShares;
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Returns zero while paused or empty, caps by immediate withdrawable liquidity, then reports net assets after fees
+    ///      and any configured per-call withdraw limit.
     function maxWithdraw(address owner) public view virtual override returns (uint256) {
         if (owner == address(0) || _vaultOperationsPaused() || totalAssets() == 0) {
             return 0;
@@ -215,6 +267,9 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         return netAssets;
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Returns zero while paused or empty, caps shares by immediate withdrawable liquidity, then applies any configured
+    ///      per-call redeem limit.
     function maxRedeem(address owner) public view virtual override returns (uint256) {
         if (owner == address(0) || _vaultOperationsPaused() || totalAssets() == 0) {
             return 0;
@@ -237,21 +292,29 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         return redeemableShares;
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Deposit preview converts the post-fee net assets that would be credited to managed accounting.
     function previewDeposit(uint256 assets) public view virtual override returns (uint256) {
         (uint256 netAssets,) = LibERC4626VaultControlLogic.netAfterDepositFee(assets);
         return _convertToShares(netAssets, Rounding.Down);
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Mint preview returns the gross assets required to credit the fee-adjusted net assets for `shares`.
     function previewMint(uint256 shares) public view virtual override returns (uint256) {
         uint256 netAssets = _convertToAssets(shares, Rounding.Up);
         return LibERC4626VaultControlLogic.grossUpForDepositFee(netAssets);
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Withdraw preview returns shares needed to cover the gross accounting assets backing the requested net assets.
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         (uint256 grossAssets,) = LibERC4626VaultControlLogic.withdrawGrossFromNet(assets);
         return _convertToShares(grossAssets, Rounding.Up);
     }
 
+    /// @inheritdoc ERC4626Vault
+    /// @dev Redeem preview converts shares to gross accounting assets first, then subtracts any withdraw fee.
     function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 grossAssets = _convertToAssets(shares, Rounding.Down);
         // Redeem previews follow the same boundary: shares map to gross accounting assets first, then
@@ -260,6 +323,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         return netAssets;
     }
 
+    /// @notice Executes a fee-aware and limit-aware ERC-4626 deposit.
+    /// @param assets Gross assets paid by the caller.
+    /// @param receiver Account receiving minted shares.
+    /// @return shares Shares minted to `receiver`.
     function _depositWithControls(uint256 assets, address receiver) internal returns (uint256 shares) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -288,6 +355,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
+    /// @notice Executes a fee-aware and limit-aware ERC-4626 mint.
+    /// @param shares Exact shares to mint.
+    /// @param receiver Account receiving minted shares.
+    /// @return assets Gross assets paid by the caller.
     function _mintWithControls(uint256 shares, address receiver) internal returns (uint256 assets) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -317,6 +388,9 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
+    /// @notice Executes a fee-aware and limit-aware native-asset deposit using `msg.value`.
+    /// @param receiver Account receiving minted shares.
+    /// @return shares Shares minted to `receiver`.
     function _depositNativeWithControls(address receiver) internal returns (uint256 shares) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -346,6 +420,10 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
+    /// @notice Executes a fee-aware and limit-aware native-asset mint using exact `msg.value`.
+    /// @param shares Exact shares to mint.
+    /// @param receiver Account receiving minted shares.
+    /// @return assets Required native asset value.
     function _mintNativeWithControls(uint256 shares, address receiver) internal returns (uint256 assets) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -378,6 +456,11 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
+    /// @notice Executes a fee-aware and limit-aware exact-assets withdrawal.
+    /// @param assets Net assets paid to `receiver`.
+    /// @param receiver Account receiving withdrawn assets.
+    /// @param owner Account whose shares are burned.
+    /// @return shares Shares burned from `owner`.
     function _withdrawWithControls(uint256 assets, address receiver, address owner) internal returns (uint256 shares) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -409,6 +492,11 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
+    /// @notice Executes a fee-aware and limit-aware exact-shares redeem.
+    /// @param shares Shares burned from `owner`.
+    /// @param receiver Account receiving withdrawn assets.
+    /// @param owner Account whose shares are burned.
+    /// @return assets Net assets paid to `receiver`.
     function _redeemWithControls(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
         _requireInitialized();
         _requireNonZeroAddress(receiver);
@@ -441,6 +529,8 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
+    /// @notice Reverts if adding managed assets would exceed the configured total-assets cap.
+    /// @param additionalAssets Net managed assets about to be added.
     function _enforceTotalAssetsCap(uint256 additionalAssets) internal view {
         (uint128 maxTotalAssets_,,,,) = LibERC4626VaultControlLogic.limitConfig();
         if (maxTotalAssets_ == 0) {
@@ -456,6 +546,8 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         }
     }
 
+    /// @notice Transfers collected fees to the configured fee recipient.
+    /// @param feeAssets Fee amount to pay.
     function _payoutFee(uint256 feeAssets) internal {
         if (feeAssets == 0) {
             return;
@@ -464,16 +556,21 @@ abstract contract ERC4626VaultControlledCore is ERC4626Vault {
         _safeTransferAsset(LibERC4626VaultControlLogic.feeRecipient(), feeAssets);
     }
 
+    /// @notice Returns the immediate gross assets available for withdraw/redeem views.
+    /// @return Gross asset liquidity cap, or max uint256 when uncapped.
     function _withdrawLiquidityCapAssets() internal view virtual returns (uint256) {
         return type(uint256).max;
     }
 
+    /// @notice Returns whether vault operations are currently paused for this facet context.
+    /// @return True when vault operations should be treated as paused.
     function _vaultOperationsPaused() internal view virtual returns (bool);
 }
 
 /// @title ERC4626VaultControlSurface
 /// @notice Shared hosted and standalone control-plane surface for vault config and governance.
 abstract contract ERC4626VaultControlSurface is VaultFacetControl, IERC4626VaultControls {
+    /// @inheritdoc IERC4626VaultControls
     // forge-lint: disable-next-line(mixed-case-function) -- interface role getter name is selector-stable.
     function VAULT_MANAGER_ROLE()
         public
@@ -485,6 +582,7 @@ abstract contract ERC4626VaultControlSurface is VaultFacetControl, IERC4626Vault
         return VaultFacetControl.VAULT_MANAGER_ROLE();
     }
 
+    /// @inheritdoc IERC4626VaultControls
     function feeConfig()
         public
         view
@@ -495,6 +593,7 @@ abstract contract ERC4626VaultControlSurface is VaultFacetControl, IERC4626Vault
         return LibERC4626VaultControlLogic.feeConfig();
     }
 
+    /// @inheritdoc IERC4626VaultControls
     function limitConfig()
         public
         view
@@ -505,6 +604,9 @@ abstract contract ERC4626VaultControlSurface is VaultFacetControl, IERC4626Vault
         return LibERC4626VaultControlLogic.limitConfig();
     }
 
+    /// @inheritdoc IERC4626VaultControls
+    /// @dev Requires `VAULT_MANAGER_ROLE`, rejects fee rates at or above 100%, and requires a nonzero recipient
+    ///      whenever either fee is nonzero.
     function setFeeConfig(uint16 depositFeeBps, uint16 withdrawFeeBps, address feeRecipient)
         public
         virtual
@@ -537,6 +639,7 @@ abstract contract ERC4626VaultControlSurface is VaultFacetControl, IERC4626Vault
         );
     }
 
+    /// @inheritdoc IERC4626VaultControls
     function setLimitConfig(
         uint128 maxTotalAssets,
         uint128 maxDeposit,

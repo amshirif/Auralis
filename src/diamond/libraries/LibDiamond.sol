@@ -9,33 +9,47 @@ import {LibDiamondStorage} from "../storage/LibDiamondStorage.sol";
 /// @notice Shared diamond bookkeeping helpers for ownership, interfaces, and selector routing.
 library LibDiamond {
     /// @notice Emitted when ownership changes.
+    /// @param previousOwner Previous diamond owner.
+    /// @param newOwner New diamond owner.
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /// @notice Thrown when a zero owner is provided.
     error DiamondOwnerZeroAddress();
     /// @notice Thrown when `account` is not the current owner.
+    /// @param account Unauthorized caller.
+    /// @param owner Current owner required for the call.
     error DiamondUnauthorized(address account, address owner);
     /// @notice Thrown when a zero facet address is provided.
     error DiamondFacetAddressZero();
     /// @notice Thrown when an invalid ERC-165 interface id is registered.
+    /// @param interfaceId Invalid interface id.
     error DiamondInvalidInterfaceId(bytes4 interfaceId);
     /// @notice Thrown when a selector already exists on another facet.
+    /// @param selector Selector that is already installed.
+    /// @param existingFacet Current owning facet.
     error DiamondSelectorAlreadyExists(bytes4 selector, address existingFacet);
     /// @notice Thrown when a selector is not currently installed.
+    /// @param selector Selector that was not found.
     error DiamondSelectorNotFound(bytes4 selector);
     /// @notice Thrown when replacing a selector with the same facet.
+    /// @param selector Selector being replaced.
+    /// @param facetAddress Existing facet address.
     error DiamondReplaceWithSameFacet(bytes4 selector, address facetAddress);
     /// @notice Thrown when a facet cut contains no selectors.
     error DiamondCutEmptySelectors();
     /// @notice Thrown when removing selectors with a nonzero facet address.
+    /// @param facetAddress Nonzero facet address supplied for a remove cut.
     error DiamondCutRemoveFacetAddressNotZero(address facetAddress);
     /// @notice Thrown when a facet or init target has no code.
+    /// @param target Address that must contain runtime code.
     error DiamondTargetHasNoCode(address target);
     /// @notice Thrown when init calldata is provided without an init target.
     error DiamondCutInitTargetRequired();
     /// @notice Thrown when an init target is provided without calldata.
     error DiamondCutInitCalldataRequired();
     /// @notice Thrown when the init delegatecall fails.
+    /// @param init Init target that reverted.
+    /// @param reason Raw revert data returned by the init target.
     error DiamondCutInitFailed(address init, bytes reason);
 
     /// @notice Returns the current contract owner.

@@ -7,15 +7,27 @@ import {IERC165} from "./IERC165.sol";
 /// @notice Interface for optional time-gated role behavior.
 interface IAccessControlTime is IERC165 {
     /// @notice Emitted when a role time window is set.
+    /// @param role Role whose account window changed.
+    /// @param account Account whose window changed.
+    /// @param start Activation timestamp.
+    /// @param end Expiration timestamp, or zero for no expiry.
+    /// @param sender Account that set the window.
     event RoleWindowSet(
         bytes32 indexed role, address indexed account, uint64 start, uint64 end, address indexed sender
     );
     /// @notice Emitted when a role time window is cleared.
+    /// @param role Role whose account window was cleared.
+    /// @param account Account whose window was cleared.
+    /// @param sender Account that cleared the window.
     event RoleWindowCleared(bytes32 indexed role, address indexed account, address indexed sender);
 
     /// @notice Thrown when a role time window is invalid.
+    /// @param start Activation timestamp.
+    /// @param end Expiration timestamp.
     error AccessControlInvalidRoleWindow(uint64 start, uint64 end);
     /// @notice Thrown when an account is outside its role time window.
+    /// @param account Account whose role is inactive.
+    /// @param role Role being checked.
     error AccessControlRoleNotActive(address account, bytes32 role);
 
     /// @notice Grants `role` to `account` and sets an active time window.

@@ -13,8 +13,15 @@ interface IERC20TokenBase is IERC20Metadata {
     /// @notice Thrown when a required account is the zero address.
     error ERC20TokenZeroAddress();
     /// @notice Thrown when an account balance is insufficient.
+    /// @param account Account whose balance was checked.
+    /// @param available Current token balance.
+    /// @param required Required token amount.
     error ERC20TokenInsufficientBalance(address account, uint256 available, uint256 required);
     /// @notice Thrown when allowance is insufficient.
+    /// @param owner Allowance owner.
+    /// @param spender Allowance spender.
+    /// @param available Current allowance.
+    /// @param required Required allowance.
     error ERC20TokenInsufficientAllowance(address owner, address spender, uint256 available, uint256 required);
 
     /// @notice Returns true when ERC-20 storage is initialized.

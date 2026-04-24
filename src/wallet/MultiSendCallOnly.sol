@@ -6,6 +6,7 @@ import {IMultiSendCallOnly} from "../interfaces/IMultiSendCallOnly.sol";
 /// @title MultiSendCallOnly
 /// @notice Executes atomic call-only batches when delegatecalled from a wallet.
 contract MultiSendCallOnly is IMultiSendCallOnly {
+    /// @inheritdoc IMultiSendCallOnly
     function multiSend(bytes calldata transactions) external {
         uint256 totalLength = transactions.length;
         if (totalLength == 0) {

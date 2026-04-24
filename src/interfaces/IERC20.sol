@@ -5,9 +5,15 @@ pragma solidity ^0.8.30;
 /// @notice Minimal ERC-20 token interface.
 interface IERC20 {
     /// @notice Emitted when `value` tokens move from `from` to `to`.
+    /// @param from Source account.
+    /// @param to Recipient account.
+    /// @param value Token amount transferred.
     event Transfer(address indexed from, address indexed to, uint256 value);
 
     /// @notice Emitted when `owner` sets `value` allowance for `spender`.
+    /// @param owner Allowance owner.
+    /// @param spender Allowance spender.
+    /// @param value New allowance amount.
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
     /// @notice Returns the total token supply.

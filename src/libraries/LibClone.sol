@@ -4,8 +4,13 @@ pragma solidity ^0.8.30;
 /// @title LibClone
 /// @notice Minimal proxy deployment helpers for deterministic wallet clones.
 library LibClone {
+    /// @notice Reverts when CREATE2 clone deployment returns the zero address.
     error CloneCreate2Failed();
 
+    /// @notice Deploys an ERC-1167 minimal proxy clone with CREATE2.
+    /// @param implementation Logic contract address copied into the minimal proxy init code.
+    /// @param salt CREATE2 salt.
+    /// @return instance Deployed clone address.
     function cloneDeterministic(address implementation, bytes32 salt) internal returns (address instance) {
         bytes memory initCode = _minimalProxyInitCode(implementation);
         assembly {
@@ -17,6 +22,11 @@ library LibClone {
         }
     }
 
+    /// @notice Predicts the CREATE2 address for a deterministic minimal proxy clone.
+    /// @param implementation Logic contract address copied into the minimal proxy init code.
+    /// @param salt CREATE2 salt.
+    /// @param deployer Address that will deploy the clone.
+    /// @return predicted Predicted clone address.
     function predictDeterministicAddress(address implementation, bytes32 salt, address deployer)
         internal
         pure
