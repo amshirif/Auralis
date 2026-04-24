@@ -38,7 +38,9 @@ This repository runs security-focused CI checks in addition to baseline Foundry 
 - Trigger: pull requests, pushes to `main` and `milestone/**`, manual dispatch.
 - Tooling: `crytic/slither-action`.
 - Policy: fail when Slither reports **high-severity** findings (`fail-on: high`).
-- Scope: contract/static analysis findings are printed in CI logs.
+- Scope: contract/static analysis findings are printed in CI logs. The CI gate
+  intentionally keeps the broader `crytic/slither-action` scope, while local
+  triage can filter test and script findings to focus production closeout.
 
 ### Dependency Review (`.github/workflows/dependency-review.yml`)
 
@@ -173,12 +175,16 @@ progression.
 
 ### Slither
 
-Install and run the same high-severity gate locally:
+Install and run the local high-severity triage gate:
 
 ```bash
 python3 -m pip install --upgrade pip slither-analyzer
-slither . --exclude-dependencies --fail-on high
+slither . --exclude-dependencies --fail-high --filter-paths 'test/|script/'
 ```
+
+See [`../SLITHER_TRIAGE.md`](../SLITHER_TRIAGE.md) for the current accepted
+medium, low, and informational detector families, the measured local baseline,
+and the local-vs-CI scope difference.
 
 ### Dependency Review
 
