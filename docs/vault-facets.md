@@ -173,6 +173,14 @@ Initialization behavior:
 - `ERC4626VaultIntegrationFacet` has no independent initializer.
 - a second call to `initializeVault(...)` reverts.
 
+Post-initialization configuration is role-gated through the initialized control
+plane. `setOracleAdapter(...)`, `setStrategy(...)`, strategy lifecycle calls,
+and async settlement require `VAULT_MANAGER_ROLE`; installing the integration
+selectors, or retaining diamond ownership by itself, is not enough to call
+those operations after initialization. The initialized `admin` receives that
+manager role by default and can delegate or revoke it through the shared access
+control surface.
+
 The local reference deployment in `script/DeployDiamondVaultHost.s.sol` wires a
 vault-bound, asset-bound strategy by default. It leaves the vault in a ready
 state with:
@@ -432,12 +440,15 @@ Native hosted vaults use the ERC-7535-style entry surface for asset-in flows.
 ## Native-Asset Accounting And Safety Assumptions
 
 Hosted native vaults still use tracked managed assets rather than raw
-`address(this).balance`.
+`address(this).balance`. Force-sent ETH is untracked surplus, not managed vault
+capital.
 
 Implications:
-- force-sent ETH does not increase `totalManagedAssets()`
-- force-sent ETH does not increase share price through `totalAssets()` pricing
-- force-sent ETH does not increase hosted `maxWithdraw()` or `maxRedeem()`
+- force-sent ETH does not change `totalManagedAssets()`
+- force-sent ETH does not change `totalAssets()` pricing, conversions,
+  previews, or share issuance
+- force-sent ETH does not increase hosted `maxDeposit()`, `maxMint()`,
+  `maxWithdraw()`, or `maxRedeem()`
 - if a native exit is satisfied partly or fully from untracked force-sent ETH,
   book accounting only burns the tracked portion of assets
 
@@ -447,6 +458,10 @@ This is an explicit safety choice:
   to represent managed assets
 - the vault does not attempt to reconcile unsolicited ETH into strategy debt or
   book value automatically
+
+This follows ADR 0005 (`docs/adr/0005-exclude-force-sent-eth.md`) and is
+covered by `test/DiamondNativeVaultHostHardening.t.sol` and
+`test/DiamondNativeVaultHostInvariant.t.sol`.
 
 `withdraw(assets)` and `redeem(shares)` remain core-facet entrypoints, but they
 are strategy-aware.
