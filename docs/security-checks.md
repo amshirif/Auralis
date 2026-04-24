@@ -90,6 +90,10 @@ forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
 forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
 forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
 forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestAccountingInvariant.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestTime.t.sol
 forge test --offline --match-path test/ERC4626VaultIntegrationFacetCore.t.sol
 forge test --offline --match-path test/ERC4626VaultStrategyAccountingCore.t.sol
 forge test --offline --match-path test/VaultStrategyFoundationCore.t.sol
@@ -112,6 +116,10 @@ vault strategy suites:
 forge test --offline --match-path test/ERC7540VaultFoundationCore.t.sol
 forge test --offline --match-path test/ERC7540VaultDepositCore.t.sol
 forge test --offline --match-path test/ERC7540VaultRedeemCore.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestAccountingInvariant.t.sol
+forge test --offline --match-path test/ERC7540VaultDepositFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRedeemFuzz.t.sol
+forge test --offline --match-path test/ERC7540VaultRequestTime.t.sol
 forge test --offline --match-path test/DiamondVaultDeploymentIntegration.t.sol
 forge test --offline --match-path test/DiamondVaultHostHardening.t.sol
 forge test --offline --match-path test/DiamondVaultHostInvariant.t.sol
@@ -153,13 +161,15 @@ forge test --offline --match-path test/MultisigWalletFoundationCore.t.sol
 forge test --offline --match-path test/MultisigWalletCoreExecution.t.sol
 forge test --offline --match-path test/MultisigWalletIntegration.t.sol
 forge test --offline --match-path test/MultisigWalletManagement.t.sol
+forge test --offline --match-path test/MultisigWalletFuzz.t.sol
 forge test --offline --match-path test/MultisigWalletInvariant.t.sol
 ```
 
 Use these to reproduce initializer behavior, EIP-712 signing, ERC-1271
 verification, deterministic clone deployment, call-only batch execution,
 self-managed owner/threshold changes, and the wallet invariants around owner
-uniqueness, threshold bounds, and nonce progression.
+uniqueness, threshold bounds, signature validity, signer ordering, and nonce
+progression.
 
 ### Slither
 
