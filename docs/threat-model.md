@@ -30,7 +30,10 @@ For the accepted architecture decisions that shape these assumptions, see
 - Oracle reads fail closed by default and only degrade under explicit fallback policy.
 - Emergency pause controls can contain incidents.
 - Reentrant state-changing entrypoints are blocked.
-- Upgrade execution follows explicit authorization and guardrail checks.
+- Upgrade execution follows explicit authorization. Current diamond upgrades use
+  owner-gated `diamondCut` plus `LibDiamond` validation checks; optional
+  `UpgradeGuardrails` deployments add queue/timelock checks only when explicitly
+  integrated.
 - Vault share/accounting behavior remains explicit under rounding and low-liquidity edge conditions.
 - AMM liquidity, reserve updates, and fee-switch behavior remain explicit under
   direct-transfer, malformed-token, and adversarial routing conditions.
@@ -47,7 +50,8 @@ For the accepted architecture decisions that shape these assumptions, see
   withdraw, and ERC-20 transfer semantics.
 - Wallet owners review and approve transaction payloads securely off-chain.
 - The configured `MultiSendCallOnly` helper is the intended fixed batch helper for deployed wallets.
-- Deployed contracts integrate `_applyUpgrade` correctly for their proxy/diamond mechanism.
+- Deployments that opt into `UpgradeGuardrails` integrate `_applyUpgrade`
+  correctly for their own upgrade primitive.
 - Time-based checks rely on `block.timestamp` and accept normal timestamp variance.
 
 ## Key Threats and Mitigations
@@ -71,7 +75,11 @@ For the accepted architecture decisions that shape these assumptions, see
 - Mitigation: separate `ORACLE_ADMIN_ROLE` (config/reset) and `ORACLE_GUARDIAN_ROLE` (trip-only) with explicit admin hierarchy.
 
 7. Unsafe or rushed upgrades
-- Mitigation: upgrader role, queued intent model, optional timelock delay, strict implementation matching, cancel flow.
+- Mitigation: current diamond cuts require the diamond owner and pass
+  `LibDiamond` selector/init validation, with off-chain review, local rehearsal,
+  and post-cut loupe/smoke checks. Deployments that explicitly opt into
+  `UpgradeGuardrails` add `UPGRADER_ROLE`, queued intent, implementation match,
+  cancel flow, and optional timelock delay.
 
 8. Donation-style vault share-price manipulation
 - Mitigation: vault conversions use managed accounting (`totalManagedAssets`) instead of raw token balance.
@@ -123,8 +131,12 @@ For the accepted architecture decisions that shape these assumptions, see
 - Compromised privileged keys can still perform privileged actions.
 - Economic attacks and protocol-specific business logic exploits are out of scope for this base kit.
 - Oracle market manipulation resistance is feed/provider-specific and must be handled at integration and policy layers.
-- Diamond `diamondCut` flows include core guardrails, but governance policy (timelocks/multisig approvals) remains an integration responsibility.
-- The current upgrade guardrails check nonzero implementation; deeper bytecode/interface validation is protocol-specific and should be added where needed.
+- Diamond `diamondCut` flows include core diamond validation checks, but
+  governance policy (timelocks/multisig approvals) remains an integration
+  responsibility.
+- `UpgradeGuardrails` is standalone and checks only the queued implementation
+  address; deeper bytecode/interface validation is protocol-specific and should
+  be added by deployments that opt into the module.
 - Direct token donations to vault addresses can create untracked surplus unless explicitly reconciled by integration policy.
 - AMM cumulative prices are not, by themselves, a manipulation-resistant
   oracle design.
@@ -138,6 +150,7 @@ For the accepted architecture decisions that shape these assumptions, see
 ## Operational Guidance
 
 - Use multisig-controlled privileged roles in production.
-- Set nonzero upgrade delays in production.
+- Set nonzero upgrade delays in production deployments that opt into
+  `UpgradeGuardrails`.
 - Restrict and monitor role admin changes.
 - Keep pause and upgrade procedures documented and rehearsed.

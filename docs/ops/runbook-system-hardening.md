@@ -58,6 +58,8 @@ bash script/run-local-system-hardening.sh
   state-transition regressions after deployment.
 - Upgrade rehearsal failures point to selector-collision handling, failed-cut
   atomicity, init rollback, owner drift, or selector ownership drift.
+- Upgrade rehearsal does not exercise `UpgradeGuardrails`; it validates the
+  current owner-gated diamond cut path.
 - Targeted system suite failures point to vault accounting/pause/reentrancy
   regressions or oracle incident-handling regressions.
 - If the full hardening runner fails, inspect the first failing sub-step before

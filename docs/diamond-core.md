@@ -34,7 +34,7 @@ rest of the initial selector set before regular operations begin.
 `DiamondCutFacet.diamondCut(...)` enforces owner-only access, then calls
 `LibDiamond.diamondCut(...)`.
 
-Guardrails enforced in `LibDiamond`:
+Validation checks enforced in `LibDiamond`:
 
 - empty selector arrays revert (`DiamondCutEmptySelectors`).
 - add/replace targets must contain code (`DiamondTargetHasNoCode`).
@@ -91,6 +91,9 @@ To stay diamond-safe:
 
 - Diamond owner authority is highly privileged; use multisig/governance in production.
 - This core does not include built-in timelock/governance policy for cuts.
+- Current diamond cuts are not queued or timelocked through
+  `UpgradeGuardrails`; that module is standalone unless a future deployment
+  explicitly wires a guardrail controller.
 - Bootstrap/install strategy is deployment-specific and must be reviewed.
 - Safety depends on off-chain cut payload review and post-cut validation.
 

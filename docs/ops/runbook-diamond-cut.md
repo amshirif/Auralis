@@ -1,6 +1,9 @@
 # Runbook: Diamond Cut Execution
 
 Use this runbook for production-facing selector upgrades on the diamond core.
+This is the current repository flow: the owner submits `diamondCut(...)`
+directly to the diamond. `UpgradeGuardrails` is not part of this path unless a
+future deployment explicitly wires a guardrail controller.
 
 ## Preconditions
 
