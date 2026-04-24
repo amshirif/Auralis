@@ -62,8 +62,17 @@ library LibERC4626VaultControlLogic {
     }
 
     function withdrawGrossFromNet(uint256 assets) internal view returns (uint256 grossAssets, uint256 feeAssets) {
-        uint16 withdrawFeeBps = LibERC4626VaultStorage.layout().fees.withdrawFeeBps;
-        feeAssets = feeOnRaw(assets, withdrawFeeBps, FeeRounding.Up);
+        uint256 withdrawFeeBps = LibERC4626VaultStorage.layout().fees.withdrawFeeBps;
+
+        // Withdraw gross-up intentionally rounds down so it is inverse with the
+        // gross-asset fee basis used by withdrawNetFromGross().
+        uint256 denominator;
+        // Fee setters validate bps below the denominator, so this subtraction
+        // cannot underflow for supported vault state.
+        unchecked {
+            denominator = BPS_DENOMINATOR - withdrawFeeBps;
+        }
+        feeAssets = mulDiv(assets, withdrawFeeBps, denominator, FeeRounding.Down);
         grossAssets = assets + feeAssets;
     }
 

@@ -232,6 +232,39 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         IERC4626VaultFacet(address(diamond)).redeem(21, bob, bob);
     }
 
+    function testDiamondWithdrawAndRedeemUseSameGrossFeeBasisForNonRoundFees() public {
+        _installHostedVaultFacetsToDiamond();
+        _initializeDiamondVault();
+        address carol = address(0xCA20);
+        asset.mint(carol, 100);
+        _approveAsset(bob, address(diamond), 100);
+        _approveAsset(carol, address(diamond), 100);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(0, 3_333, eve);
+
+        VM.prank(bob);
+        IERC4626VaultFacet(address(diamond)).deposit(100, bob);
+        VM.prank(carol);
+        IERC4626VaultFacet(address(diamond)).deposit(100, carol);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 67, "maxWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100, "maxRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(67) == 100, "previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(100) == 67, "previewRedeem mismatch");
+
+        VM.prank(bob);
+        uint256 sharesBurned = IERC4626VaultFacet(address(diamond)).withdraw(67, bob, bob);
+        VM.prank(carol);
+        uint256 assetsOut = IERC4626VaultFacet(address(diamond)).redeem(100, carol, carol);
+
+        assertTrue(sharesBurned == 100, "withdraw should burn all owner shares");
+        assertTrue(assetsOut == 67, "redeem should return same net assets");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(bob) == 0, "bob shares should be exhausted");
+        assertTrue(IERC4626VaultFacet(address(diamond)).balanceOf(carol) == 0, "carol shares should be exhausted");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 66, "fee recipient balance mismatch");
+    }
+
     function testDiamondGlobalPauseBlocksVaultEntrypointsButNotShareTokenFlows() public {
         _installHostedVaultFacetsToDiamond();
         _initializeDiamondVault();
@@ -362,6 +395,35 @@ contract ERC4626VaultControlsFacetCoreTest is ERC4626VaultControlsFacetFixture {
         VM.prank(bob);
         VM.expectRevert(abi.encodeWithSelector(IERC4626VaultControls.ERC4626VaultRedeemLimitExceeded.selector, 21, 20));
         IERC4626VaultFacet(address(diamond)).redeem(21, bob, bob);
+    }
+
+    function testDiamondNativeWithdrawUsesGrossFeeBasisForNonRoundFees() public {
+        _installHostedVaultNativeFacetsToDiamond();
+
+        VM.prank(admin);
+        IERC4626VaultFacet(address(diamond))
+            .initializeVault(LibVaultAsset.NATIVE_ASSET_SENTINEL, "Vault Share", "vSHARE", admin);
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(0, 3_333, eve);
+
+        VM.deal(bob, 100);
+        VM.prank(bob);
+        IERC7535VaultFacet(address(diamond)).depositNative{value: 100}(bob);
+
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxWithdraw(bob) == 67, "native maxWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).maxRedeem(bob) == 100, "native maxRedeem mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewWithdraw(67) == 100, "native previewWithdraw mismatch");
+        assertTrue(IERC4626VaultFacet(address(diamond)).previewRedeem(100) == 67, "native previewRedeem mismatch");
+
+        uint256 bobBalanceBefore = bob.balance;
+        VM.prank(bob);
+        uint256 sharesBurned = IERC4626VaultFacet(address(diamond)).withdraw(67, bob, bob);
+
+        assertTrue(sharesBurned == 100, "native withdraw should burn all shares");
+        assertTrue(bob.balance == bobBalanceBefore + 67, "native receiver balance mismatch");
+        assertTrue(eve.balance == 33, "native fee recipient balance mismatch");
+        assertTrue(address(diamond).balance == 0, "native vault balance should be exhausted");
     }
 
     function testDiamondNativeGlobalPauseBlocksVaultEntrypointsButNotShareTokenFlows() public {

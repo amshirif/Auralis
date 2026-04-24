@@ -121,7 +121,8 @@ Deposit and mint use deposit fee:
   computed with fee gross-up.
 
 Withdraw and redeem use withdraw fee:
-- `withdraw(assetsOut)`: requested net assets are grossed-up before share burn.
+- `withdraw(assetsOut)`: requested net assets are grossed-up on the same
+  gross-asset fee basis used by redeem, then converted to burned shares.
 - `redeem(shares)`: gross assets from shares are computed first, then net
   receiver assets are derived by subtracting fee. Hosted redeems recompute the
   gross asset value after any strategy liquidity sourcing, so exact-share exits
@@ -129,8 +130,11 @@ Withdraw and redeem use withdraw fee:
 
 Fee rounding:
 - Deposit fee on raw assets rounds down.
-- Withdraw fee on requested net assets rounds up.
-- Withdraw fee on gross redeem amount rounds down.
+- Withdraw fee on gross exit assets rounds down.
+- Exact-withdraw gross-up rounds down to remain inverse with redeem's
+  net-from-gross calculation. For small exits with non-round withdraw fee bps,
+  this can pay less fee than a net-basis gross-up; that is intentional to avoid
+  withdraw/redeem route-choice differences.
 
 ## Limits and Cap Behavior (`ERC4626VaultControls`)
 

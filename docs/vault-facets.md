@@ -454,6 +454,8 @@ are strategy-aware.
 ### `withdraw(assets)`
 
 - exact-assets semantics are preserved
+- withdraw fees use the same gross-asset fee basis as `redeem(shares)`, so the
+  exact-assets gross-up is inverse with redeem's net-from-gross calculation
 - if idle vault assets are insufficient, the core facet automatically pulls
   immediately withdrawable strategy liquidity
 - if the requested assets still cannot be sourced after realizing any loss, the
@@ -467,6 +469,8 @@ are strategy-aware.
 - the vault burns the requested shares and returns the post-sourcing asset value
   of those shares after any strategy gain/loss reconciliation performed during
   the call
+- withdraw fees are deducted from the gross asset value, matching the
+  exact-withdraw fee basis
 - `previewRedeem()` remains a pre-call quote; actual `redeem()` output can
   differ if liquidity sourcing changes strategy accounting in the transaction
 

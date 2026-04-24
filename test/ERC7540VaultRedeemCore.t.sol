@@ -121,6 +121,43 @@ contract ERC7540VaultRedeemCoreTest is ERC4626VaultFacetFixture {
         assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 25, "receiver asset balance mismatch");
     }
 
+    function testAsyncWithdrawAndRedeemUseSameGrossFeeBasisForNonRoundFees() public {
+        _initializeDiamondFullAsyncVault();
+
+        VM.prank(admin);
+        IERC4626VaultControlsFacet(address(diamond)).setFeeConfig(0, 3_333, admin);
+
+        _seedClaimedShares(bob, 100);
+        _seedClaimedShares(eve, 100);
+
+        VM.prank(bob);
+        IERC7540Redeem(address(diamond)).requestRedeem(100, bob, bob);
+        _settleRedeem(bob, 100);
+
+        VM.prank(eve);
+        IERC7540Redeem(address(diamond)).requestRedeem(100, eve, eve);
+        _settleRedeem(eve, 100);
+
+        assertTrue(IERC4626(address(diamond)).maxWithdraw(bob) == 67, "async maxWithdraw mismatch");
+        assertTrue(IERC4626(address(diamond)).maxRedeem(bob) == 100, "async maxRedeem mismatch");
+
+        uint256 bobAssetsBefore = asset.balanceOf(bob);
+        uint256 eveAssetsBefore = asset.balanceOf(eve);
+
+        VM.prank(bob);
+        uint256 withdrawnShares = IERC4626(address(diamond)).withdraw(67, bob, bob);
+        VM.prank(eve);
+        uint256 redeemedAssets = IERC4626(address(diamond)).redeem(100, eve, eve);
+
+        assertTrue(withdrawnShares == 100, "async withdraw should burn all claimable shares");
+        assertTrue(redeemedAssets == 67, "async redeem should return same net assets");
+        assertTrue(asset.balanceOf(bob) == bobAssetsBefore + 67, "async withdraw receiver balance mismatch");
+        assertTrue(asset.balanceOf(eve) == eveAssetsBefore + 67, "async redeem receiver balance mismatch");
+        assertTrue(asset.balanceOf(admin) == 66, "async fee recipient balance mismatch");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, bob) == 0, "bob claimable mismatch");
+        assertTrue(IERC7540Redeem(address(diamond)).claimableRedeemRequest(0, eve) == 0, "eve claimable mismatch");
+    }
+
     function testAsyncRedeemRepricesAfterWithdrawalTimeLoss() public {
         _initializeDiamondFullAsyncVault();
         _seedClaimedShares(bob, 100);

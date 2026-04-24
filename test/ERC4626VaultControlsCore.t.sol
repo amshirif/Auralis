@@ -160,6 +160,74 @@ contract ERC4626VaultControlsCoreTest is ERC4626VaultControlsFixture {
         assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 2, "fee recipient balance mismatch");
     }
 
+    function testWithdrawAndRedeemUseSameGrossFeeBasisForNonRoundFees() public {
+        _seedPosition(bob, 100);
+
+        VM.prank(admin);
+        vault.setFeeConfig(0, 3_333, eve);
+
+        assertTrue(vault.previewWithdraw(2) == 2, "previewWithdraw should use gross-basis inverse");
+
+        VM.prank(bob);
+        uint256 sharesBurned = vault.withdraw(2, bob, bob);
+
+        assertTrue(sharesBurned == 2, "withdraw burned shares mismatch");
+        assertTrue(vault.totalAssets() == 98, "total assets mismatch after withdraw");
+        assertTrue(vault.balanceOf(bob) == 98, "share balance mismatch after withdraw");
+        assertTrue(asset.balanceOf(bob) == INITIAL_ASSETS + 2, "withdraw receiver balance mismatch");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS, "fee recipient should not receive rounded-up fee");
+
+        VM.prank(bob);
+        uint256 assetsOut = vault.redeem(2, bob, bob);
+
+        assertTrue(assetsOut == 2, "redeem should match same gross-basis fee outcome");
+        assertTrue(vault.totalAssets() == 96, "total assets mismatch after redeem");
+        assertTrue(vault.balanceOf(bob) == 96, "share balance mismatch after redeem");
+        assertTrue(asset.balanceOf(bob) == INITIAL_ASSETS + 4, "redeem receiver balance mismatch");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS, "fee recipient balance should stay unchanged");
+    }
+
+    function testWithdrawAndRedeemRemainEquivalentWhenGrossFeeRoundsUpToOneAsset() public {
+        _seedPosition(bob, 100);
+
+        VM.prank(admin);
+        vault.setFeeConfig(0, 5_000, eve);
+
+        assertTrue(vault.previewWithdraw(1) == 2, "previewWithdraw mismatch");
+
+        VM.prank(bob);
+        uint256 sharesBurned = vault.withdraw(1, bob, bob);
+
+        assertTrue(sharesBurned == 2, "withdraw burned shares mismatch");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 1, "withdraw fee recipient balance mismatch");
+
+        VM.prank(bob);
+        uint256 assetsOut = vault.redeem(2, bob, bob);
+
+        assertTrue(assetsOut == 1, "redeem assets mismatch");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 2, "redeem fee recipient balance mismatch");
+    }
+
+    function testMaxAndPreviewWithdrawRedeemRemainInverseForNonRoundFees() public {
+        _seedPosition(bob, 100);
+
+        VM.prank(admin);
+        vault.setFeeConfig(0, 3_333, eve);
+
+        assertTrue(vault.maxWithdraw(bob) == 67, "maxWithdraw mismatch");
+        assertTrue(vault.maxRedeem(bob) == 100, "maxRedeem mismatch");
+        assertTrue(vault.previewWithdraw(67) == 100, "previewWithdraw max mismatch");
+        assertTrue(vault.previewRedeem(100) == 67, "previewRedeem max mismatch");
+
+        VM.prank(bob);
+        uint256 sharesBurned = vault.withdraw(67, bob, bob);
+
+        assertTrue(sharesBurned == 100, "withdraw should burn all shares");
+        assertTrue(vault.totalAssets() == 0, "total assets should be exhausted");
+        assertTrue(vault.balanceOf(bob) == 0, "share balance should be exhausted");
+        assertTrue(asset.balanceOf(eve) == INITIAL_ASSETS + 33, "fee recipient balance mismatch");
+    }
+
     function testDepositLimitEnforced() public {
         VM.prank(admin);
         vault.setLimitConfig(0, 50, 0, 0, 0);
