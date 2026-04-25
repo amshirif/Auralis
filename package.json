@@ -1,0 +1,35 @@
+{
+  "name": "@amshirif/auralis",
+  "version": "1.0.1",
+  "description": "Security-first Solidity protocol engineering portfolio contracts and validation artifacts.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amshirif/Auralis.git"
+  },
+  "homepage": "https://github.com/amshirif/Auralis#readme",
+  "bugs": {
+    "url": "https://github.com/amshirif/Auralis/issues"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "foundry",
+    "defi",
+    "erc4626",
+    "erc7540",
+    "diamond-standard",
+    "smart-contracts"
+  ],
+  "files": [
+    "src",
+    "docs",
+    "!docs/assets",
+    "foundry.toml",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
