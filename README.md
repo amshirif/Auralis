@@ -8,6 +8,7 @@
     <a href="https://github.com/amshirif/Auralis/actions/workflows/ci.yml"><img src="https://github.com/amshirif/Auralis/actions/workflows/ci.yml/badge.svg" alt="Foundry CI" /></a>
     <a href="https://github.com/amshirif/Auralis/actions/workflows/slither.yml"><img src="https://github.com/amshirif/Auralis/actions/workflows/slither.yml/badge.svg" alt="Slither" /></a>
     <a href="https://github.com/amshirif/Auralis/actions/workflows/system-hardening.yml"><img src="https://github.com/amshirif/Auralis/actions/workflows/system-hardening.yml/badge.svg" alt="System Hardening" /></a>
+    <a href="https://www.npmjs.com/package/@amirshirif/auralis"><img src="https://img.shields.io/npm/v/@amirshirif/auralis" alt="npm version" /></a>
     <img src="https://img.shields.io/github/license/amshirif/Auralis" alt="License" />
   </p>
 
@@ -43,6 +44,12 @@ reviewable engineering system.
 - Security assumptions: `docs/threat-model.md`
 - Validation and CI policy: `docs/security-checks.md`
 - Local workflow and deployment artifacts: `docs/auralis-local.md`
+
+## Install From npm
+
+```shell
+npm install @amirshirif/auralis
+```
 
 ## What This Repo Proves
 
