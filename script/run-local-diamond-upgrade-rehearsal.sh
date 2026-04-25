@@ -7,12 +7,11 @@ ANVIL_PORT="${ANVIL_PORT:-8545}"
 ANVIL_CHAIN_ID="${ANVIL_CHAIN_ID:-31337}"
 RPC_URL="${RPC_URL:-http://${ANVIL_HOST}:${ANVIL_PORT}}"
 ANVIL_LOG_PATH="${ANVIL_LOG_PATH:-${ROOT_DIR}/.anvil-upgrade-rehearsal.log}"
-PRIVATE_KEY="${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
+PRIVATE_KEY="${PRIVATE_KEY:-}"
 DEPLOYMENT_ARTIFACT="${ROOT_DIR}/deployments/diamond-core.local.json"
 REHEARSAL_ARTIFACT="${ROOT_DIR}/deployments/diamond-core.upgrade-rehearsal.local.json"
 ZERO_ADDRESS="0x0000000000000000000000000000000000000000"
 
-export PRIVATE_KEY
 export NO_PROXY="${NO_PROXY:-127.0.0.1,localhost}"
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 
@@ -26,6 +25,29 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+load_anvil_key_if_needed() {
+  if [[ -n "${PRIVATE_KEY}" ]]; then
+    return 0
+  fi
+
+  PRIVATE_KEY="$(awk '
+    /^Private Keys/ { in_keys = 1; next }
+    in_keys && /^\([0-9]+\)/ {
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^0x[[:xdigit:]]{64}$/) {
+          print $i
+          exit
+        }
+      }
+    }
+  ' "${ANVIL_LOG_PATH}")"
+
+  if [[ -z "${PRIVATE_KEY}" ]]; then
+    echo "Set PRIVATE_KEY, or run against a managed Anvil that prints local test keys." >&2
+    exit 1
+  fi
+}
 
 json_value() {
   python3 -c 'import json, sys; print(json.load(open(sys.argv[1], "r", encoding="utf-8"))[sys.argv[2]])' "$1" "$2"
@@ -47,6 +69,9 @@ if ! cast block-number --rpc-url "${RPC_URL}" >/dev/null 2>&1; then
   echo "Anvil did not become ready. See ${ANVIL_LOG_PATH}."
   exit 1
 fi
+
+load_anvil_key_if_needed
+export PRIVATE_KEY
 
 cd "${ROOT_DIR}"
 

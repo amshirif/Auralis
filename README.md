@@ -1,14 +1,23 @@
-<p align="center">
-  <img src="docs/assets/auralis-logo.svg" alt="Auralis logo" width="140" />
-</p>
+<div align="center">
+  <img src="docs/assets/auralis-logo.png" alt="Auralis logo" width="286" />
 
-# Auralis
+  <h1 style="margin-top: -24px;">Auralis</h1>
 
-![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636?logo=solidity)
-[![Foundry CI](https://github.com/amshirif/Auralis/actions/workflows/ci.yml/badge.svg)](https://github.com/amshirif/Auralis/actions/workflows/ci.yml)
-![License](https://img.shields.io/github/license/amshirif/Auralis)
+  <p>
+    <img src="https://img.shields.io/badge/Solidity-0.8.34-363636?logo=solidity" alt="Solidity 0.8.34" />
+    <a href="https://github.com/amshirif/Auralis/actions/workflows/ci.yml"><img src="https://github.com/amshirif/Auralis/actions/workflows/ci.yml/badge.svg" alt="Foundry CI" /></a>
+    <a href="https://github.com/amshirif/Auralis/actions/workflows/slither.yml"><img src="https://github.com/amshirif/Auralis/actions/workflows/slither.yml/badge.svg" alt="Slither" /></a>
+    <a href="https://github.com/amshirif/Auralis/actions/workflows/system-hardening.yml"><img src="https://github.com/amshirif/Auralis/actions/workflows/system-hardening.yml/badge.svg" alt="System Hardening" /></a>
+    <img src="https://img.shields.io/github/license/amshirif/Auralis" alt="License" />
+  </p>
 
-Security-first Solidity systems.
+  <p><strong>Security-first Solidity systems.</strong></p>
+
+  <p>
+    Auralis is not a production deployment; it is a public portfolio and review
+    artifact for Solidity protocol-engineering work.
+  </p>
+</div>
 
 `Auralis` is a protocol-engineering portfolio repository focused on
 security-first, upgrade-aware Solidity systems. It combines modular contract
@@ -43,12 +52,14 @@ reviewable engineering system.
 - Safety posture: RBAC, timed permissions, pause semantics, reentrancy
   protection, oracle validation, upgrade guardrails, and threshold-based wallet
   execution.
-- Protocol surfaces: ERC20 and ERC721 token hosts plus a hosted ERC-4626 vault
-  platform with controls, strategy integration, native-asset support, and an
-  ERC-7540 async request track for ERC-20 hosts, plus a standalone V2-style
-  AMM with deterministic pair deployment, wrapped-native routing, and
-  protocol-fee controls, plus a standalone multisig wallet with single-call,
-  batch, and self-managed configuration flows.
+- Token hosts: ERC20 and ERC721 diamond deployments with role, pause, Permit,
+  metadata, and selector ownership coverage.
+- Vault platform: hosted ERC-4626 vaults with controls, strategy integration,
+  native-asset support, and an ERC-7540 async request track for ERC-20 hosts.
+- AMM track: standalone V2-style AMM with deterministic pair deployment,
+  wrapped-native routing, pricing math, and protocol-fee controls.
+- Wallet track: standalone multisig wallet with single-call, batch, and
+  self-managed configuration flows.
 - Operational maturity: local bootstrap, smoke validation, activity flows,
   upgrade rehearsal, and matching CI/hardening gates.
 
@@ -146,17 +157,19 @@ reviewable engineering system.
 
 ## Validation Path
 
-Foundry uses the Solidity compiler pinned in `foundry.toml` (currently
-`0.8.34`); Foundry `1.4.3` will fetch that compiler version on first build if
-it is not already installed locally.
+Foundry uses the Solidity compiler pinned in `foundry.toml` and will fetch that
+compiler version on first build if it is not already installed locally.
 
-Run a bounded reviewer-facing path with the curated groups below. The fuller
-local command inventory lives in `docs/security-checks.md`.
+Run the full local validation path with:
 
 ```shell
 forge fmt --check
 forge build --sizes --skip script
+forge test --offline
 ```
+
+For focused reviewer-facing validation, use the curated groups below. The fuller
+local command inventory lives in `docs/security-checks.md`.
 
 For hosted diamond and vault behavior:
 
@@ -246,9 +259,13 @@ GitHub template guidance are provided for public review, while community
 operations files such as `CODE_OF_CONDUCT.md`, `SUPPORT.md`, and `FUNDING.yml`
 are intentionally omitted.
 
-## AI Usage
+## Provenance And AI Assistance
+
+Auralis incorporates and refines selected patterns, utilities, and implementation
+ideas from earlier private portfolio projects.
+
+The protocol architecture, implementation code, technical decisions, curation of
+prior work, and final review/integration of changes were directed and owned by
+me.
 
 AI assistance was used for tests, documentation, scripts, and planning support.
-
-The protocol architecture, technical decisions, and final review/integration of
-changes were directed and owned by me.

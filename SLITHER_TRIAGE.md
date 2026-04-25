@@ -7,7 +7,7 @@ detectors globally, change public ABI shape, or change runtime behavior.
 
 ## Measured Baseline
 
-- Branch: `codex/close-slither-triage-218`
+- Branch: pre-public audit remediation task branch for issue #218
 - Commit measured: `10cdef11aa01b142a50f6dfc402897414a72a596`
 - Slither version: `0.11.5`
 - CLI flag verified with: `slither --help`
