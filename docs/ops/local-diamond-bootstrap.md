@@ -16,9 +16,10 @@ uses `diamondCut` to add the loupe selectors.
 
 - `anvil`
 - `forge`
-- `PRIVATE_KEY` set to the funded local Anvil account you want to deploy from.
-  Use a key from Anvil's startup output for local testing; never use a funded
-  network key.
+- `PRIVATE_KEY` set to the funded local Anvil account you want to deploy from
+  when connecting to an existing local node. The managed smoke and rehearsal
+  scripts can derive local test keys from the Anvil process they start. Never
+  use a funded network key.
 
 ## Run
 
