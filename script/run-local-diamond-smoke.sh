@@ -7,8 +7,8 @@ ANVIL_PORT="${ANVIL_PORT:-8545}"
 ANVIL_CHAIN_ID="${ANVIL_CHAIN_ID:-31337}"
 RPC_URL="${RPC_URL:-http://${ANVIL_HOST}:${ANVIL_PORT}}"
 ANVIL_LOG_PATH="${ANVIL_LOG_PATH:-${ROOT_DIR}/.anvil-smoke.log}"
-PRIVATE_KEY="${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
-NEXT_OWNER_PRIVATE_KEY="${NEXT_OWNER_PRIVATE_KEY:-0x59c6995e998f97a5a0044976f094538e0d7bafad8d4d49d7dc1f6c4b2f6e6d5f}"
+PRIVATE_KEY="${PRIVATE_KEY:?Set PRIVATE_KEY to a funded local Anvil account key before running this smoke script.}"
+NEXT_OWNER_PRIVATE_KEY="${NEXT_OWNER_PRIVATE_KEY:?Set NEXT_OWNER_PRIVATE_KEY to a second local Anvil account key before running this smoke script.}"
 
 export PRIVATE_KEY
 export NEXT_OWNER_PRIVATE_KEY

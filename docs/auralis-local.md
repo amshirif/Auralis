@@ -14,8 +14,9 @@ test-first local flow rather than a managed deployment script stack.
 - `cast`
 - Python 3
 
-The scripts assume the default local Anvil account key unless overridden with
-`PRIVATE_KEY` and `ALICE_PRIVATE_KEY`.
+Set `PRIVATE_KEY` and `ALICE_PRIVATE_KEY` to funded local Anvil account keys
+before running the scripts. For local-only testing, use keys from Anvil's
+startup output; never use funded network keys.
 
 ## Commands
 
