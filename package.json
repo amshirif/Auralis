@@ -1,6 +1,6 @@
 {
-  "name": "@amshirif/auralis",
-  "version": "1.0.1",
+  "name": "@amirshirif/auralis",
+  "version": "1.0.2",
   "description": "Security-first Solidity protocol engineering portfolio contracts and validation artifacts.",
   "license": "MIT",
   "repository": {
